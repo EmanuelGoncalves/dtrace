@@ -4,7 +4,7 @@
 import pandas as pd
 import scripts.drug as dc
 
-MOBEM_PANCAN = './data/gdsc/mobems/PANCAN_simple_MOBEM.rdata.tsv'
+MOBEM_PANCAN = './data/gdsc/PANCAN_mobem.csv'
 
 
 def assemble_mobem(samplesheet, file=None, filter_hyper=True):

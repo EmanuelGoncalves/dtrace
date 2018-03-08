@@ -4,7 +4,7 @@
 import numpy as np
 import pandas as pd
 from scipy.stats import iqr
-from scripts.drug.assemble_ppi import STRING_PICKLE, BIOGRID_PICKLE
+from cdrug.assemble.assemble_ppi import STRING_PICKLE, BIOGRID_PICKLE
 
 # META DATA
 SAMPLESHEET_FILE = 'data/gdsc/samplesheet.csv'
@@ -39,7 +39,7 @@ def scale_crispr(df, essential=None, non_essential=None, metric=np.median):
     if non_essential is None:
         non_essential = set(pd.read_csv(HART_NON_ESSENTIAL)['gene'])
 
-    assert len(essential.intersection(df.index)) !=0, 'DataFrame has no index overlapping with essential list'
+    assert len(essential.intersection(df.index)) != 0, 'DataFrame has no index overlapping with essential list'
     assert len(non_essential.intersection(df.index)) != 0, 'DataFrame has no index overlapping with non essential list'
 
     essential_metric = metric(df.reindex(essential).dropna(), axis=0)
