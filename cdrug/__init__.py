@@ -3,12 +3,13 @@
 
 import numpy as np
 import pandas as pd
+import seaborn as sns
 from scipy.stats import iqr
 from cdrug.assemble.assemble_ppi import STRING_PICKLE, BIOGRID_PICKLE
 
 # META DATA
 SAMPLESHEET_FILE = 'data/gdsc/samplesheet.csv'
-DRUGSHEET_FILE = 'data/gdsc/drug_samplesheet.csv'
+DRUGSHEET_FILE = 'data/drugsheet.tsv'
 
 # GENE LISTS
 HART_ESSENTIAL = 'data/gene_sets/curated_BAGEL_essential.csv'
@@ -25,9 +26,24 @@ CRISPR_GENE_FC_CORRECTED = 'data/gdsc/crispr/corrected_logFCs_march_2018.tsv'
 # DRUG-RESPONSE
 DRUG_RESPONSE_FILE = 'data/gdsc/drug_single/drug_ic50_merged_matrix.csv'
 
+DRUG_RESPONSE_V17 = '/Users/eg14/Data/gdsc/drug_single/all_drug_ic50s_20180309/screening_set_384_all_owners_fitted_data_20180308.csv'
+DRUG_RESPONSE_VRS = '/Users/eg14/Data/gdsc/drug_single/all_drug_ic50s_20180309/rapid_screen_1536_all_owners_fitted_data_20180308.csv'
+
 # GENOMIC
 MOBEM_FILE = 'data/gdsc/PANCAN_mobem.csv'
 
+# Palette
+bipal_dbgd = {1: '#F2C500', 0: '#37454B'}
+
+
+# Set plotting aesthetics
+sns_rc = {
+    'axes.linewidth': .3,
+    'xtick.major.width': .3, 'ytick.major.width': .3,
+    'xtick.major.size': 2.5, 'ytick.major.size': 2.5,
+    'xtick.direction': 'in', 'ytick.direction': 'in'
+}
+sns.set(style='ticks', context='paper', rc=sns_rc)
 
 """
 Function adapted from CERES (https://github.com/cancerdatasci/ceres, http://dx.doi.org/10.1038/ng.3984).
