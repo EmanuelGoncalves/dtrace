@@ -39,15 +39,12 @@ if __name__ == '__main__':
     d_v17 = pd.read_csv(cdrug.DRUG_RESPONSE_V17)
     d_vrs = pd.read_csv(cdrug.DRUG_RESPONSE_VRS)
 
-    #
+    # - Check drugs overlap
     df_count = {}
     for t, f in [('All', False), ('Pub&Web', True)]:
         df_count[t] = {}
 
-        ds = pd.read_csv(cdrug.DRUGSHEET_FILE, sep='\t', index_col=0)
-
-        if f:
-            ds = ds[[w == 'Y' or p == 'Y' for w, p in ds[['Web Release', 'Suitable for publication']].values]]
+        ds = cdrug.import_drug_list(filter_web_pub=f)
 
         d_id_v17 = list(set(d_v17['DRUG_ID_lib']).intersection(ds.index))
         d_match_v17 = pd.DataFrame({d1: {d2: int(is_same_drug(d1, d2, ds)) for d2 in d_id_v17} for d1 in d_id_v17})

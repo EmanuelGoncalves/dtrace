@@ -31,6 +31,9 @@ if __name__ == '__main__':
     # MOBEMS
     mobem = pd.read_csv('data/gdsc/mobems/PANCAN_simple_MOBEM.rdata.annotated.all.csv', index_col=0)
 
+    # Gene-expression
+    gexp = pd.read_csv('data/gdsc/gene_expression/merged_voom_preprocessed.csv', index_col=0)
+
     # -
     samples = list(set(crispr).intersection(n_mutations.index).intersection(ss.index).intersection(methy))
     print('Samples: %d' % len(samples))
@@ -49,6 +52,8 @@ if __name__ == '__main__':
 
         crispr_scaled.loc['WRN'].apply(lambda x: int(x < -1)).rename('WRN (essential)'),
 
+        gexp.loc['WRN', samples].rename('WRN (expression)'),
+
         methy.loc['MLH1', samples].apply(lambda x: int(x > .66)).rename('MLH1 (hypermethylation)'),
 
         wes[wes['Gene'].isin(['POLE'])].drop_duplicates(subset=['SAMPLE', 'Gene']).set_index('SAMPLE').assign(value=1)['value'].reindex(samples).replace(np.nan, 0).rename('POLE (mutation)'),
@@ -62,7 +67,7 @@ if __name__ == '__main__':
     ], axis=1).dropna()
     plot_df = plot_df.reset_index().sort_values('mutations', ascending=False)
 
-    plot_df = plot_df[plot_df['MSI'] == 1]
+    plot_df = plot_df[plot_df['MSI'] == 0]
     plot_df = plot_df[plot_df[['Colorectal Carcinoma', 'Ovarian Carcinoma']].sum(1) > 0]
 
     plot_df = plot_df.assign(pos=range(plot_df.shape[0]))
@@ -111,4 +116,9 @@ if __name__ == '__main__':
     #
     plt.gcf().set_size_inches(4, 5)
     plt.savefig('reports/mmr_mutation_count.png', bbox_inches='tight', dpi=600)
+    plt.close('all')
+
+    #
+    sns.jointplot('WRN (expression)', 'mutations', data=plot_df)
+    plt.savefig('reports/mmr_mutation_wrn_expression.png', bbox_inches='tight', dpi=600)
     plt.close('all')

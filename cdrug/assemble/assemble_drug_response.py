@@ -54,8 +54,8 @@ def merge_drug_dfs(d_17, d_rs, drug_id_remove, deprecated_id):
     index, columns, value = ('DRUG_ID', 'DRUG_NAME', 'VERSION'), ('COSMIC_ID', 'CELL_LINE_NAME'), 'IC50_nat_log'
 
     # Replace deprecated DRUG_IDs
-    d_17 = d_17.replace({'DRUG_ID': deprecated_ids.to_dict()})
-    d_rs = d_rs.replace({'DRUG_ID': deprecated_ids.to_dict()})
+    d_17 = d_17.replace({'DRUG_ID': deprecated_id.to_dict()})
+    d_rs = d_rs.replace({'DRUG_ID': deprecated_id.to_dict()})
 
     # Build tables and exclude mismatching drugs
     drug_v17_matrix_m = pd.pivot_table(d_17, index=index, columns=columns, values=value)

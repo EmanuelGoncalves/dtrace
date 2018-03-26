@@ -8,8 +8,8 @@ from scipy.stats import iqr
 from cdrug.assemble.assemble_ppi import STRING_PICKLE, BIOGRID_PICKLE
 
 # META DATA
-SAMPLESHEET_FILE = 'data/gdsc/samplesheet.csv'
-DRUGSHEET_FILE = 'data/drugsheet.tsv'
+SAMPLESHEET_FILE = 'data/samplesheet.csv'
+DRUGSHEET_FILE = 'data/drug_samplesheet.csv'
 
 # GENE LISTS
 HART_ESSENTIAL = 'data/gene_sets/curated_BAGEL_essential.csv'
@@ -19,15 +19,14 @@ HART_NON_ESSENTIAL = 'data/gene_sets/curated_BAGEL_nonEssential.csv'
 GROWTHRATE_FILE = 'data/gdsc/growth/growth_rate.csv'
 
 # CRISPR
-CRISPR_GENES_FILE = 'data/gdsc/crispr/_00_Genes_for_panCancer_assocStudies.txt'
-
+CRISPR_GENE_FILE = 'data/gdsc/crispr/_00_Genes_for_panCancer_assocStudies.txt'
 CRISPR_GENE_FC_CORRECTED = 'data/gdsc/crispr/corrected_logFCs_march_2018.tsv'
 
 # DRUG-RESPONSE
 DRUG_RESPONSE_FILE = 'data/gdsc/drug_single/drug_ic50_merged_matrix.csv'
 
-DRUG_RESPONSE_V17 = '/Users/eg14/Data/gdsc/drug_single/all_drug_ic50s_20180309/screening_set_384_all_owners_fitted_data_20180308.csv'
-DRUG_RESPONSE_VRS = '/Users/eg14/Data/gdsc/drug_single/all_drug_ic50s_20180309/rapid_screen_1536_all_owners_fitted_data_20180308.csv'
+DRUG_RESPONSE_V17 = 'data/screening_set_384_all_owners_fitted_data_20180308.csv'
+DRUG_RESPONSE_VRS = 'data/rapid_screen_1536_all_owners_fitted_data_20180308.csv'
 
 # GENOMIC
 MOBEM_FILE = 'data/gdsc/PANCAN_mobem.csv'
@@ -45,9 +44,18 @@ sns_rc = {
 }
 sns.set(style='ticks', context='paper', rc=sns_rc)
 
-"""
-Function adapted from CERES (https://github.com/cancerdatasci/ceres, http://dx.doi.org/10.1038/ng.3984).
-"""
+
+def import_drug_list(filter_web_pub=True, drug_list_file=None, sep='\t', index_col=0):
+    drug_list_file = DRUGSHEET_FILE if drug_list_file is None else drug_list_file
+
+    ds = pd.read_csv(drug_list_file, sep=sep, index_col=index_col)
+
+    if filter_web_pub:
+        ds = ds[[w == 'Y' or p == 'Y' for w, p in ds[['Web Release', 'Suitable for publication']].values]]
+
+    return ds
+
+
 def scale_crispr(df, essential=None, non_essential=None, metric=np.median):
     if essential is None:
         essential = set(pd.read_csv(HART_ESSENTIAL)['gene'])
@@ -67,7 +75,7 @@ def scale_crispr(df, essential=None, non_essential=None, metric=np.median):
 
 
 def crispr_genes(file=None, samples_thres=5, type_thres=3):
-    file = CRISPR_GENES_FILE if file is None else file
+    file = CRISPR_GENE_FILE if file is None else file
 
     c_genes = pd.read_csv(file, sep='\t', index_col=0)
 
@@ -80,7 +88,7 @@ def crispr_genes(file=None, samples_thres=5, type_thres=3):
 
 def filter_crispr(df, essential=None, essential_thres=90, value_thres=1.5, value_nevents=5):
     if not isinstance(essential, set):
-        essential = pd.read_csv(CRISPR_GENES_FILE, sep='\t', index_col=0)['n. vulnerable cell lines']
+        essential = pd.read_csv(CRISPR_GENE_FILE, sep='\t', index_col=0)['n. vulnerable cell lines']
         essential = set(essential[essential > essential_thres].index)
 
     assert len(essential) != 0, 'Essential genes list is empty'

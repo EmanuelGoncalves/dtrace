@@ -13,7 +13,7 @@ from matplotlib.colors import rgb2hex
 from crispy.regression.linear import lr
 from sklearn.preprocessing import StandardScaler
 from statsmodels.stats.multitest import multipletests
-from scripts.drug.assemble_ppi import build_biogrid_ppi
+from cdrug.assemble.assemble_ppi import build_biogrid_ppi
 from sklearn.metrics import roc_curve, auc, precision_recall_curve, average_precision_score
 
 
@@ -355,46 +355,39 @@ if __name__ == '__main__':
     # - Plot
     fdr_thres, beta_thres = 0.05, 0.5
 
-    # Volcano
-    plot_volcano(lm_res_df, fdr_thres, beta_thres)
-
-    plt.gcf().set_size_inches(2., 4.)
-    plt.savefig('reports/drug/lm_crispr_volcano.png', bbox_inches='tight', dpi=1200)
-    plt.close('all')
-
-    # Barplot count number of significant associations
-    plot_barplot_signif_assoc(lm_res_df, fdr_thres, beta_thres)
-
-    plt.gcf().set_size_inches(3, 1.5)
-    plt.savefig('reports/drug/signif_assoc_count.png', bbox_inches='tight', dpi=600)
-    plt.close('all')
-
-    # Targets cumulative distribution
-    plot_target_cumsum(lm_res_df)
-
-    plt.gcf().set_size_inches(2.5, 2)
-    plt.savefig('reports/drug/drug_target_cum_dist.png', bbox_inches='tight', dpi=600)
-    plt.close('all')
-
-    plot_target_boxplot(lm_res_df)
-
-    plt.title('Drug-targets in protein-protein networks')
-    plt.gcf().set_size_inches(3, 1.5)
-    plt.savefig('reports/drug/ppi_boxplot.png', bbox_inches='tight', dpi=600)
-    plt.close('all')
+    # # Volcano
+    # plot_volcano(lm_res_df, fdr_thres, beta_thres)
+    #
+    # plt.gcf().set_size_inches(2., 4.)
+    # plt.savefig('reports/drug/lm_crispr_volcano.png', bbox_inches='tight', dpi=1200)
+    # plt.close('all')
+    #
+    # # Barplot count number of significant associations
+    # plot_barplot_signif_assoc(lm_res_df, fdr_thres, beta_thres)
+    #
+    # plt.gcf().set_size_inches(3, 1.5)
+    # plt.savefig('reports/drug/signif_assoc_count.png', bbox_inches='tight', dpi=600)
+    # plt.close('all')
+    #
+    # # Targets cumulative distribution
+    # plot_target_cumsum(lm_res_df)
+    #
+    # plt.gcf().set_size_inches(2.5, 2)
+    # plt.savefig('reports/drug/drug_target_cum_dist.png', bbox_inches='tight', dpi=600)
+    # plt.close('all')
+    #
+    # plot_target_boxplot(lm_res_df)
+    #
+    # plt.title('Drug-targets in protein-protein networks')
+    # plt.gcf().set_size_inches(3, 1.5)
+    # plt.savefig('reports/drug/ppi_boxplot.png', bbox_inches='tight', dpi=600)
+    # plt.close('all')
 
     # PPI AROCs significant associations
     plot_ppi_arocs(lm_res_df, fdr_thres, beta_thres)
 
     plt.gcf().set_size_inches(3, 3)
     plt.savefig('reports/drug/ppi_signif_roc.png', bbox_inches='tight', dpi=600)
-    plt.close('all')
-
-    # PPI AUPRs significant associations
-    plot_ppi_prc(lm_res_df, fdr_thres, beta_thres)
-
-    plt.gcf().set_size_inches(3, 3)
-    plt.savefig('reports/drug/ppi_signif_prc.png', bbox_inches='tight', dpi=600)
     plt.close('all')
 
     # Drug associations barplot
