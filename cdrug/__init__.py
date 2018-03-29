@@ -21,6 +21,8 @@ GROWTHRATE_FILE = 'data/gdsc/growth/growth_rate.csv'
 # CRISPR
 CRISPR_GENE_FILE = 'data/gdsc/crispr/_00_Genes_for_panCancer_assocStudies.txt'
 CRISPR_GENE_FC_CORRECTED = 'data/gdsc/crispr/corrected_logFCs_march_2018.tsv'
+CRISPR_GENE_BAGEL = 'data/BayesianFactors.tsv'
+CRISPR_GENE_BINARY = 'data/binaryDepScores.tsv'
 
 # DRUG-RESPONSE
 DRUG_RESPONSE_FILE = 'data/gdsc/drug_single/drug_ic50_merged_matrix.csv'
@@ -28,12 +30,20 @@ DRUG_RESPONSE_FILE = 'data/gdsc/drug_single/drug_ic50_merged_matrix.csv'
 DRUG_RESPONSE_V17 = 'data/screening_set_384_all_owners_fitted_data_20180308.csv'
 DRUG_RESPONSE_VRS = 'data/rapid_screen_1536_all_owners_fitted_data_20180308.csv'
 
-# GENOMIC
-MOBEM_FILE = 'data/gdsc/PANCAN_mobem.csv'
-
 # Palette
-bipal_dbgd = {1: '#F2C500', 0: '#37454B'}
+BIPAL_DBGD = {1: '#F2C500', 0: '#37454B'}
 
+# Number of mutations
+WES_COUNT = 'data/gdsc/WES_variants.csv'
+
+# Methylation
+METHYLATION_GENE_PROMOTER = 'data/gdsc/methylation/methy_beta_gene_promoter.csv'
+
+# MOBEM
+MOBEM = 'data/gdsc/mobems/PANCAN_simple_MOBEM.rdata.annotated.all.csv'
+
+# Gene-expression
+RNASEQ_VOOM = 'data/gdsc/gene_expression/merged_voom_preprocessed.csv'
 
 # Set plotting aesthetics
 sns_rc = {
@@ -42,7 +52,7 @@ sns_rc = {
     'xtick.major.size': 2.5, 'ytick.major.size': 2.5,
     'xtick.direction': 'in', 'ytick.direction': 'in'
 }
-sns.set(style='ticks', context='paper', rc=sns_rc)
+sns.set(style='ticks', context='paper', rc=sns_rc, font_scale=.75)
 
 
 def import_drug_list(filter_web_pub=True, drug_list_file=None, sep='\t', index_col=0):
