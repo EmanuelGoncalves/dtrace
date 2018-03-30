@@ -9,7 +9,7 @@ STRING_FILE = 'data/resources/string/9606.protein.links.full.v10.5.txt'
 STRING_ALIAS_FILE = 'data/resources/string/9606.protein.aliases.v10.5.txt'
 STRING_PICKLE = 'data/igraph_string.pickle'
 
-BIOGRID_FILE = 'data/resources/BIOGRID-ORGANISM-Homo_sapiens-3.4.157.tab2.txt'
+BIOGRID_FILE = 'data/ppi/BIOGRID-ORGANISM-Homo_sapiens-3.4.157.tab2.txt'
 BIOGRID_PICKLE = 'data/igraph_biogrid.pickle'
 
 OMNIPATH_FILE = 'data/resources/omnipath/omnipathdb.org.txt'

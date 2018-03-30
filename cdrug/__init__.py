@@ -8,8 +8,8 @@ from scipy.stats import iqr
 from cdrug.assemble.assemble_ppi import STRING_PICKLE, BIOGRID_PICKLE
 
 # META DATA
-SAMPLESHEET_FILE = 'data/samplesheet.csv'
-DRUGSHEET_FILE = 'data/drug_samplesheet.csv'
+SAMPLESHEET_FILE = 'data/meta/samplesheet.csv'
+DRUGSHEET_FILE = 'data/meta/drug_samplesheet_updated.txt'
 
 # GENE LISTS
 HART_ESSENTIAL = 'data/gene_sets/curated_BAGEL_essential.csv'
@@ -19,16 +19,16 @@ HART_NON_ESSENTIAL = 'data/gene_sets/curated_BAGEL_nonEssential.csv'
 GROWTHRATE_FILE = 'data/gdsc/growth/growth_rate.csv'
 
 # CRISPR
-CRISPR_GENE_FILE = 'data/gdsc/crispr/_00_Genes_for_panCancer_assocStudies.txt'
+CRISPR_GENE_FILE = 'data/meta/_00_Genes_for_panCancer_assocStudies.csv'
 CRISPR_GENE_FC_CORRECTED = 'data/gdsc/crispr/corrected_logFCs_march_2018.tsv'
 CRISPR_GENE_BAGEL = 'data/BayesianFactors.tsv'
 CRISPR_GENE_BINARY = 'data/binaryDepScores.tsv'
 
 # DRUG-RESPONSE
-DRUG_RESPONSE_FILE = 'data/gdsc/drug_single/drug_ic50_merged_matrix.csv'
+DRUG_RESPONSE_FILE = 'data/drug_ic50_merged_matrix.csv'
 
-DRUG_RESPONSE_V17 = 'data/screening_set_384_all_owners_fitted_data_20180308.csv'
-DRUG_RESPONSE_VRS = 'data/rapid_screen_1536_all_owners_fitted_data_20180308.csv'
+DRUG_RESPONSE_V17 = 'data/drug/screening_set_384_all_owners_fitted_data_20180308.csv'
+DRUG_RESPONSE_VRS = 'data/drug/rapid_screen_1536_all_owners_fitted_data_20180308.csv'
 
 # Palette
 BIPAL_DBGD = {1: '#F2C500', 0: '#37454B'}
@@ -87,7 +87,7 @@ def scale_crispr(df, essential=None, non_essential=None, metric=np.median):
 def crispr_genes(file=None, samples_thres=5, type_thres=3):
     file = CRISPR_GENE_FILE if file is None else file
 
-    c_genes = pd.read_csv(file, sep='\t', index_col=0)
+    c_genes = pd.read_csv(file, index_col=0)
 
     c_genes = c_genes[c_genes.drop('n. vulnerable cell lines', axis=1).sum(1) <= type_thres]
 
@@ -98,7 +98,7 @@ def crispr_genes(file=None, samples_thres=5, type_thres=3):
 
 def filter_crispr(df, essential=None, essential_thres=90, value_thres=1.5, value_nevents=5):
     if not isinstance(essential, set):
-        essential = pd.read_csv(CRISPR_GENE_FILE, sep='\t', index_col=0)['n. vulnerable cell lines']
+        essential = pd.read_csv(CRISPR_GENE_FILE, index_col=0)['n. vulnerable cell lines']
         essential = set(essential[essential > essential_thres].index)
 
     assert len(essential) != 0, 'Essential genes list is empty'
@@ -128,7 +128,7 @@ def filter_mobem(df, n_events=5):
 def drug_targets(file=None):
     file = DRUGSHEET_FILE if file is None else file
 
-    d_targets = pd.read_csv(file, index_col=0)['Target Curated'].dropna().to_dict()
+    d_targets = pd.read_csv(file, index_col=0, sep='\t')['Target Curated'].dropna().to_dict()
 
     d_targets = {k: {t.strip() for t in d_targets[k].split(';')} for k in d_targets}
 

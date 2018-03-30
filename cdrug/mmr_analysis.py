@@ -72,7 +72,8 @@ if __name__ == '__main__':
     # Add CRISPR
     plot_df = pd.concat([
         plot_df,
-        pd.DataFrame([crispr_binary.loc[g].reindex(samples).rename('{} (Essentiality)'.format(g)) for g in GENES_CRISPR]).T
+        pd.DataFrame([crispr_binary.loc[g].reindex(samples).rename('{} (Essentiality)'.format(g)) for g in GENES_CRISPR]).T,
+        pd.DataFrame([crispr.loc[g].reindex(samples).rename('{}'.format(g)) for g in GENES_CRISPR]).T
     ], axis=1)
 
     # Add Methylation
@@ -93,7 +94,7 @@ if __name__ == '__main__':
     plot_df = plot_df.dropna()
 
     # - Plot
-    fig, (ax1, ax2) = plt.subplots(nrows=2, ncols=1, sharex=True, sharey=False, gridspec_kw={'height_ratios': [2, 2]})
+    fig, (ax1, ax3, ax2) = plt.subplots(nrows=3, ncols=1, sharex=True, sharey=False, gridspec_kw={'height_ratios': [2, 2, 2]})
     plt.subplots_adjust(wspace=.1, hspace=.1)
 
     # Upper part
@@ -107,6 +108,17 @@ if __name__ == '__main__':
 
     ax1.set_adjustable('box-forced')
     ax1.set_xticks(np.arange(0, plot_df.shape[0], 20))
+
+    # Middle part
+    ax3.set_xlabel('')
+    ax3.tick_params(axis='x', which='both', bottom='off', top='off', labelbottom='off')
+    ax3.yaxis.grid(True, color=cdrug.BIPAL_DBGD[0], linestyle='-', linewidth=.1)
+    # ax1.set_yscale('log', basey=10)
+
+    ax3.scatter(plot_df['pos'], -plot_df['WRN'], color=cdrug.BIPAL_DBGD[0], edgecolor='white', lw=.1, s=7)
+    ax3.set_ylabel('WRN essentiality')
+
+    ax3.set_adjustable('box-forced')
 
     # Lower part
     marker_style = dict(lw=0, mew=.1, marker='o', markersize=np.sqrt(7))
@@ -127,7 +139,7 @@ if __name__ == '__main__':
     ylabels.append((pos, 'MSI status'))
     pos -= 2
 
-    for glist, glabel in zip(*([GENES_CRISPR, GENES_METHY], ['Essentiality', 'Hypermethylation'])):
+    for glist, glabel in zip(*([GENES_METHY], ['Hypermethylation'])):
         for g in glist:
             for l, fs in zip(*([1, 0], ['full', 'none'])):
                 df = plot_df[plot_df['{} ({})'.format(g, glabel)] == l]
@@ -164,8 +176,8 @@ if __name__ == '__main__':
     df = plot_df[plot_df['WRN (Essentiality)'] == 1]
 
     for p in df['pos']:
-        ax1.axvline(x=p, c=cdrug.BIPAL_DBGD[1], linewidth=.3, zorder=0, clip_on=False)
-        ax2.axvline(x=p, c=cdrug.BIPAL_DBGD[1], linewidth=.3, zorder=0, clip_on=False)
+        for ax in [ax1, ax2, ax3]:
+            ax.axvline(x=p, c=cdrug.BIPAL_DBGD[1], linewidth=.3, zorder=0, clip_on=False)
 
     # Legend
     by_label = {l: p for p, l in zip(*(ax2.get_legend_handles_labels()))}

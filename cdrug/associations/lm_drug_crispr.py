@@ -1,11 +1,11 @@
 #!/usr/bin/env python
 # Copyright (C) 2018 Emanuel Goncalves
 
+import cdrug
 import textwrap
 import numpy as np
 import pandas as pd
 import seaborn as sns
-import scripts.drug as dc
 import matplotlib.pyplot as plt
 from crispy import bipal_dbgd
 from scipy.stats import uniform
@@ -297,20 +297,20 @@ def plot_count_associations(lm_res_df, fdr_thres, beta_thres, min_nevents=5):
 if __name__ == '__main__':
     # - Imports
     # Drug target
-    d_targets = dc.drug_targets()
+    d_targets = cdrug.drug_targets()
 
     # Samplesheet
-    ss = pd.read_csv(dc.SAMPLESHEET_FILE, index_col=0).dropna(subset=['Cancer Type'])
+    ss = pd.read_csv(cdrug.SAMPLESHEET_FILE, index_col=0).dropna(subset=['Cancer Type'])
 
     # Growth rate
-    growth = pd.read_csv(dc.GROWTHRATE_FILE, index_col=0)
+    growth = pd.read_csv(cdrug.GROWTHRATE_FILE, index_col=0)
 
     # CRISPR gene-level corrected fold-changes
-    crispr = pd.read_csv(dc.CRISPR_GENE_FC_CORRECTED, index_col=0, sep='\t').dropna()
-    crispr_scaled = dc.scale_crispr(crispr)
+    crispr = pd.read_csv(cdrug.CRISPR_GENE_FC_CORRECTED, index_col=0, sep='\t').dropna()
+    crispr_scaled = cdrug.scale_crispr(crispr)
 
     # Drug response
-    d_response = pd.read_csv(dc.DRUG_RESPONSE_FILE, index_col=[0, 1, 2], header=[0, 1])
+    d_response = pd.read_csv(cdrug.DRUG_RESPONSE_FILE, index_col=[0, 1, 2], header=[0, 1])
     d_response.columns = d_response.columns.droplevel(0)
 
     # - Overlap
@@ -319,11 +319,8 @@ if __name__ == '__main__':
     print('Samples: %d' % len(samples))
 
     # - Transform and filter
-    d_response = dc.filter_drug_response(d_response)
-    crispr_scaled = dc.filter_crispr(crispr_scaled, value_thres=.75, value_nevents=5)
-
-    # - Check list
-    dc.check_in_list(crispr_scaled.index)
+    d_response = cdrug.filter_drug_response(d_response)
+    crispr_scaled = cdrug.filter_crispr(crispr_scaled, value_thres=.75, value_nevents=5)
 
     # - Covariates
     covariates = pd.concat([
@@ -344,11 +341,11 @@ if __name__ == '__main__':
     # d, g = 1047, 'TP53'
     lm_res_df = lm_res_df.assign(
         target=[
-            d_drug_genes[d][g] if d in d_drug_genes and g in d_drug_genes[d] else np.nan for d, g in lm_res_df[['DRUG_ID', 'Gene']].values
+            d_drug_genes[d][g] if d in d_drug_genes and g in d_drug_genes[d] else np.nan for d, g in lm_res_df[['DRUG_ID_lib', 'Gene']].values
         ]
     )
 
-    lm_res_df.sort_values('lr_fdr').to_csv('data/drug/lm_drug_crispr.csv', index=False)
+    lm_res_df.sort_values('lr_fdr').to_csv('data/lm_drug_crispr.csv', index=False)
     print(lm_res_df[(lm_res_df['beta'].abs() > .5) & (lm_res_df['lr_fdr'] < 0.05)].sort_values('lr_fdr'))
     # lm_res_df = pd.read_csv('data/drug/lm_drug_crispr.csv')
 
@@ -387,7 +384,7 @@ if __name__ == '__main__':
     plot_ppi_arocs(lm_res_df, fdr_thres, beta_thres)
 
     plt.gcf().set_size_inches(3, 3)
-    plt.savefig('reports/drug/ppi_signif_roc.png', bbox_inches='tight', dpi=600)
+    plt.savefig('reports/ppi_signif_roc.png', bbox_inches='tight', dpi=600)
     plt.close('all')
 
     # Drug associations barplot
@@ -398,14 +395,14 @@ if __name__ == '__main__':
     plot_drug_associations_barplot(plot_df, drug_list)
 
     plt.gcf().set_size_inches(8, 1.5)
-    plt.savefig('reports/drug/drug_associations_barplot.png', bbox_inches='tight', dpi=600)
+    plt.savefig('reports/drug_associations_barplot.png', bbox_inches='tight', dpi=600)
     plt.close('all')
 
     # Number of significant associations per drug
     plot_count_associations(lm_res_df, fdr_thres, beta_thres)
 
     plt.gcf().set_size_inches(7, 3)
-    plt.savefig('reports/drug/drug_associations_count.png', bbox_inches='tight', dpi=600)
+    plt.savefig('reports/drug_associations_count.png', bbox_inches='tight', dpi=600)
     plt.close('all')
 
     # Plot Drug ~ CRISPR corrplot
@@ -418,5 +415,5 @@ if __name__ == '__main__':
     )
 
     plt.gcf().set_size_inches(2., 2.)
-    plt.savefig('reports/drug/crispr_drug_corrplot.png', bbox_inches='tight', dpi=600)
+    plt.savefig('reports/crispr_drug_corrplot.png', bbox_inches='tight', dpi=600)
     plt.close('all')
