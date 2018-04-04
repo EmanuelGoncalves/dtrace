@@ -30,45 +30,58 @@ def lm_drug_crispr(xs, ys, ws):
 
 
 if __name__ == '__main__':
-    d_sheet = pd.read_csv(cdrug.DRUGSHEET_FILE, sep='\t', index_col=0)
-
-    d_repur = pd.read_csv('data/pre_clinical_targets.txt', sep='\t').dropna(subset=['drug_id'])
-
-    dep_bin = pd.read_csv('data/binaryDepScores.tsv', sep='\t', index_col=0).dropna().astype(int)
-
+    # - Import sample data
     # Samplesheet
     ss = pd.read_csv(cdrug.SAMPLESHEET_FILE, index_col=0).dropna(subset=['Cancer Type'])
 
     # Growth rate
     growth = pd.read_csv(cdrug.GROWTHRATE_FILE, index_col=0)
 
-    # # CRISPR gene-level corrected fold-changes
+    # - Import data
+    d_sheet = pd.read_csv(cdrug.DRUGSHEET_FILE, sep='\t', index_col=0)
+
+    # - Import drug repurposing
+    d_repur_map = pd.read_csv('data/repo_drug_map.txt', sep='\t', index_col=0).dropna()['Drug ID']
+
+    d_repur = pd.read_csv('data/repo_list.txt', sep='\t')
+    d_repur = pd.DataFrame([{
+        'tissue': t, 'genomic': f, 'gene': g, 'drug': d, 'drug_id': d_repur_map[d]
+    } for t, f, g, ds, _ in d_repur.values for d in ds.split('|') if d in d_repur_map.index])
+
+    # CRISPR gene-level corrected fold-changes
     # crispr = pd.read_csv(cdrug.CRISPR_GENE_FC_CORRECTED, index_col=0, sep='\t').dropna()
     # crispr_scaled = cdrug.scale_crispr(crispr)
+    crispr_scaled = pd.read_csv(cdrug.CRISPR_GENE_BINARY, sep='\t', index_col=0).dropna().astype(int)
 
     # Drug response
     d_response = pd.read_csv(cdrug.DRUG_RESPONSE_FILE, index_col=[0, 1, 2], header=[0, 1])
     d_response.columns = d_response.columns.droplevel(0)
 
     # - Overlap
-    samples = list(set(d_response).intersection(dep_bin).intersection(ss.index).intersection(growth.index))
-    d_response, crispr = d_response[samples], dep_bin[samples]
+    samples = list(set(d_response).intersection(crispr_scaled).intersection(ss.index).intersection(growth.index))
+    d_response, crispr_scaled = d_response[samples], crispr_scaled[samples]
     print('Samples: %d' % len(samples))
 
-    # - Filter
-    d_response = d_response[[i[0] in set(d_repur['drug_id'].astype(int)) for i in d_response.index]]
-    crispr_scaled = dep_bin.loc[list(set(d_repur['Target']))].dropna()
-
-    # - Covariates
-    covariates = pd.concat([
-        pd.get_dummies(ss[['Cancer Type']]),
-        growth['growth_rate_median']
-    ], axis=1).loc[samples]
-    covariates = covariates.loc[:, covariates.sum() != 0]
-
     # - Linear regression: drug ~ crispr + tissue
-    lm_res_df = lm_drug_crispr(crispr_scaled[samples].T, d_response[samples].T, covariates.loc[samples])
+    lr_df = []
+    for d, d_id, g, f, t in d_repur.values:
+        if d_id in d_response.index and g in crispr_scaled.index:
+            print(d, d_id, g, f, t)
 
-    repurposing_associations = {(t, int(d)) for t, d in d_repur[['Target', 'drug_id']].values}
-    repurposing_associations = lm_res_df[[(t, d) in repurposing_associations for t, d in lm_res_df[['GeneSymbol', 'DRUG_ID']].values]]
-    print(repurposing_associations.sort_values('lr_fdr'))
+            y = d_response.loc[d_id, samples].T.dropna()
+            x = ((crispr_scaled.loc[g, y.index] == 1) & (ss.loc[y.index, 'Cancer Type'] == t)).astype(int).rename(g).to_frame()
+
+            if x[g].sum() >= 3:
+                lm_res = lr(x, y)
+
+                for d_name, s_version in lm_res['beta'].columns:
+                    res = {'tissue': t, 'drug_id': d_id, 'drug_name': d_name, 'gene': g, 'genomic': f, 'version': s_version}
+
+                    for s in ['beta', 'f_pval', 'r2']:
+                        res[s] = lm_res[s].loc[g, (d_name, s_version)]
+
+                    lr_df.append(res)
+
+    lr_df = pd.DataFrame(lr_df)
+    lr_df = lr_df.assign(f_fdr=multipletests(lr_df['f_pval'], method='fdr_bh')[1])
+    print(lr_df.sort_values('f_fdr'))

@@ -20,9 +20,9 @@ GROWTHRATE_FILE = 'data/gdsc/growth/growth_rate.csv'
 
 # CRISPR
 CRISPR_GENE_FILE = 'data/meta/_00_Genes_for_panCancer_assocStudies.csv'
-CRISPR_GENE_FC_CORRECTED = 'data/gdsc/crispr/corrected_logFCs_march_2018.tsv'
-CRISPR_GENE_BAGEL = 'data/BayesianFactors.tsv'
-CRISPR_GENE_BINARY = 'data/binaryDepScores.tsv'
+CRISPR_GENE_FC_CORRECTED = 'data/crispr/CRISPRcleaned_logFCs.tsv'
+CRISPR_GENE_BAGEL = 'data/crispr/BayesianFactors.tsv'
+CRISPR_GENE_BINARY = 'data/crispr/binaryDepScores.tsv'
 
 # DRUG-RESPONSE
 DRUG_RESPONSE_FILE = 'data/drug_ic50_merged_matrix.csv'

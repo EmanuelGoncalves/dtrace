@@ -16,7 +16,7 @@ GENES_MUTATION = ['POLE', 'MLH1', 'MLH3', 'MSH2', 'MSH3', 'MSH6', 'PMS2']
 TISSUES = ['Colorectal Carcinoma', 'Ovarian Carcinoma']
 TISSUES_PALETTE = {'Colorectal Carcinoma': '#f28100', 'Ovarian Carcinoma': '#28B8A4', 'Other': '#ECF0F1'}
 
-MUTAION_PALETTE = {'Frameshift': '#e31a1c', 'Missense': '#1f78b4' , 'Nonsense': '#ffd92f', 'Other': '#ECF0F1', 'None': '#ECF0F1'}
+MUTAION_PALETTE = {'Frameshift': '#e31a1c', 'Missense': '#1f78b4' , 'Nonsense': '#66a61e', 'Other': '#ECF0F1', 'None': '#ECF0F1'}
 
 def get_gene_mutation_class(wes, gene, samples):
     wes_gene = wes[wes['Gene'].isin([gene])]
@@ -88,37 +88,46 @@ if __name__ == '__main__':
         pd.DataFrame([get_gene_mutation_class(wes, g, samples) for g in GENES_MUTATION]).T
     ], axis=1)
 
-    plot_df = plot_df.reset_index().sort_values('mutations', ascending=False)
-    plot_df = plot_df.assign(pos=range(plot_df.shape[0]))
+    plot_df = plot_df.reset_index()
 
-    plot_df = plot_df.dropna()
+    plot_df = plot_df\
+        .sort_values('WRN', ascending=False)\
+        .assign(pos=range(plot_df.shape[0]))\
+        .dropna()
 
     # - Plot
-    fig, (ax1, ax3, ax2) = plt.subplots(nrows=3, ncols=1, sharex=True, sharey=False, gridspec_kw={'height_ratios': [2, 2, 2]})
+    fig, (ax1, ax2, ax3) = plt.subplots(nrows=3, ncols=1, sharex=True, sharey=False, gridspec_kw={'height_ratios': [2, 2, 2]})
     plt.subplots_adjust(wspace=.1, hspace=.1)
 
     # Upper part
     ax1.set_xlabel('')
     ax1.tick_params(axis='x', which='both', bottom='off', top='off', labelbottom='off')
     ax1.yaxis.grid(True, color=cdrug.BIPAL_DBGD[0], linestyle='-', linewidth=.1)
-    ax1.set_yscale('log', basey=10)
 
-    ax1.scatter(plot_df['pos'], plot_df['mutations'], color=cdrug.BIPAL_DBGD[0], edgecolor='white', lw=.1, s=7)
-    ax1.set_ylabel('Number of mutations')
+    for l, c in zip(*(['MSI-H', 'MSI-S'], cdrug.BIPAL_DBGD.values())):
+        df = plot_df.query("Microsatellite == '{}'".format(l))
+        ax1.scatter(
+            df['pos'], -df['WRN'], color=c, edgecolor='white', lw=.1, s=7, label=l
+        )
 
+    ax1.set_ylabel('WRN essentiality')
     ax1.set_adjustable('box-forced')
-    ax1.set_xticks(np.arange(0, plot_df.shape[0], 20))
 
     # Middle part
-    ax3.set_xlabel('')
-    ax3.tick_params(axis='x', which='both', bottom='off', top='off', labelbottom='off')
-    ax3.yaxis.grid(True, color=cdrug.BIPAL_DBGD[0], linestyle='-', linewidth=.1)
-    # ax1.set_yscale('log', basey=10)
+    ax2.set_xlabel('')
+    ax2.tick_params(axis='x', which='both', bottom='off', top='off', labelbottom='off')
+    ax2.yaxis.grid(True, color=cdrug.BIPAL_DBGD[0], linestyle='-', linewidth=.1)
+    # ax2.set_yscale('log', basey=10)
 
-    ax3.scatter(plot_df['pos'], -plot_df['WRN'], color=cdrug.BIPAL_DBGD[0], edgecolor='white', lw=.1, s=7)
-    ax3.set_ylabel('WRN essentiality')
+    for l, c in zip(*(['MSI-H', 'MSI-S'], cdrug.BIPAL_DBGD.values())):
+        df = plot_df.query("Microsatellite == '{}'".format(l))
+        ax2.scatter(
+            df['pos'], df['mutations'], color=c, edgecolor='white', lw=.1, s=7
+        )
 
-    ax3.set_adjustable('box-forced')
+    ax2.set_ylabel('Number of mutations')
+    ax2.set_adjustable('box-forced')
+    ax2.set_xticks(np.arange(0, plot_df.shape[0], 20))
 
     # Lower part
     marker_style = dict(lw=0, mew=.1, marker='o', markersize=np.sqrt(7))
@@ -127,28 +136,28 @@ if __name__ == '__main__':
 
     for t, c in TISSUES_PALETTE.items():
         df = plot_df[plot_df['Cancer Type'] == t]
-        ax2.plot(df['pos'], np.zeros(df.shape[0]) + pos, fillstyle='full', color=c, **marker_style, label=t)
+        ax3.plot(df['pos'], np.zeros(df.shape[0]) + pos, fillstyle='full', color=c, **marker_style, label=t)
 
     ylabels.append((pos, 'Cancer Type'))
     pos -= 2
 
-    for l, fs in zip(*(['MSI-H', 'MSI-S'], ['full', 'none'])):
-        df = plot_df.query("Microsatellite == '{}'".format(l))
-        ax2.plot(df['pos'], np.zeros(df.shape[0]) + pos, fillstyle=fs, color=cdrug.BIPAL_DBGD[0], **marker_style)
+    # for l, fs in zip(*(['MSI-H', 'MSI-S'], ['full', 'none'])):
+    #     df = plot_df.query("Microsatellite == '{}'".format(l))
+    #     ax3.plot(df['pos'], np.zeros(df.shape[0]) + pos, fillstyle=fs, color=cdrug.BIPAL_DBGD[0], **marker_style)
+    #
+    # ylabels.append((pos, 'MSI status'))
+    # pos -= 2
 
-    ylabels.append((pos, 'MSI status'))
-    pos -= 2
+    for g in GENES_METHY:
+        for l, fs in zip(*([0, 1], ['none', 'full'])):
+            df = plot_df[plot_df['{} ({})'.format(g, glabel)] == l]
 
-    for glist, glabel in zip(*([GENES_METHY], ['Hypermethylation'])):
-        for g in glist:
-            for l, fs in zip(*([1, 0], ['full', 'none'])):
-                df = plot_df[plot_df['{} ({})'.format(g, glabel)] == l]
+            ax3.plot(df['pos'], np.zeros(df.shape[0]) + pos, fillstyle=fs, color='#7570b3', **marker_style, label='Hypermethylation')
 
-                ax2.plot(df['pos'], np.zeros(df.shape[0]) + pos, fillstyle=fs, color=cdrug.BIPAL_DBGD[0], **marker_style, label=l)
-
-            ylabels.append((pos, '{}'.format(g, glabel)))
-            pos -= 1
+        ylabels.append((pos, '{}'.format(g, glabel)))
         pos -= 1
+
+    pos -= 1
 
     for g in GENES_MUTATION:
         for p, ms in plot_df[['pos', '{} (Mutation)'.format(g, glabel)]].values:
@@ -161,29 +170,45 @@ if __name__ == '__main__':
             elif len(ms) == 2:
                 fs, c, mfca, l = 'bottom', MUTAION_PALETTE[list(ms)[0]], MUTAION_PALETTE[list(ms)[1]], None
 
-            ax2.plot(p, pos, fillstyle=fs, color=c, markerfacecoloralt=mfca, **marker_style, label=l)
+            ax3.plot(p, pos, fillstyle=fs, color=c, markerfacecoloralt=mfca, **marker_style, label=l)
 
         ylabels.append((pos, '{}'.format(g)))
         pos -= 1
 
-    ax2.set_adjustable('box-forced')
-    ax2.set_xlabel('Number of cell lines')
-    ax2.set_yticks(list(zip(*ylabels))[0])
-    ax2.set_yticklabels(list(zip(*ylabels))[1])
-    ax2.set_xticks(np.arange(0, plot_df.shape[0], 20))
+    ax3.set_adjustable('box-forced')
+    ax3.set_xlabel('Number of cell lines')
+    ax3.set_yticks(list(zip(*ylabels))[0])
+    ax3.set_yticklabels(list(zip(*ylabels))[1])
+    ax3.set_xticks(np.arange(0, plot_df.shape[0], 20))
 
-    # WRN essential vline
-    df = plot_df[plot_df['WRN (Essentiality)'] == 1]
-
-    for p in df['pos']:
-        for ax in [ax1, ax2, ax3]:
-            ax.axvline(x=p, c=cdrug.BIPAL_DBGD[1], linewidth=.3, zorder=0, clip_on=False)
+    # # WRN essential vline
+    # df = plot_df[plot_df['WRN (Essentiality)'] == 1]
+    #
+    # for p in df['pos']:
+    #     for ax in [ax1, ax2, ax3]:
+    #         ax.axvline(x=p, c=cdrug.BIPAL_DBGD[1], linewidth=.3, zorder=0, clip_on=False)
 
     # Legend
-    by_label = {l: p for p, l in zip(*(ax2.get_legend_handles_labels()))}
-    by_label_order = ['Colorectal Carcinoma', 'Ovarian Carcinoma', 'Other', 'Frameshift', 'Missense', 'Nonsense', 'Other']
-    ax2.legend([by_label[k] for k in by_label_order], by_label_order, bbox_to_anchor=(1.02, 0.9), prop={'size': 6})
+    by_label = {l: p for ax in [ax1, ax3] for p, l in zip(*(ax.get_legend_handles_labels()))}
+    by_label[''] = Line2D([0], [0], color='w')
+
+    by_label_order = [
+        'MSI-H', 'MSI-S', '', 'Colorectal Carcinoma', 'Ovarian Carcinoma', '', 'Hypermethylation', '', 'Frameshift', 'Missense', 'Nonsense', '', 'Other'
+    ]
+    ax3.legend([by_label[k] for k in by_label_order], by_label_order, bbox_to_anchor=(1.02, 0.9), prop={'size': 6})
 
     plt.gcf().set_size_inches(10, 4)
     plt.savefig('reports/mmr_mutation_count.png', bbox_inches='tight', dpi=600)
+    plt.close('all')
+
+    # -
+    pal = dict(zip(*(['MSI-H', 'MSI-S'], cdrug.BIPAL_DBGD.values())))
+
+    sns.boxplot(plot_df['Microsatellite'], -plot_df['WRN'], palette=pal, linewidth=.3, fliersize=2)
+    plt.grid(axis='y', lw=.1, c=cdrug.BIPAL_DBGD[0])
+    plt.axhline(0, lw=.3, c=cdrug.BIPAL_DBGD[0])
+    plt.xlabel('')
+    plt.ylabel('WRN essentiality')
+    plt.gcf().set_size_inches(1, 3)
+    plt.savefig('reports/mmr_mutation_count_boxplot.png', bbox_inches='tight', dpi=600)
     plt.close('all')
