@@ -6,8 +6,10 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
+from scipy.stats import ttest_ind
 from matplotlib.lines import Line2D
 from matplotlib.colors import ListedColormap
+from statsmodels.stats.multitest import multipletests
 
 GENES_CRISPR = ['WRN']
 GENES_METHY = ['MLH1']
@@ -95,6 +97,20 @@ if __name__ == '__main__':
         .assign(pos=range(plot_df.shape[0]))\
         .dropna()
 
+    # -
+    df = pd.concat([
+        plot_df.set_index('index')['WRN'],
+        (plot_df.set_index('index')[['Microsatellite']] == 'MSI-H').astype(int),
+        plot_df.set_index('index')[['{} (Hypermethylation)'.format(g) for g in GENES_METHY]],
+        (plot_df.set_index('index')[['{} (Mutation)'.format(g) for g in GENES_MUTATION]] != 'None').astype(int),
+    ], axis=1).dropna()
+
+    f_ttest = pd.DataFrame({
+        f: dict(zip(*(['t', 'pval'], ttest_ind(df[df[f] == 1]['WRN'], df[df[f] == 0]['WRN'], equal_var=False)))) for f in df if f != 'WRN'
+    }).T.sort_values('pval')
+    f_ttest = f_ttest.assign(fdr=multipletests(f_ttest['pval'])[1])
+
+
     # - Plot
     fig, (ax1, ax2, ax3) = plt.subplots(nrows=3, ncols=1, sharex=True, sharey=False, gridspec_kw={'height_ratios': [2, 2, 2]})
     plt.subplots_adjust(wspace=.1, hspace=.1)
@@ -150,17 +166,17 @@ if __name__ == '__main__':
 
     for g in GENES_METHY:
         for l, fs in zip(*([0, 1], ['none', 'full'])):
-            df = plot_df[plot_df['{} ({})'.format(g, glabel)] == l]
+            df = plot_df[plot_df['{} (Hypermethylation)'.format(g)] == l]
 
             ax3.plot(df['pos'], np.zeros(df.shape[0]) + pos, fillstyle=fs, color='#7570b3', **marker_style, label='Hypermethylation')
 
-        ylabels.append((pos, '{}'.format(g, glabel)))
+        ylabels.append((pos, '{}'.format(g)))
         pos -= 1
 
     pos -= 1
 
     for g in GENES_MUTATION:
-        for p, ms in plot_df[['pos', '{} (Mutation)'.format(g, glabel)]].values:
+        for p, ms in plot_df[['pos', '{} (Mutation)'.format(g)]].values:
             if ms == 'None':
                 fs, c, mfca, l = 'none', cdrug.BIPAL_DBGD[0], cdrug.BIPAL_DBGD[0], ms
 
@@ -181,12 +197,12 @@ if __name__ == '__main__':
     ax3.set_yticklabels(list(zip(*ylabels))[1])
     ax3.set_xticks(np.arange(0, plot_df.shape[0], 20))
 
-    # # WRN essential vline
-    # df = plot_df[plot_df['WRN (Essentiality)'] == 1]
-    #
-    # for p in df['pos']:
-    #     for ax in [ax1, ax2, ax3]:
-    #         ax.axvline(x=p, c=cdrug.BIPAL_DBGD[1], linewidth=.3, zorder=0, clip_on=False)
+    # WRN essential vline
+    df = plot_df[(plot_df['WRN (Essentiality)'] == 1) | (plot_df['mutations'] > 1800)]
+
+    for p in df['pos']:
+        for ax in [ax1, ax2, ax3]:
+            ax.axvline(x=p, c=cdrug.BIPAL_DBGD[0], linewidth=.1, zorder=0, clip_on=False, alpha=.5)
 
     # Legend
     by_label = {l: p for ax in [ax1, ax3] for p, l in zip(*(ax.get_legend_handles_labels()))}
