@@ -92,6 +92,7 @@ if __name__ == '__main__':
         df = d_response[ss[ss['Rapid Screen'] == 'Yes'].index]
         df = df.loc[df.count(1) > (.5 * df.shape[1])]
         df = df.T.fillna(df.mean(axis=1)).T
+        df = df.subtract(df.mean(1), axis=0)
 
         if by == 'sample':
             df = df.T
@@ -100,16 +101,29 @@ if __name__ == '__main__':
         pca[by]['vex'] = pd.Series(pca[by]['pca'].explained_variance_ratio_, index=map(lambda v: 'PC{}'.format(v + 1), range(10)))
         pca[by]['pcs'] = pd.DataFrame(pca[by]['pca'].transform(df), index=df.index, columns=map(lambda v: 'PC{}'.format(v + 1), range(10)))
 
-    # -
+    # - Principal component plot
     for by in ['drug', 'sample']:
+        plot_df = pd.concat([pca[by]['pcs'], growth], axis=1).dropna()
+        plot_df = plot_df.drop(['WIL2-NS']).sort_values('growth_rate_median')
+
         g = sns.PairGrid(
-            pca[by]['pcs'].reset_index(), vars=['PC1', 'PC2', 'PC3'], despine=False, size=1, hue='VERSION' if by == 'drug' else None,
+            plot_df, vars=['PC1', 'PC2', 'PC3'], despine=False, size=1, hue='VERSION' if by == 'drug' else None,
             palette=cdrug.PAL_DICT_VERSION if by == 'drug' else None
         )
 
         g = g.map_diag(plt.hist, color=cdrug.PAL_20[0] if by == 'sample' else None)
-        g = g.map_offdiag(plt.scatter, s=3, edgecolor='white', lw=.1, color=cdrug.PAL_20[0] if by == 'sample' else None)
-        g = g.add_legend()
+
+        if by == 'sample':
+            cmap = sns.light_palette(cdrug.PAL_20[0], as_cmap=True)
+            g = g.map_offdiag(plt.scatter, s=3, edgecolor='white', lw=.1, color=plot_df['growth_rate_median'], cmap=cmap, alpha=.5)
+            cax = g.fig.add_axes([.98, .4, .01, .2])
+            plt.colorbar(cax=cax)
+            # cax.set_ylabel('Growth rate (median day 1 / day 4)', rotation=270)
+
+        else:
+            g = g.map_offdiag(plt.scatter, s=3, edgecolor='white', lw=.1)
+            g = g.add_legend()
+
 
         for i, ax in enumerate(g.axes):
             vexp = pca[by]['vex']['PC{}'.format(i + 1)]
@@ -121,3 +135,25 @@ if __name__ == '__main__':
 
         plt.savefig('reports/pca_{}_pairplot.pdf'.format(by), bbox_inches='tight')
         plt.close('all')
+
+    # -
+    plot_df = pd.concat([pca['sample']['pcs'], growth], axis=1)\
+        .drop(['WIL2-NS']).dropna()
+
+    pci = 1
+
+    g = sns.jointplot(
+        'PC{}'.format(pci), 'growth_rate_median', data=plot_df, kind='reg', space=0, color=cdrug.PAL_20[0],
+        marginal_kws=dict(kde=False), annot_kws=dict(stat='r'),
+        joint_kws=dict(scatter_kws=dict(edgecolor='w', lw=.3, s=10, alpha=.6), line_kws=dict(lw=1., color=cdrug.PAL_20[4], alpha=1.), order=2)
+    )
+
+    # g.ax_joint.axhline(0, ls='-', lw=0.1, c=cdrug.PAL_20[5], zorder=0)
+    g.ax_joint.axvline(0, ls='-', lw=0.1, c=cdrug.PAL_20[5], zorder=0)
+
+    vexp = pca[by]['vex']['PC{}'.format(pci)]
+    g.set_axis_labels('PC{} ({:.1f}%)'.format(pci, vexp * 100), 'Growth rate\n(median day 1 / day 4)')
+
+    plt.gcf().set_size_inches(2., 2.)
+    plt.savefig('reports/pca_sample_jointplot_pc1_growth.pdf', bbox_inches='tight')
+    plt.close('all')

@@ -34,7 +34,7 @@ DRUG_RESPONSE_VRS = 'data/drug/rapid_screen_1536_all_owners_fitted_data_20180308
 PAL_DBGD = ['#F2C500', '#37454B']
 PAL_ORGD = ['#FF9900', '#999999']
 PAL_RDGD = ['#e98167', '#fec2a3', '#79aca9', '#a4cac8', '#d8d6d6']
-PAL_20 = ['#05668D', '#028090', '#00A896', '#02C39A', '#F0F3BD']
+PAL_20 = ['#05668D', '#028090', '#00A896', '#02C39A', '#F0F3BD', '#bdbdbd', '#636363']
 PAL_ROYALE = ['#E63946', '#F1FAEE', '#A8DADC', '#457B9D', '#1D3557']
 
 PAL_DICT_VERSION = dict(RS=PAL_20[0], v17=PAL_20[2])
