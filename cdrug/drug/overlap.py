@@ -16,7 +16,7 @@ if __name__ == '__main__':
 
     # - Check drugs overlap
     df_count = {}
-    for t, f in [('All', False), ('Pub&Web', True)]:
+    for t, f in [('All', False), ('Pub or Web', True)]:
         df_count[t] = {}
 
         ds = cdrug.import_drug_list(filter_web_pub=f)
@@ -41,19 +41,19 @@ if __name__ == '__main__':
     df_count = pd.DataFrame(df_count)
 
     #
-    plot_df = pd.melt(df_count.reset_index(), id_vars='index', value_vars=['All', 'Pub&Web'])
+    plot_df = pd.melt(df_count.reset_index(), id_vars='index', value_vars=['All', 'Pub or Web'])
 
     order = ['V17', 'RS', 'Overlap', 'Total']
-    pal = dict(zip(*(set(plot_df['variable']), sns.light_palette(cdrug.bipal_dbgd[0], n_colors=3).as_hex()[1:])))
+    pal = dict(zip(*(set(plot_df['variable']), [cdrug.PAL_SET2[7], cdrug.PAL_SET2[1]])))
 
-    sns.barplot('index', 'value', 'variable', plot_df, palette=pal, order=order)
+    sns.barplot('index', 'value', 'variable', plot_df, palette=pal, order=order, saturation=1)
 
-    plt.axes().yaxis.grid(True, color=cdrug.bipal_dbgd[0], linestyle='-', linewidth=.1, alpha=.5)
+    plt.axes().yaxis.grid(True, color=cdrug.PAL_SET2[7], linestyle='-', linewidth=.1, alpha=.5)
 
     plt.legend(title='Drugs')
-    plt.ylabel('Counts')
+    plt.ylabel('Number of unique drugs')
     plt.xlabel('')
 
-    plt.gcf().set_size_inches(3, 3)
-    plt.savefig('reports/drug_overlap.png', bbox_inches='tight', dpi=600)
+    plt.gcf().set_size_inches(2, 3)
+    plt.savefig('reports/drug_overlap.pdf', bbox_inches='tight')
     plt.close('all')

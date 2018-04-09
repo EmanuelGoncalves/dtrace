@@ -30,14 +30,12 @@ DRUG_RESPONSE_FILE = 'data/drug_ic50_merged_matrix.csv'
 DRUG_RESPONSE_V17 = 'data/drug/screening_set_384_all_owners_fitted_data_20180308.csv'
 DRUG_RESPONSE_VRS = 'data/drug/rapid_screen_1536_all_owners_fitted_data_20180308.csv'
 
-# Palette
+# Palettes
 PAL_DBGD = ['#37454B', '#F2C500']
-PAL_ORGD = ['#FF9900', '#999999']
-PAL_RDGD = ['#e98167', '#fec2a3', '#79aca9', '#a4cac8', '#d8d6d6']
-PAL_20 = ['#05668D', '#028090', '#00A896', '#02C39A', '#F0F3BD', '#bdbdbd', '#636363']
-PAL_ROYALE = ['#E63946', '#F1FAEE', '#A8DADC', '#457B9D', '#1D3557']
+PAL_TAB20C = sns.color_palette('tab20c', n_colors=20).as_hex()
+PAL_SET2 = sns.color_palette('Set2', n_colors=8).as_hex()
 
-PAL_DICT_VERSION = dict(RS=PAL_20[0], v17=PAL_20[2])
+PAL_DRUG_VERSION = dict(RS=PAL_SET2[1], v17=PAL_SET2[7])
 
 # Number of mutations
 WES_COUNT = 'data/gdsc/WES_variants.csv'
