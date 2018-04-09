@@ -44,7 +44,7 @@ def get_gene_mutation_class(wes, gene, samples):
 if __name__ == '__main__':
     # - Import
     # Samplesheet
-    ss = pd.read_csv(cdrug.SAMPLESHEET_FILE, index_col=0).dropna(subset=['Cancer Type'])
+    ss = pd.read_csv(cdrug.SAMPLESHEET_FILE, index_col=0).dropna(subset=['Cancer Type', 'Microsatellite'])
 
     # WES
     wes = pd.read_csv(cdrug.WES_COUNT)
@@ -60,7 +60,7 @@ if __name__ == '__main__':
     methy = pd.read_csv(cdrug.METHYLATION_GENE_PROMOTER, index_col=0)
 
     # Samples
-    samples = list(crispr)
+    samples = list(set(crispr).intersection(ss.index))
     print('Samples: %d' % len(samples))
 
     # - Build plot data-frame
@@ -69,7 +69,7 @@ if __name__ == '__main__':
         n_mutations.reindex(samples),       # Add mutation burden
         ss.reindex(samples)['Microsatellite'].replace({'MSI-L': 'MSI-S'}),     # Add MSI status
         ss.reindex(samples)['Cancer Type'].apply(lambda v: v if str(v) == 'nan' or v in TISSUES else 'Other'),     # Add Cancer type
-    ], axis=1).dropna()
+    ], axis=1)
 
     # Add CRISPR
     plot_df = pd.concat([
@@ -90,19 +90,17 @@ if __name__ == '__main__':
         pd.DataFrame([get_gene_mutation_class(wes, g, samples) for g in GENES_MUTATION]).T
     ], axis=1)
 
-    plot_df = plot_df.reset_index()
-
-    plot_df = plot_df\
-        .sort_values('WRN', ascending=False)\
-        .assign(pos=range(plot_df.shape[0]))\
-        .dropna()
+    plot_df = plot_df \
+        .sort_values('WRN', ascending=False) \
+        .reset_index() \
+        .assign(pos=range(plot_df.shape[0]))
 
     # -
     df = pd.concat([
-        plot_df.set_index('index')['WRN'],
-        (plot_df.set_index('index')[['Microsatellite']] == 'MSI-H').astype(int),
-        plot_df.set_index('index')[['{} (Hypermethylation)'.format(g) for g in GENES_METHY]],
-        (plot_df.set_index('index')[['{} (Mutation)'.format(g) for g in GENES_MUTATION]] != 'None').astype(int),
+        plot_df.set_index('SAMPLE')['WRN'],
+        (plot_df.set_index('SAMPLE')[['Microsatellite']] == 'MSI-H').astype(int),
+        plot_df.set_index('SAMPLE')[['{} (Hypermethylation)'.format(g) for g in GENES_METHY]],
+        (plot_df.set_index('SAMPLE')[['{} (Mutation)'.format(g) for g in GENES_MUTATION]] != 'None').astype(int),
     ], axis=1).dropna()
 
     f_ttest = pd.DataFrame({
@@ -110,38 +108,38 @@ if __name__ == '__main__':
     }).T.sort_values('pval')
     f_ttest = f_ttest.assign(fdr=multipletests(f_ttest['pval'])[1])
 
-
     # - Plot
-    fig, (ax1, ax2, ax3) = plt.subplots(nrows=3, ncols=1, sharex=True, sharey=False, gridspec_kw={'height_ratios': [2, 2, 2]})
+    fig, (ax1, ax2, ax3) = plt.subplots(nrows=3, ncols=1, sharex=True, sharey=False, gridspec_kw={'height_ratios': [3, 2, 1]})
     plt.subplots_adjust(wspace=.1, hspace=.1)
 
     # Upper part
     ax1.set_xlabel('')
     ax1.tick_params(axis='x', which='both', bottom='off', top='off', labelbottom='off')
-    ax1.yaxis.grid(True, color=cdrug.BIPAL_DBGD[0], linestyle='-', linewidth=.1)
+    ax1.yaxis.grid(True, color=cdrug.PAL_DBGD[0], linestyle='-', linewidth=.05)
+    ax1.axhline(0, color=cdrug.PAL_DBGD[0], linestyle='-', linewidth=.1, zorder=0)
 
-    for l, c in zip(*(['MSI-H', 'MSI-S'], cdrug.BIPAL_DBGD.values())):
+    for l, c in zip(*(['MSI-S', 'MSI-H'], cdrug.PAL_DBGD)):
         df = plot_df.query("Microsatellite == '{}'".format(l))
         ax1.scatter(
             df['pos'], -df['WRN'], color=c, edgecolor='white', lw=.1, s=7, label=l
         )
 
-    ax1.set_ylabel('WRN essentiality')
+    ax1.set_ylabel('WRN\nessentiality')
     ax1.set_adjustable('box-forced')
 
     # Middle part
     ax2.set_xlabel('')
     ax2.tick_params(axis='x', which='both', bottom='off', top='off', labelbottom='off')
-    ax2.yaxis.grid(True, color=cdrug.BIPAL_DBGD[0], linestyle='-', linewidth=.1)
-    # ax2.set_yscale('log', basey=10)
+    ax2.yaxis.grid(True, color=cdrug.PAL_DBGD[0], linestyle='-', linewidth=.05)
+    ax2.set_yscale('log', basey=10)
 
-    for l, c in zip(*(['MSI-H', 'MSI-S'], cdrug.BIPAL_DBGD.values())):
+    for l, c in zip(*(['MSI-S', 'MSI-H'], cdrug.PAL_DBGD)):
         df = plot_df.query("Microsatellite == '{}'".format(l))
         ax2.scatter(
-            df['pos'], df['mutations'], color=c, edgecolor='white', lw=.1, s=7
+            df['pos'], df['mutations'] / 30, color=c, edgecolor='white', lw=.1, s=7
         )
 
-    ax2.set_ylabel('Number of mutations')
+    ax2.set_ylabel('Mutation rate\n(per Mb)')
     ax2.set_adjustable('box-forced')
     ax2.set_xticks(np.arange(0, plot_df.shape[0], 20))
 
@@ -159,50 +157,62 @@ if __name__ == '__main__':
 
     # for l, fs in zip(*(['MSI-H', 'MSI-S'], ['full', 'none'])):
     #     df = plot_df.query("Microsatellite == '{}'".format(l))
-    #     ax3.plot(df['pos'], np.zeros(df.shape[0]) + pos, fillstyle=fs, color=cdrug.BIPAL_DBGD[0], **marker_style)
+    #     ax3.plot(df['pos'], np.zeros(df.shape[0]) + pos, fillstyle=fs, color=cdrug.PAL_DBGD[0], **marker_style)
     #
     # ylabels.append((pos, 'MSI status'))
     # pos -= 2
 
     for g in GENES_METHY:
-        for l, fs in zip(*([0, 1], ['none', 'full'])):
-            df = plot_df[plot_df['{} (Hypermethylation)'.format(g)] == l]
+        g_label = '{} (Hypermethylation)'.format(g)
 
-            ax3.plot(df['pos'], np.zeros(df.shape[0]) + pos, fillstyle=fs, color='#7570b3', **marker_style, label='Hypermethylation')
+        if f_ttest.loc[g_label, 'fdr'] < 0.05:
 
-        ylabels.append((pos, '{}'.format(g)))
-        pos -= 1
+            for l, fs in zip(*([0, 1], ['none', 'full'])):
+                df = plot_df[plot_df[g_label] == l]
+
+                ax3.plot(df['pos'], np.zeros(df.shape[0]) + pos, fillstyle=fs, color='#7570b3', **marker_style, label='Hypermethylation')
+
+            ylabels.append((pos, '{}'.format(g)))
+            pos -= 1
 
     pos -= 1
 
     for g in GENES_MUTATION:
-        for p, ms in plot_df[['pos', '{} (Mutation)'.format(g)]].values:
-            if ms == 'None':
-                fs, c, mfca, l = 'none', cdrug.BIPAL_DBGD[0], cdrug.BIPAL_DBGD[0], ms
+        g_label = '{} (Mutation)'.format(g)
 
-            elif len(ms) == 1:
-                fs, c, mfca, l = 'full', MUTAION_PALETTE[list(ms)[0]], MUTAION_PALETTE[list(ms)[0]], list(ms)[0]
+        if f_ttest.loc[g_label, 'fdr'] < 0.05 or g in ['POLE']:
 
-            elif len(ms) == 2:
-                fs, c, mfca, l = 'bottom', MUTAION_PALETTE[list(ms)[0]], MUTAION_PALETTE[list(ms)[1]], None
+            for p, ms in plot_df[['pos', g_label]].values:
+                if str(ms).lower() == 'nan':
+                    continue
 
-            ax3.plot(p, pos, fillstyle=fs, color=c, markerfacecoloralt=mfca, **marker_style, label=l)
+                elif ms == 'None':
+                    fs, c, mfca, l = 'none', cdrug.PAL_DBGD[0], cdrug.PAL_DBGD[0], ms
 
-        ylabels.append((pos, '{}'.format(g)))
-        pos -= 1
+                elif len(ms) == 1:
+                    fs, c, mfca, l = 'full', MUTAION_PALETTE[list(ms)[0]], MUTAION_PALETTE[list(ms)[0]], list(ms)[0]
+
+                elif len(ms) == 2:
+                    fs, c, mfca, l = 'bottom', MUTAION_PALETTE[list(ms)[0]], MUTAION_PALETTE[list(ms)[1]], None
+
+                ax3.plot(p, pos, fillstyle=fs, color=c, markerfacecoloralt=mfca, **marker_style, label=l)
+
+            ylabels.append((pos, '{}'.format(g)))
+            pos -= 1
 
     ax3.set_adjustable('box-forced')
     ax3.set_xlabel('Number of cell lines')
     ax3.set_yticks(list(zip(*ylabels))[0])
     ax3.set_yticklabels(list(zip(*ylabels))[1])
     ax3.set_xticks(np.arange(0, plot_df.shape[0], 20))
+    ax3.set_ylim(pos - 1, 1)
 
-    # WRN essential vline
-    df = plot_df[(plot_df['WRN (Essentiality)'] == 1) | (plot_df['mutations'] > 1800)]
-
-    for p in df['pos']:
-        for ax in [ax1, ax2, ax3]:
-            ax.axvline(x=p, c=cdrug.BIPAL_DBGD[0], linewidth=.1, zorder=0, clip_on=False, alpha=.5)
+    # # WRN essential vline
+    # df = plot_df[(plot_df['WRN (Essentiality)'] == 1) | (plot_df['mutations'] > 1800)]
+    #
+    # for p in df['pos']:
+    #     for ax in [ax1, ax2, ax3]:
+    #         ax.axvline(x=p, c=cdrug.PAL_DBGD[0], linewidth=.1, zorder=0, clip_on=False, alpha=.2)
 
     # Legend
     by_label = {l: p for ax in [ax1, ax3] for p, l in zip(*(ax.get_legend_handles_labels()))}
@@ -211,18 +221,20 @@ if __name__ == '__main__':
     by_label_order = [
         'MSI-H', 'MSI-S', '', 'Colorectal Carcinoma', 'Ovarian Carcinoma', '', 'Hypermethylation', '', 'Frameshift', 'Missense', 'Nonsense', '', 'Other'
     ]
-    ax3.legend([by_label[k] for k in by_label_order], by_label_order, bbox_to_anchor=(1.02, 0.9), prop={'size': 6})
+    by_label_order = [i for i in by_label_order if i in by_label]
 
-    plt.gcf().set_size_inches(10, 4)
+    ax1.legend([by_label[k] for k in by_label_order], by_label_order, bbox_to_anchor=(1, .7), prop={'size': 6})
+
+    plt.gcf().set_size_inches(10, 3)
     plt.savefig('reports/mmr_mutation_count.png', bbox_inches='tight', dpi=600)
     plt.close('all')
 
     # -
-    pal = dict(zip(*(['MSI-H', 'MSI-S'], cdrug.BIPAL_DBGD.values())))
+    pal = dict(zip(*(['MSI-H', 'MSI-S'], cdrug.PAL_DBGD)))
 
     sns.boxplot(plot_df['Microsatellite'], -plot_df['WRN'], palette=pal, linewidth=.3, fliersize=2)
-    plt.grid(axis='y', lw=.1, c=cdrug.BIPAL_DBGD[0])
-    plt.axhline(0, lw=.3, c=cdrug.BIPAL_DBGD[0])
+    plt.grid(axis='y', lw=.1, c=cdrug.PAL_DBGD[0])
+    plt.axhline(0, lw=.3, c=cdrug.PAL_DBGD[0])
     plt.xlabel('')
     plt.ylabel('WRN essentiality')
     plt.gcf().set_size_inches(1, 3)

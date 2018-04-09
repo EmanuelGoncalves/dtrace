@@ -137,8 +137,7 @@ if __name__ == '__main__':
         plt.close('all')
 
     # -
-    plot_df = pd.concat([pca['sample']['pcs'], growth], axis=1)\
-        .drop(['WIL2-NS']).dropna()
+    plot_df = pd.concat([pca['sample']['pcs'], growth], axis=1).drop(['WIL2-NS']).dropna()
 
     pci = 1
 

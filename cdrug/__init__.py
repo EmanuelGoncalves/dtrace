@@ -31,7 +31,7 @@ DRUG_RESPONSE_V17 = 'data/drug/screening_set_384_all_owners_fitted_data_20180308
 DRUG_RESPONSE_VRS = 'data/drug/rapid_screen_1536_all_owners_fitted_data_20180308.csv'
 
 # Palette
-PAL_DBGD = ['#F2C500', '#37454B']
+PAL_DBGD = ['#37454B', '#F2C500']
 PAL_ORGD = ['#FF9900', '#999999']
 PAL_RDGD = ['#e98167', '#fec2a3', '#79aca9', '#a4cac8', '#d8d6d6']
 PAL_20 = ['#05668D', '#028090', '#00A896', '#02C39A', '#F0F3BD', '#bdbdbd', '#636363']
@@ -46,7 +46,7 @@ WES_COUNT = 'data/gdsc/WES_variants.csv'
 METHYLATION_GENE_PROMOTER = 'data/gdsc/methylation/methy_beta_gene_promoter.csv'
 
 # MOBEM
-MOBEM = 'data/gdsc/mobems/PANCAN_simple_MOBEM.rdata.annotated.all.csv'
+MOBEM = 'data/PANCAN_mobem.csv'
 
 # Gene-expression
 RNASEQ_VOOM = 'data/gdsc/gene_expression/merged_voom_preprocessed.csv'
