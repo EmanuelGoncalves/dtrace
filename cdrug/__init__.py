@@ -70,11 +70,15 @@ def get_samplesheet(index='Cell Line Name'):
     return pd.read_csv(SAMPLESHEET_FILE).dropna(subset=[index]).set_index(index)
 
 
-def get_mobem():
+def get_mobem(drop_factors=True):
     ss = get_samplesheet(index='COSMIC ID')
 
     mobem = pd.read_csv(MOBEM, index_col=0)
     mobem = mobem.set_index(ss.loc[mobem.index, 'Cell Line Name'], drop=True)
+    mobem = mobem.T
+
+    if drop_factors:
+        mobem = mobem.drop(['TISSUE_FACTOR', 'MSI_FACTOR', 'MEDIA_FACTOR'])
 
     return mobem
 
@@ -86,12 +90,65 @@ def get_drugresponse():
     return d_response
 
 
-def get_crispr():
-    crispr = pd.read_csv(CRISPR_GENE_FC_CORRECTED, index_col=0, sep='\t').dropna()
+def get_crispr(is_binary=False):
+    crispr = pd.read_csv(CRISPR_GENE_BINARY if is_binary else CRISPR_GENE_FC_CORRECTED, index_col=0, sep='\t').dropna()
     return crispr
 
 
+def get_growth():
+    growth = pd.read_csv(GROWTHRATE_FILE, index_col=0)
+    return growth
+
+
 # -
+def mobem_feature_to_gene(f):
+    if f.endswith('_mut'):
+        genes = set([f.split('_')[0]])
+
+    if f.startswith('gain.') or f.startswith('loss.'):
+        genes = {g for fs in f.split('..') if not (fs.startswith('gain.') or fs.startswith('loss.')) for g in fs.split('.') if g != ''}
+
+    return genes
+
+
+def filter_drugresponse(d_response, min_meas=0.85):
+    df = d_response[d_response.count(1) > d_response.shape[1] * min_meas]
+    return df
+
+
+def filter_mobem(mobem, min_events=3):
+    df = mobem[mobem.sum(1) >= min_events]
+    return df
+
+
+def filter_crispr(crispr, is_binary=False, min_events=3):
+    if is_binary:
+        df = crispr[crispr.sum(1) >= min_events]
+
+    else:
+        raise NotImplementedError
+
+    return df
+
+
+def build_covariates(variables=None, add_growth=True, samples=None):
+    variables = ['Cancer Type'] if variables is None else variables
+
+    ss = get_samplesheet()
+
+    covariates = pd.get_dummies(ss[variables])
+
+    if add_growth:
+        covariates = pd.concat([covariates, get_growth()['growth_rate_median']], axis=1)
+
+    if samples is not None:
+        covariates = covariates.loc[samples]
+
+    covariates = covariates.loc[:, covariates.sum() != 0]
+
+    return covariates
+
+
 def is_same_drug(drug_id_1, drug_id_2):
     """
     From 2 drug IDs check if Drug ID 1 has Name or Synonyms in common with Drug ID 2.

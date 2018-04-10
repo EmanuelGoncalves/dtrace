@@ -2,7 +2,6 @@
 # Copyright (C) 2018 Emanuel Goncalves
 
 import cdrug
-import numpy as np
 import pandas as pd
 
 INDEX_VALUE = 'IC50_nat_log'
@@ -21,4 +20,4 @@ if __name__ == '__main__':
 
     # - Merge screens
     d_merged = pd.concat([d_v17_matrix, d_vrs_matrix], axis=0)
-    d_merged.to_csv('data/drug_ic50_merged_matrix.csv')
+    d_merged.to_csv(cdrug.DRUG_RESPONSE_FILE)
