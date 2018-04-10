@@ -11,9 +11,11 @@ from sklearn.decomposition import PCA
 
 
 def drug_counts_hist(plot_df, by):
+    plt.axes().yaxis.grid(True, color=cdrug.PAL_SET2[7], linestyle='-', linewidth=.1, alpha=.5, zorder=0)
+
     if by == 'drug':
         for v, c in cdrug.PAL_DRUG_VERSION.items():
-            sns.distplot(plot_df.query("VERSION == '{}'".format(v))['count'], color=c, kde=False, bins=20, label=v, hist_kws={'alpha': .9})
+            sns.distplot(plot_df.query("VERSION == '{}'".format(v))['count'], color=c, kde=False, bins=20, label=v, hist_kws={'alpha': 1.})
 
             md_count = plot_df.query("VERSION == '{}'".format(v))['count'].median()
             plt.axvline(md_count, c='white', lw=.3, ls='--')
@@ -23,7 +25,7 @@ def drug_counts_hist(plot_df, by):
         plt.legend()
 
     elif by == 'sample':
-        sns.distplot(plot_df['count'], color=cdrug.PAL_SET2[7], kde=False, bins=20, hist_kws={'alpha': .9})
+        sns.distplot(plot_df['count'], color=cdrug.PAL_SET2[8], kde=False, bins=20, hist_kws={'alpha': 1.})
 
         md_count = plot_df['count'].median()
         plt.axvline(md_count, c='white', lw=.3, ls='--')
@@ -33,8 +35,6 @@ def drug_counts_hist(plot_df, by):
 
     plt.ylabel('Counts')
     plt.title('IC50s histogram per drug across cell lines')
-
-    plt.axes().yaxis.grid(True, color=cdrug.PAL_SET2[7], linestyle='-', linewidth=.1, alpha=.5)
 
     plt.gcf().set_size_inches(2.5, 1.5)
     plt.savefig('reports/pca_{}_count_hist.pdf'.format(by), bbox_inches='tight')
@@ -54,10 +54,10 @@ def pca_pairplot(pca, by):
         palette=cdrug.PAL_DRUG_VERSION if by == 'drug' else None
     )
 
-    g = g.map_diag(plt.hist, color=cdrug.PAL_SET2[7] if by == 'sample' else None)
+    g = g.map_diag(plt.hist, color=cdrug.PAL_SET2[8] if by == 'sample' else None)
 
     if by == 'sample':
-        cmap = sns.light_palette(cdrug.PAL_SET2[7], as_cmap=True)
+        cmap = sns.light_palette(cdrug.PAL_SET2[8], as_cmap=True)
         g = g.map_offdiag(plt.scatter, s=3, edgecolor='white', lw=.1, color=plot_df['growth_rate_median'], cmap=cmap, alpha=.5)
         cax = g.fig.add_axes([.98, .4, .01, .2])
         plt.colorbar(cax=cax)
@@ -124,9 +124,9 @@ if __name__ == '__main__':
     pci = 1
 
     g = sns.jointplot(
-        'PC{}'.format(pci), 'growth_rate_median', data=plot_df, kind='reg', space=0, color=cdrug.PAL_SET2[7],
-        marginal_kws=dict(kde=False), annot_kws=dict(stat='r'),
-        joint_kws=dict(scatter_kws=dict(edgecolor='w', lw=.3, s=10, alpha=.8), line_kws=dict(lw=1., color=cdrug.PAL_SET2[1], alpha=1.), order=2)
+        'PC{}'.format(pci), 'growth_rate_median', data=plot_df, kind='reg', space=0, color=cdrug.PAL_SET2[8],
+        marginal_kws=dict(kde=False), annot_kws=dict(stat='R'),
+        joint_kws=dict(scatter_kws=dict(edgecolor='w', lw=.3, s=10, alpha=.6), line_kws=dict(lw=1., color=cdrug.PAL_SET2[1], alpha=1.), lowess=True)
     )
 
     g.ax_joint.axvline(0, ls='-', lw=0.1, c=cdrug.PAL_SET2[7], zorder=0)

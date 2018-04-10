@@ -44,11 +44,11 @@ if __name__ == '__main__':
     plot_df = pd.melt(df_count.reset_index(), id_vars='index', value_vars=['All', 'Pub or Web'])
 
     order = ['V17', 'RS', 'Overlap', 'Total']
-    pal = dict(zip(*(set(plot_df['variable']), [cdrug.PAL_SET2[7], cdrug.PAL_SET2[1]])))
+    pal = dict(zip(*(set(plot_df['variable']), [cdrug.PAL_SET2[8], cdrug.PAL_SET2[1]])))
 
     sns.barplot('index', 'value', 'variable', plot_df, palette=pal, order=order, saturation=1)
 
-    plt.axes().yaxis.grid(True, color=cdrug.PAL_SET2[7], linestyle='-', linewidth=.1, alpha=.5)
+    plt.axes().yaxis.grid(True, color=cdrug.PAL_SET2[7], linestyle='-', linewidth=.1, alpha=.5, zorder=0)
 
     plt.legend(title='Drugs')
     plt.ylabel('Number of unique drugs')
