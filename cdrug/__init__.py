@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # Copyright (C) 2018 Emanuel Goncalves
 
+import numpy as np
 import pandas as pd
 import seaborn as sns
 from cdrug.assemble.assemble_ppi import STRING_PICKLE, BIOGRID_PICKLE
@@ -21,6 +22,7 @@ CRISPR_GENE_FILE = 'data/meta/_00_Genes_for_panCancer_assocStudies.csv'
 CRISPR_GENE_FC_CORRECTED = 'data/crispr/CRISPRcleaned_logFCs.tsv'
 CRISPR_GENE_BAGEL = 'data/crispr/BayesianFactors.tsv'
 CRISPR_GENE_BINARY = 'data/crispr/binaryDepScores.tsv'
+CRISPR_MAGECK_DEP_FDR = 'data/crispr/MAGeCK_depFDRs.tsv'
 
 # - DRUG-RESPONSE
 DRUG_RESPONSE_FILE = 'data/drug_ic50_merged_matrix.csv'
@@ -90,14 +92,103 @@ def get_drugresponse():
     return d_response
 
 
-def get_crispr(is_binary=False):
-    crispr = pd.read_csv(CRISPR_GENE_BINARY if is_binary else CRISPR_GENE_FC_CORRECTED, index_col=0, sep='\t').dropna()
+def get_crispr(kind='logFC', fdr_thres=0.1):
+    """
+    CRISPR-Cas9 scores as log fold-changes (CN corrected) or binary matrices marking (1) significant
+    depletions (kind='depletions'), enrichments (kind='enrichments') or both (kind='both').
+
+    :param kind: String (default = 'logFC')
+    :param fdr_thres: Float (default = 0.1)
+    :return: pandas.DataFrame
+    """
+
+    dep_fdr = pd.read_csv(CRISPR_MAGECK_DEP_FDR, index_col=0, sep='\t').dropna()
+    enr_fdr = pd.read_csv(CRISPR_MAGECK_DEP_FDR, index_col=0, sep='\t').dropna()
+
+    if binary == 'both':
+        crispr = ((dep_fdr < fdr_thres) * (enr_fdr < fdr_thres)).astype(int)
+
+    elif binary == 'depletions':
+        crispr = (dep_fdr < fdr_thres).astype(int)
+
+    elif binary == 'enrichments':
+        crispr = (enr_fdr < fdr_thres).astype(int)
+
+    else:
+        crispr = pd.read_csv(CRISPR_GENE_FC_CORRECTED, index_col=0, sep='\t').dropna()
+
     return crispr
 
 
 def get_growth():
     growth = pd.read_csv(GROWTHRATE_FILE, index_col=0)
     return growth
+
+
+def get_drugtargets():
+    ds = get_drugsheet()
+
+    d_targets = ds['Target Curated'].dropna().to_dict()
+
+    d_targets = {k: {t.strip() for t in d_targets[k].split(';')} for k in d_targets}
+
+    return d_targets
+
+
+def get_essential_genes():
+    return set(pd.read_csv(HART_ESSENTIAL)['gene'])
+
+
+def get_nonessential_genes():
+    return set(pd.read_csv(HART_NON_ESSENTIAL)['gene'])
+
+# - DATA-SETS FILTER FUNCTIONS
+def filter_drugresponse(d_response, min_meas=0.85):
+    df = d_response[d_response.count(1) > d_response.shape[1] * min_meas]
+    return df
+
+
+def filter_mobem(mobem, min_events=3):
+    df = mobem[mobem.sum(1) >= min_events]
+    return df
+
+
+def filter_crispr(crispr, min_events=3):
+    signif_genes = get_crispr(kind='both')
+    signif_genes = signif_genes[signif_genes.sum(1) >= min_events]
+
+    df = crispr.loc[signif_genes.index]
+
+    return df
+
+
+# - DATA-SETS PROCESSING FUNCTIONS
+def scale_crispr(df, essential=None, non_essential=None, metric=np.median):
+    """
+    Min/Max scaling of CRISPR-Cas9 log-FC by median (default) Essential and Non-Essential.
+
+    :param df: Float pandas.DataFrame
+    :param essential: set(String)
+    :param non_essential: set(String)
+    :param metric: np.Median (default)
+    :return: Float pandas.DataFrame
+    """
+
+    if essential is None:
+        essential = get_essential_genes()
+
+    if non_essential is None:
+        non_essential = get_nonessential_genes()
+
+    assert len(essential.intersection(df.index)) != 0, 'DataFrame has no index overlapping with essential list'
+    assert len(non_essential.intersection(df.index)) != 0, 'DataFrame has no index overlapping with non essential list'
+
+    essential_metric = metric(df.reindex(essential).dropna(), axis=0)
+    non_essential_metric = metric(df.reindex(non_essential).dropna(), axis=0)
+
+    df = df.subtract(non_essential_metric).divide(non_essential_metric - essential_metric)
+
+    return df
 
 
 # -
@@ -109,26 +200,6 @@ def mobem_feature_to_gene(f):
         genes = {g for fs in f.split('..') if not (fs.startswith('gain.') or fs.startswith('loss.')) for g in fs.split('.') if g != ''}
 
     return genes
-
-
-def filter_drugresponse(d_response, min_meas=0.85):
-    df = d_response[d_response.count(1) > d_response.shape[1] * min_meas]
-    return df
-
-
-def filter_mobem(mobem, min_events=3):
-    df = mobem[mobem.sum(1) >= min_events]
-    return df
-
-
-def filter_crispr(crispr, is_binary=False, min_events=3):
-    if is_binary:
-        df = crispr[crispr.sum(1) >= min_events]
-
-    else:
-        raise NotImplementedError
-
-    return df
 
 
 def build_covariates(variables=None, add_growth=True, samples=None):

@@ -49,7 +49,7 @@ def build_omnipath_ppi(is_directed=True, is_signed=True):
     return net_i
 
 
-def build_biogrid_ppi(exp_type=None, int_type=None, organism=9606):
+def build_biogrid_ppi(exp_type=None, int_type=None, organism=9606, export_pickle=False):
     # 'Affinity Capture-MS', 'Affinity Capture-Western', 'Co-crystal Structure', 'Co-purification',
     # 'Reconstituted Complex', 'PCA', 'Two-hybrid'
 
@@ -102,12 +102,13 @@ def build_biogrid_ppi(exp_type=None, int_type=None, organism=9606):
     print(net_i.summary())
 
     # Export
-    net_i.write_pickle(BIOGRID_PICKLE)
+    if export_pickle:
+        net_i.write_pickle(BIOGRID_PICKLE)
 
     return net_i
 
 
-def build_string_ppi(score_thres=900):
+def build_string_ppi(score_thres=900, export_pickle=False):
     # ENSP map to gene symbol
     gmap = pd.read_csv(STRING_ALIAS_FILE, sep='\t')
     gmap = gmap[['BioMart_HUGO' in i.split(' ') for i in gmap['source']]]
@@ -148,7 +149,8 @@ def build_string_ppi(score_thres=900):
     print(net_i.summary())
 
     # Export
-    net_i.write_pickle(STRING_PICKLE)
+    if export_pickle:
+        net_i.write_pickle(STRING_PICKLE)
 
     return net_i
 
