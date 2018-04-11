@@ -27,8 +27,8 @@ if __name__ == '__main__':
     mobems = cdrug.get_mobem()
     drespo = cdrug.get_drugresponse()
 
-    crispr = cdrug.get_crispr(kind='both')
-    crispr_logfc = cdrug.get_crispr(kind='logFC')
+    crispr = cdrug.get_crispr(dtype='both')
+    crispr_logfc = cdrug.get_crispr(dtype='logFC')
     crispr_logfc_scaled = cdrug.scale_crispr(crispr_logfc)
 
     samples = list(set(mobems).intersection(drespo).intersection(crispr))
@@ -41,10 +41,10 @@ if __name__ == '__main__':
     print('#(Samples) = {}'.format(len(samples)))
 
     # - Filter
-    mobems = cdrug.filter_mobem(mobems[samples]).iloc[:10]
-    drespo = cdrug.filter_drugresponse(drespo[samples]).iloc[:10]
+    mobems = cdrug.filter_mobem(mobems[samples])
+    drespo = cdrug.filter_drugresponse(drespo[samples])
 
-    crispr = cdrug.filter_crispr(crispr[samples]).iloc[:10]
+    crispr = cdrug.filter_crispr(crispr[samples])
     crispr_logfc = crispr_logfc.loc[crispr.index, samples]
     crispr_logfc_scaled = crispr_logfc_scaled.loc[crispr.index, samples]
 
@@ -53,10 +53,12 @@ if __name__ == '__main__':
     # - Linear Regression: Drug ~ Genomic (binary) + Covariates
     lm_df_mobems = lm_drug(mobems[samples].T, drespo[samples].T, covariates.loc[samples])
     lm_df_mobems.sort_values('lr_pval').to_csv(lr_files.LR_BINARY_DRUG_MOBEMS, index=False)
+    print('[INFO] Done: Drug ~ Genomic (binary) + Covariates')
 
     # - Linear Regression: Drug ~ CRISPR (binary) + Covariates
     lm_df_crispr = lm_drug(crispr[samples].T, drespo[samples].T, covariates.loc[samples])
     lm_df_crispr.sort_values('lr_pval').to_csv(lr_files.LR_BINARY_DRUG_CRISPR, index=False)
+    print('[INFO] Done: Drug ~ CRISPR (binary) + Covariates')
 
     # - Linear Regression: Drug ~ CRISPR (conitnuous) + Covariates
     regression_sets = [
@@ -69,3 +71,4 @@ if __name__ == '__main__':
     for v in regression_sets:
         lm_df_crispr_logfc = lm_drug(v['xs'][samples].T, drespo[samples].T, v['ws'].loc[samples], scale_x=True)
         lm_df_crispr_logfc.sort_values('lr_pval').to_csv(v['file'], index=False)
+        print('[INFO] Done: Drug ~ CRISPR (conitnuous) + Covariates ({})'.format(v['file']))

@@ -4,6 +4,7 @@
 import numpy as np
 import pandas as pd
 import seaborn as sns
+from scipy.stats import iqr
 from cdrug.assemble.assemble_ppi import STRING_PICKLE, BIOGRID_PICKLE
 
 # - META DATA
@@ -23,6 +24,7 @@ CRISPR_GENE_FC_CORRECTED = 'data/crispr/CRISPRcleaned_logFCs.tsv'
 CRISPR_GENE_BAGEL = 'data/crispr/BayesianFactors.tsv'
 CRISPR_GENE_BINARY = 'data/crispr/binaryDepScores.tsv'
 CRISPR_MAGECK_DEP_FDR = 'data/crispr/MAGeCK_depFDRs.tsv'
+CRISPR_MAGECK_ENR_FDR = 'data/crispr/MAGeCK_enrFDRs.tsv'
 
 # - DRUG-RESPONSE
 DRUG_RESPONSE_FILE = 'data/drug_ic50_merged_matrix.csv'
@@ -92,26 +94,26 @@ def get_drugresponse():
     return d_response
 
 
-def get_crispr(kind='logFC', fdr_thres=0.1):
+def get_crispr(dtype='logFC', fdr_thres=0.05):
     """
     CRISPR-Cas9 scores as log fold-changes (CN corrected) or binary matrices marking (1) significant
-    depletions (kind='depletions'), enrichments (kind='enrichments') or both (kind='both').
+    depletions (dtype = 'depletions'), enrichments (dtype = 'enrichments') or both (dtype = 'both').
 
-    :param kind: String (default = 'logFC')
+    :param dtype: String (default = 'logFC')
     :param fdr_thres: Float (default = 0.1)
     :return: pandas.DataFrame
     """
 
     dep_fdr = pd.read_csv(CRISPR_MAGECK_DEP_FDR, index_col=0, sep='\t').dropna()
-    enr_fdr = pd.read_csv(CRISPR_MAGECK_DEP_FDR, index_col=0, sep='\t').dropna()
+    enr_fdr = pd.read_csv(CRISPR_MAGECK_ENR_FDR, index_col=0, sep='\t').dropna()
 
-    if binary == 'both':
-        crispr = ((dep_fdr < fdr_thres) * (enr_fdr < fdr_thres)).astype(int)
+    if dtype == 'both':
+        crispr = ((dep_fdr < fdr_thres) | (enr_fdr < fdr_thres)).astype(int)
 
-    elif binary == 'depletions':
+    elif dtype == 'depletions':
         crispr = (dep_fdr < fdr_thres).astype(int)
 
-    elif binary == 'enrichments':
+    elif dtype == 'enrichments':
         crispr = (enr_fdr < fdr_thres).astype(int)
 
     else:
@@ -142,9 +144,23 @@ def get_essential_genes():
 def get_nonessential_genes():
     return set(pd.read_csv(HART_NON_ESSENTIAL)['gene'])
 
+
 # - DATA-SETS FILTER FUNCTIONS
-def filter_drugresponse(d_response, min_meas=0.85):
-    df = d_response[d_response.count(1) > d_response.shape[1] * min_meas]
+def filter_drugresponse(d_response, min_events=3, min_meas=0.85):
+    """
+    Filter Drug-response (ln IC50) data-set to consider only drugs with measurements across
+    at least min_meas (deafult=0.85) of the total cell lines measured and drugs with an IC50
+    lower than the global average in at least min_events (default = 3) cell lines.
+
+    :param d_response:
+    :param min_events:
+    :param min_meas:
+    :return:
+    """
+    df = d_response[d_response.count(1) > (d_response.shape[1] * min_meas)]
+
+    df = df[(df < df.median().median()).sum(1) >= min_events]
+
     return df
 
 
@@ -153,8 +169,18 @@ def filter_mobem(mobem, min_events=3):
     return df
 
 
-def filter_crispr(crispr, min_events=3):
-    signif_genes = get_crispr(kind='both')
+def filter_crispr(crispr, min_events=3, fdr_thres=0.05):
+    """
+    Filter CRISPR-Cas9 data-set to consider only genes that show a significant depletion or
+    enrichment, MAGeCK depletion/enrichment FDR < fdr_thres (default = 0.05), in at least
+    min_events (default = 3) cell lines.
+
+    :param crispr:
+    :param min_events:
+    :param fdr_thres:
+    :return:
+    """
+    signif_genes = get_crispr(dtype='both', fdr_thres=fdr_thres)
     signif_genes = signif_genes[signif_genes.sum(1) >= min_events]
 
     df = crispr.loc[signif_genes.index]
@@ -193,11 +219,20 @@ def scale_crispr(df, essential=None, non_essential=None, metric=np.median):
 
 # -
 def mobem_feature_to_gene(f):
-    if f.endswith('_mut'):
-        genes = set([f.split('_')[0]])
+    """
+    Extract Gene Symbol of the MOBEM copy-number and mutation features.
 
-    if f.startswith('gain.') or f.startswith('loss.'):
+    :param f:
+    :return:
+    """
+    if f.endswith('_mut'):
+        genes = {f.split('_')[0]}
+
+    elif f.startswith('gain.') or f.startswith('loss.'):
         genes = {g for fs in f.split('..') if not (fs.startswith('gain.') or fs.startswith('loss.')) for g in fs.split('.') if g != ''}
+
+    else:
+        raise ValueError('{} is not a valid MOBEM feature.'.format(f))
 
     return genes
 
