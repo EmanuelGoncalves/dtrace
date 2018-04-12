@@ -52,7 +52,7 @@ def ppi_annotation(df, target_thres=4):
     d_targets = cdrug.get_drugtargets()
 
     # Calculate distance between drugs and CRISPR genes in PPI
-    dist_d_g = dist_drugtarget_genes(d_targets, set(lm_df_crispr['GeneSymbol']), ppi)
+    dist_d_g = dist_drugtarget_genes(d_targets, set(df['GeneSymbol']), ppi)
 
     # Annotate drug regressions
     df = df.assign(
