@@ -5,14 +5,11 @@ import cdrug
 import numpy as np
 import pandas as pd
 import seaborn as sns
-import scipy.stats as stats
-from limix.plot import qqplot
 import matplotlib.pyplot as plt
 import cdrug.associations as lr_files
-from sklearn.metrics import roc_auc_score
 from statsmodels.stats.multitest import multipletests
 from cdrug.associations.ppi_enrichment import ppi_annotation
-from sklearn.metrics import f1_score, precision_score, recall_score, matthews_corrcoef
+from sklearn.metrics import f1_score, precision_score, recall_score
 
 
 LR_STATUS = {
@@ -53,42 +50,44 @@ if __name__ == '__main__':
     regression_files = {f: ppi_annotation(regression_files[f]) for f in regression_files}
 
     # - Benchmark best threshold
-    trueset = ['Target', '1', '2']
-    thres_fdrs = [1e-4, .5e-3, 1e-3, .5e-2, 1e-2, .5e-1, 1e-1, .15, .2, .25, .3]
-    thres_betas = np.arange(0, 1.1, .1)
-
-    thres_f1score = pd.DataFrame([{
-        'fdr': tf, 'beta': tb, 'score': get_metric(regression_files[lr_files.LR_DRUG_CRISPR], precision_score, trueset, tf, tb)
-    } for tf in thres_fdrs for tb in thres_betas])
-    print(thres_f1score.sort_values('score', ascending=False).head(60))
-
-    # -
-    thres_fdr, thres_beta = 0.05, .5
+    trueset = ['Target', '1']
+    thres_fdr, thres_beta = 0.1, .5
 
     plot_df = pd.DataFrame([{
         'file': f, 'count': get_signif_regressions(regression_files[f], thres_fdr, thres_beta).shape[0]
     } for f in regression_files])
+
     plot_df = plot_df.assign(scale=[LR_STATUS[f]['scale'] for f in plot_df['file']])
     plot_df = plot_df.assign(growth=[LR_STATUS[f]['growth'] for f in plot_df['file']])
+
     plot_df = plot_df.assign(precision=[get_metric(regression_files[f], precision_score, trueset, thres_fdr, thres_beta) for f in plot_df['file']])
     plot_df = plot_df.assign(recall=[get_metric(regression_files[f], recall_score, trueset, thres_fdr, thres_beta) for f in plot_df['file']])
     plot_df = plot_df.assign(f1score=[get_metric(regression_files[f], f1_score, trueset, thres_fdr, thres_beta) for f in plot_df['file']])
 
     #
-    pal = sns.light_palette(cdrug.PAL_SET2[8], 3, reverse=True).as_hex()[:-1]
+    value_vars, id_vars = ['precision', 'recall', 'f1score', 'count'], ['file', 'scale', 'growth']
+    titles = dict(zip(*(value_vars, ['Precision', 'Recall', 'F1 score', 'Significant associations'])))
 
-    df = pd.melt(plot_df, value_vars=['precision', 'recall', 'f1score'], id_vars=['file', 'scale', 'growth'])
+    df = pd.melt(plot_df, value_vars=value_vars, id_vars=id_vars)
 
-    g = sns.FacetGrid(df, col='variable', aspect=.5, legend_out=True, despine=False, sharey=True)
+    g = sns.FacetGrid(df, col='variable', aspect=.5, legend_out=True, despine=False, sharey=False)
+    g = g.map(sns.barplot, 'scale', 'value', 'growth', palette=sns.light_palette(cdrug.PAL_SET2[8], 3, reverse=True).as_hex()[:-1], ci=None)
 
-    g = g.map(sns.barplot, 'scale', 'value', 'growth', palette=pal, ci=None)
-
-    for ax in np.ravel(g.axes):
+    for label, ax in zip(value_vars, np.ravel(g.axes)):
         ax.yaxis.grid(True, color=cdrug.PAL_SET2[7], linestyle='-', linewidth=.1, alpha=.5, zorder=0)
+
+        ax.set_title(titles[label])
+
+        if label != 'count':
+            ax.set_ylim(0, 1)
 
     g.add_legend(title='Growth\nCovariate')
     g.set_axis_labels('Is scaled?', 'Score')
-    g.set_titles('{col_name}')
+    # g.set_titles('{col_name}')
+
+    plt.suptitle(
+        'Enrichment for [{}] in significant associations (FDR < {:.0f}% and abs(beta) > {})'.format('; '.join(trueset), thres_fdr * 100, thres_beta), y=1.05
+    )
 
     plt.savefig('reports/benchmark_barplot.pdf', bbox_inches='tight')
     plt.close('all')
