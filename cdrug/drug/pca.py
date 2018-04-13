@@ -126,7 +126,7 @@ if __name__ == '__main__':
     g = sns.jointplot(
         'PC{}'.format(pci), 'growth_rate_median', data=plot_df, kind='reg', space=0, color=cdrug.PAL_SET2[8],
         marginal_kws=dict(kde=False), annot_kws=dict(stat='R'),
-        joint_kws=dict(scatter_kws=dict(edgecolor='w', lw=.3, s=10, alpha=.6), line_kws=dict(lw=1., color=cdrug.PAL_SET2[1], alpha=1.), lowess=True)
+        joint_kws=dict(lowess=True, scatter_kws=dict(edgecolor='w', lw=.3, s=10, alpha=.6), line_kws=dict(lw=1., color=cdrug.PAL_SET2[1], alpha=1.))
     )
 
     g.ax_joint.axvline(0, ls='-', lw=0.1, c=cdrug.PAL_SET2[7], zorder=0)

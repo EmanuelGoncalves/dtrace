@@ -8,14 +8,14 @@ import matplotlib.pyplot as plt
 
 
 def plot_corrplot(
-        x, y, dataframe, scatter_kws=None, line_kws=None, annot_kws=None, marginal_kws=None, add_hline=True, add_vline=True
+        x, y, dataframe, scatter_kws=None, line_kws=None, annot_kws=None, marginal_kws=None, add_hline=True, add_vline=True, lowess=False
 ):
     # - Fillin defaults
     if scatter_kws is None:
         scatter_kws = dict(edgecolor='w', lw=.3, s=12)
 
     if line_kws is None:
-        line_kws = dict(lw=1.)
+        line_kws = dict(lw=1., color=cdrug.PAL_SET2[1])
 
     if annot_kws is None:
         annot_kws = dict(stat='R')
@@ -26,7 +26,7 @@ def plot_corrplot(
     # - Joint and Marginal plot
     g = sns.jointplot(
         x, y, data=dataframe, kind='reg', space=0, color=cdrug.PAL_SET2[8], annot_kws=annot_kws,
-        marginal_kws=marginal_kws, joint_kws=dict(scatter_kws=scatter_kws, line_kws=line_kws)
+        marginal_kws=marginal_kws, joint_kws=dict(lowess=lowess, scatter_kws=scatter_kws, line_kws=line_kws)
     )
 
     # - Extras
@@ -37,6 +37,6 @@ def plot_corrplot(
         g.ax_joint.axvline(0, ls='-', lw=0.1, c=cdrug.PAL_SET2[7])
 
     # - Labels
-    g.set_axis_labels('{} (log10 FC)'.format(x), '{} (ln IC50)'.format(y))
+    g.set_axis_labels('{} (log2 FC)'.format(x), '{} (ln IC50)'.format(y))
 
     return g

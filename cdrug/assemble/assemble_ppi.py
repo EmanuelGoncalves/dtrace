@@ -69,10 +69,12 @@ def build_biogrid_ppi(exp_type=None, int_type=None, organism=9606, export_pickle
     # Physical interactions only
     if int_type is not None:
         biogrid = biogrid[[i in int_type for i in biogrid['Experimental System Type']]]
+    print('Experimental System Type considered: {}'.format('; '.join(set(biogrid['Experimental System Type']))))
 
     # Filter by experimental type
     if exp_type is not None:
         biogrid = biogrid[[i in exp_type for i in biogrid['Experimental System']]]
+    print('Experimental System considered: {}'.format('; '.join(set(biogrid['Experimental System']))))
 
     # Interaction source map
     biogrid['interaction'] = biogrid['Official Symbol Interactor A'] + '<->' + biogrid['Official Symbol Interactor B']
