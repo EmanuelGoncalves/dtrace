@@ -50,7 +50,7 @@ if __name__ == '__main__':
     wes = pd.read_csv(cdrug.WES_COUNT)
 
     # Mutation load
-    n_mutations = wes.groupby('SAMPLE')['Classification'].count().rename('mutations')
+    n_mutations = wes.groupby('SAMPLE')['Classification'].count().rename('mutations') / 30  # Mutation burden per Mb
 
     # CRISPR gene-level corrected fold-changes
     crispr = pd.read_csv(cdrug.CRISPR_GENE_BAGEL, index_col=0, sep='\t').dropna()
@@ -136,7 +136,7 @@ if __name__ == '__main__':
     for l, c in zip(*(['MSI-S', 'MSI-H'], cdrug.PAL_DBGD)):
         df = plot_df.query("Microsatellite == '{}'".format(l))
         ax2.scatter(
-            df['pos'], df['mutations'] / 30, color=c, edgecolor='white', lw=.1, s=7
+            df['pos'], df['mutations'], color=c, edgecolor='white', lw=.1, s=7
         )
 
     ax2.set_ylabel('Mutation rate\n(per Mb)')

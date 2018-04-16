@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
+from scipy.stats import ttest_ind
 from crispy.regression.linear import lr
 from sklearn.preprocessing import StandardScaler
 from statsmodels.stats.multitest import multipletests
@@ -62,58 +63,87 @@ if __name__ == '__main__':
     } for t, f, g, ds, _ in d_repur.values for d in ds.split('|') if d in d_repur_map.index])
 
     # CRISPR gene-level corrected fold-changes
-    crispr = pd.read_csv(cdrug.CRISPR_GENE_FC_CORRECTED, index_col=0, sep='\t').dropna()
-    crispr_scaled = cdrug.scale_crispr(crispr)
-    # crispr_scaled = pd.read_csv(cdrug.CRISPR_GENE_BINARY, sep='\t', index_col=0).dropna().astype(int)
+    crispr_bagel = pd.read_csv(cdrug.CRISPR_GENE_BAGEL, index_col=0, sep='\t').dropna()
+    crispr_binary = pd.read_csv(cdrug.CRISPR_GENE_BINARY, index_col=0, sep='\t').dropna()
 
     # Drug response
     d_response = pd.read_csv(cdrug.DRUG_RESPONSE_FILE, index_col=[0, 1, 2], header=[0, 1])
     d_response.columns = d_response.columns.droplevel(0)
 
     # - Overlap
-    samples = list(set(d_response).intersection(crispr_scaled).intersection(ss.index).intersection(growth.index))
-    d_response, crispr_scaled = d_response[samples], crispr_scaled[samples]
+    samples = list(set(d_response).intersection(crispr_bagel).intersection(ss.index).intersection(growth.index))
+    d_response, crispr_scaled, crispr_binary = d_response[samples], crispr_bagel[samples], crispr_binary[samples]
     print('Samples: %d' % len(samples))
 
     # - Linear regression: drug ~ crispr + tissue
     lr_df = []
-    for d, d_id, g, f, t in d_repur.values:
-        if d_id in d_response.index and g in crispr_scaled.index:
-            print(d, d_id, g, f, t)
 
-            y = d_response.loc[d_id, samples].T.dropna()
-            x = crispr_scaled.loc[g, y.index].rename(g).to_frame()
+    # drug_name, drug_id, gene, feature, tissue = 'VORINOSTAT', 1012.0, 'HDAC1', 'PIK3R1_mut', 'Ovarian Carcinoma'
+    for drug_name, drug_id, gene, feature, tissue in d_repur.values:
 
-            lm_res = lr(x, y)
+        if drug_id in d_response.index and gene in crispr_binary.index:
+            tissue_samples = set(ss[ss['Cancer Type'] == tissue].index).intersection(samples)
 
-            for d_name, s_version in lm_res['beta'].columns:
-                res = {'tissue': t, 'drug_id': d_id, 'drug_name': d_name, 'gene': g, 'genomic': f, 'version': s_version}
+            x = crispr_binary.loc[gene, tissue_samples]
 
-                for s in ['beta', 'f_pval', 'r2']:
-                    res[s] = lm_res[s].loc[g, (d_name, s_version)]
+            for (d_name, d_screen), y in d_response.loc[drug_id, tissue_samples].iterrows():
+                df = pd.concat([x.rename('x'), y.rename('y')], axis=1).dropna()
 
-                lr_df.append(res)
+                if df.shape[0] > 2 and df['x'].sum() > 2:
+
+                    stat, pval = ttest_ind(df.query('x == 0')['x'], df.query('x == 1')['y'], equal_var=False)
+
+                    delta_ic50 = df.query('x == 1')['y'].mean() - df.query('x == 0')['y'].mean()
+
+                    res = {
+                        'tissue': tissue, 'drug_id': drug_id, 'drug_name': d_name,
+                        'gene': gene, 'genomic': feature, 'version': d_screen,
+                        'stat': stat, 'pval': pval, 'essential': df['x'].sum(0),
+                        'delta_ic50': delta_ic50
+                    }
+
+                    lr_df.append(res)
+
+                    print('# -- Drug repurposing')
+                    print(drug_name, drug_id, gene, feature, tissue)
+                    print('#(Essential cell lines) = {}'.format(sum(x)))
+                    print(d_name, d_screen)
+
+                print('\n')
 
     lr_df = pd.DataFrame(lr_df)
-    lr_df = lr_df.assign(f_fdr=multipletests(lr_df['f_pval'], method='fdr_bh')[1])
-    print(lr_df.sort_values('f_fdr'))
+    lr_df = lr_df.assign(fdr=multipletests(lr_df['pval'], method='fdr_bh')[1])
+
+    # - Export table
+    lr_df.query('fdr < 0.05').sort_values('delta_ic50').to_csv('data/repo_associations.txt', sep='\t', index=False)
+    lr_df.query('fdr < 0.05').sort_values('delta_ic50').to_clipboard(index=False)
+
+    # - Import
+    lr_df = pd.read_csv('data/repo_associations.txt', sep='\t')
+    print(lr_df.query('fdr < 0.05').sort_values('delta_ic50'))
 
     # - Plot Drug ~ CRISPR corrplot
-    idx = 43
-    d_id, d_name, d_screen, gene, tissue = lr_df.loc[idx, ['drug_id', 'drug_name', 'version', 'gene', 'tissue']].values
+    idx = 29
+    d_id, d_name, d_screen, gene, tissue, fdr, genomic = lr_df.loc[idx, ['drug_id', 'drug_name', 'version', 'gene', 'tissue', 'fdr', 'genomic']].values
 
-    plot_df = pd.concat([x.rename('x'), y.rename('y'), ss['Cancer Type']], axis=1).dropna()
+    tissue_samples = set(ss[ss['Cancer Type'] == tissue].index).intersection(samples)
 
-    g = plot_corrplot(plot_df)
-    sns.regplot(
-        x='x', y='y', data=plot_df[plot_df['Cancer Type'] == tissue], color=cdrug.PAL_DBGD[1], truncate=True, fit_reg=False, ax=g.ax_joint,
-        scatter_kws={'s': 20, 'edgecolor': 'w', 'linewidth': .1, 'alpha': .8}, label=tissue
-    )
+    pal, order = dict(zip(*(['No', 'Yes'], cdrug.PAL_DBGD))), ['No', 'Yes']
 
-    g.set_axis_labels('{} (log10 FC)'.format(gene), '{} (ln IC50)'.format(d_name))
+    plot_df = pd.concat([
+        crispr_binary.loc[gene, tissue_samples].rename('x'),
+        d_response.loc[(d_id, d_name, d_screen), tissue_samples].rename('y')
+    ], axis=1).dropna()
+    plot_df = plot_df.replace({'x': {0: 'No', 1: 'Yes'}})
 
-    plt.legend()
+    sns.boxplot('x', 'y', data=plot_df, palette=pal, order=order, fliersize=0)
+    sns.swarmplot('x', 'y', data=plot_df, palette=pal, order=order, linewidth=.1, edgecolor='white', alpha=.8, size=3)
 
-    plt.gcf().set_size_inches(3., 3.)
-    plt.savefig('reports/crispr_drug_corrplot.png', bbox_inches='tight', dpi=600)
+    plt.axhline(0, c=cdrug.PAL_DBGD[0], lw=.1, alpha=.8)
+    plt.xlabel('{} (BAGEL essential)'.format(gene))
+    plt.ylabel('{} ({} ln IC50; {})'.format(d_name, d_screen, d_sheet.loc[d_id, 'Target name']))
+    plt.title('{} \n {} \n FDR = {:.2}'.format(tissue, genomic, fdr))
+
+    plt.gcf().set_size_inches(1., 3.)
+    plt.savefig('reports/drug_repo_boxplots.png', bbox_inches='tight', dpi=600)
     plt.close('all')
