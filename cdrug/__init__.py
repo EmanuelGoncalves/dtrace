@@ -4,8 +4,7 @@
 import numpy as np
 import pandas as pd
 import seaborn as sns
-from scipy.stats import iqr
-from cdrug.assemble.assemble_ppi import STRING_PICKLE, BIOGRID_PICKLE
+from cdrug.assemble.assemble_ppi import STRING_PICKLE, BIOGRID_PICKLE, build_biogrid_ppi
 
 # - META DATA
 SAMPLESHEET_FILE = 'data/meta/samplesheet.csv'
@@ -49,6 +48,7 @@ PAL_DBGD = ['#37454B', '#F2C500']
 PAL_TAB20C = sns.color_palette('tab20c', n_colors=20).as_hex()
 PAL_SET2 = sns.color_palette('Set2', n_colors=8).as_hex() + ['#333333']
 
+PAL_BIN = {1: PAL_SET2[1], 0: PAL_SET2[8]}
 PAL_DRUG_VERSION = dict(RS=PAL_SET2[1], v17=PAL_SET2[8])
 
 # - PLOTTING AESTHETICS
@@ -294,3 +294,44 @@ def get_drug_names(drug_id):
     drug_synonyms = [] if str(drug_synonyms).lower() == 'nan' else drug_synonyms.split(', ')
 
     return set(drgu_name + drug_synonyms)
+
+
+def dist_drugtarget_genes(drug_targets, genes, ppi):
+    genes = genes.intersection(set(ppi.vs['name']))
+    assert len(genes) != 0, 'No genes overlapping with PPI provided'
+
+    dmatrix = {}
+
+    for drug in drug_targets:
+        drug_genes = drug_targets[drug].intersection(genes)
+
+        if len(drug_genes) != 0:
+            dmatrix[drug] = dict(zip(*(genes, np.min(ppi.shortest_paths(source=drug_genes, target=genes), axis=0))))
+
+    return dmatrix
+
+
+def ppi_annotation(df, int_type, exp_type, target_thres=4):
+    # PPI annotation
+    ppi = build_biogrid_ppi(int_type=int_type, exp_type=exp_type)
+
+    # Drug target
+    d_targets = get_drugtargets()
+
+    # Calculate distance between drugs and CRISPR genes in PPI
+    dist_d_g = dist_drugtarget_genes(d_targets, set(df['GeneSymbol']), ppi)
+
+    # Annotate drug regressions
+    df = df.assign(
+        target=[
+            dist_d_g[d][g] if d in dist_d_g and g in dist_d_g[d] else np.nan for d, g in df[['DRUG_ID_lib', 'GeneSymbol']].values
+        ]
+    )
+
+    # Discrete annotation of targets
+    df = df.assign(target_thres=['Target' if i == 0 else ('%d' % i if i < target_thres else '>={}'.format(target_thres)) for i in df['target']])
+
+    # Preserve the non-mapped drugs
+    df.loc[df['target'].apply(np.isnan), 'target_thres'] = np.nan
+
+    return df

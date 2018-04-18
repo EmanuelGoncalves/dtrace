@@ -8,7 +8,6 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import cdrug.associations as lr_files
 from statsmodels.stats.multitest import multipletests
-from cdrug.associations.ppi_enrichment import ppi_annotation
 from sklearn.metrics import f1_score, precision_score, recall_score
 
 
@@ -20,7 +19,12 @@ LR_STATUS = {
 }
 
 
+def drugs_to_consider(df, thres_beta=.5):
+    return set(df[df['beta'].abs() > thres_beta]['DRUG_ID_lib'])
+
+
 def get_signif_regressions(df, thres_fdr=0.1, thres_beta=0.25):
+    df = df[df['DRUG_ID_lib'].isin(drugs_to_consider(df))]
     return df[(df['lr_fdr'] < thres_fdr) & (df['beta'].abs() > thres_beta)]
 
 
@@ -28,7 +32,7 @@ def get_metric(df, func=precision_score, true_set=None, thres_fdr=0.1, thres_bet
     if true_set is None:
         true_set = ['Target', '1']
 
-    y_pred = ((df['beta'].abs() > thres_beta) & (df['lr_fdr'] < thres_fdr)).astype(int)
+    y_pred = ((df['beta'].abs() > thres_beta)).astype(int)
 
     y_true = df['target_thres'].isin(true_set).astype(int)
 
@@ -47,7 +51,7 @@ if __name__ == '__main__':
     regression_files = {f: regression_files[f].assign(lr_fdr=multipletests(regression_files[f]['lr_pval'])[1]) for f in regression_files}
 
     # - Annotate PPI
-    regression_files = {f: ppi_annotation(regression_files[f]) for f in regression_files}
+    regression_files = {f: cdrug.ppi_annotation(regression_files[f], exp_type=None, int_type={'physical'}) for f in regression_files}
 
     # - Benchmark best threshold
     trueset = ['Target', '1']

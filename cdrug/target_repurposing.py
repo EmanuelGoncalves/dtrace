@@ -50,9 +50,12 @@ if __name__ == '__main__':
     # Growth rate
     growth = pd.read_csv(cdrug.GROWTHRATE_FILE, index_col=0)
 
+    # MOBEM
+    mobem = pd.read_csv('data/gdsc/mobems/PANCAN_simple_MOBEM.rdata.annotated.csv', index_col=0)
+
     # - Import data
     d_sheet = pd.read_csv(cdrug.DRUGSHEET_FILE, sep='\t', index_col=0)
-    suitable_drugs = set(d_sheet[(d_sheet['Web Release'] == 'Y') & (d_sheet['Suitable for publication'] == 'Y')].index)
+    suitable_drugs = set(d_sheet[(d_sheet['Web Release'] == 'Y') | (d_sheet['Suitable for publication'] == 'Y')].index)
 
     # - Import drug repurposing
     d_repur_map = pd.read_csv('data/repo_drug_map.txt', sep='\t', index_col=0).dropna()['Drug ID']
@@ -60,7 +63,7 @@ if __name__ == '__main__':
     d_repur = pd.read_csv('data/repo_list.txt', sep='\t')
     d_repur = pd.DataFrame([{
         'tissue': t, 'genomic': f, 'gene': g, 'drug': d, 'drug_id': d_repur_map[d]
-    } for t, f, g, ds, _ in d_repur.values for d in ds.split('|') if d in d_repur_map.index])
+    } for t, fs, g, ds, _ in d_repur.values for d in ds.split('|') if d in d_repur_map.index for f in fs.split(', ')])
 
     # CRISPR gene-level corrected fold-changes
     crispr_bagel = pd.read_csv(cdrug.CRISPR_GENE_BAGEL, index_col=0, sep='\t').dropna()
@@ -81,10 +84,11 @@ if __name__ == '__main__':
     # drug_name, drug_id, gene, feature, tissue = 'VORINOSTAT', 1012.0, 'HDAC1', 'PIK3R1_mut', 'Ovarian Carcinoma'
     for drug_name, drug_id, gene, feature, tissue in d_repur.values:
 
-        if drug_id in d_response.index and gene in crispr_binary.index:
+        if drug_id in d_response.index and gene in crispr_binary.index and feature in mobem.index:
             tissue_samples = set(ss[ss['Cancer Type'] == tissue].index).intersection(samples)
 
-            x = crispr_binary.loc[gene, tissue_samples]
+            # x = crispr_binary.loc[gene, tissue_samples]
+            x = mobem.loc[feature, tissue_samples]
 
             for (d_name, d_screen), y in d_response.loc[drug_id, tissue_samples].iterrows():
                 df = pd.concat([x.rename('x'), y.rename('y')], axis=1).dropna()
@@ -123,7 +127,7 @@ if __name__ == '__main__':
     print(lr_df.query('fdr < 0.05').sort_values('delta_ic50'))
 
     # - Plot Drug ~ CRISPR corrplot
-    idx = 29
+    idx = 6
     d_id, d_name, d_screen, gene, tissue, fdr, genomic = lr_df.loc[idx, ['drug_id', 'drug_name', 'version', 'gene', 'tissue', 'fdr', 'genomic']].values
 
     tissue_samples = set(ss[ss['Cancer Type'] == tissue].index).intersection(samples)
@@ -131,19 +135,20 @@ if __name__ == '__main__':
     pal, order = dict(zip(*(['No', 'Yes'], cdrug.PAL_DBGD))), ['No', 'Yes']
 
     plot_df = pd.concat([
-        crispr_binary.loc[gene, tissue_samples].rename('x'),
-        d_response.loc[(d_id, d_name, d_screen), tissue_samples].rename('y')
+        crispr_binary.loc[gene, tissue_samples].rename('essential'),
+        d_response.loc[(d_id, d_name, d_screen), tissue_samples].rename('drug'),
+        mobem.loc[genomic, tissue_samples].rename('genomic')
     ], axis=1).dropna()
-    plot_df = plot_df.replace({'x': {0: 'No', 1: 'Yes'}})
+    plot_df = plot_df.replace({'essential': {0: 'No', 1: 'Yes'}, 'genomic': {0: 'No', 1: 'Yes'}})
 
-    sns.boxplot('x', 'y', data=plot_df, palette=pal, order=order, fliersize=0)
-    sns.swarmplot('x', 'y', data=plot_df, palette=pal, order=order, linewidth=.1, edgecolor='white', alpha=.8, size=3)
+    sns.boxplot('genomic', 'drug', data=plot_df, palette=pal, order=order, fliersize=0, linewidth=.3)
+    sns.swarmplot('genomic', 'drug', 'essential', data=plot_df, palette=pal, order=order, linewidth=.1, edgecolor='white', alpha=.8, size=3, split=False)
 
     plt.axhline(0, c=cdrug.PAL_DBGD[0], lw=.1, alpha=.8)
-    plt.xlabel('{} (BAGEL essential)'.format(gene))
+    plt.xlabel('{}'.format(genomic))
     plt.ylabel('{} ({} ln IC50; {})'.format(d_name, d_screen, d_sheet.loc[d_id, 'Target name']))
     plt.title('{} \n {} \n FDR = {:.2}'.format(tissue, genomic, fdr))
 
-    plt.gcf().set_size_inches(1., 3.)
+    plt.gcf().set_size_inches(1.5, 3.)
     plt.savefig('reports/drug_repo_boxplots.png', bbox_inches='tight', dpi=600)
     plt.close('all')

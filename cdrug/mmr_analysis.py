@@ -13,7 +13,7 @@ from statsmodels.stats.multitest import multipletests
 
 GENES_CRISPR = ['WRN']
 GENES_METHY = ['MLH1']
-GENES_MUTATION = ['POLE', 'MLH1', 'MLH3', 'MSH2', 'MSH3', 'MSH6', 'PMS2']
+GENES_MUTATION = ['POLE', 'MLH1', 'MLH3', 'MSH2', 'MSH3', 'MSH6', 'PMS2', 'WRN']
 
 TISSUES = ['Colorectal Carcinoma', 'Ovarian Carcinoma']
 TISSUES_PALETTE = {'Colorectal Carcinoma': '#f28100', 'Ovarian Carcinoma': '#28B8A4', 'Other': '#ECF0F1'}
@@ -180,7 +180,7 @@ if __name__ == '__main__':
     for g in GENES_MUTATION:
         g_label = '{} (Mutation)'.format(g)
 
-        if f_ttest.loc[g_label, 'fdr'] < 0.05 or g in ['POLE']:
+        if f_ttest.loc[g_label, 'fdr'] < 0.05 or g in ['POLE', 'WRN']:
 
             for p, ms in plot_df[['pos', g_label]].values:
                 if str(ms).lower() == 'nan':

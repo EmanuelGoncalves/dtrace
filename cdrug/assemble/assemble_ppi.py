@@ -50,8 +50,8 @@ def build_omnipath_ppi(is_directed=True, is_signed=True):
 
 
 def build_biogrid_ppi(exp_type=None, int_type=None, organism=9606, export_pickle=False):
-    # 'Affinity Capture-MS', 'Affinity Capture-Western', 'Co-crystal Structure', 'Co-purification',
-    # 'Reconstituted Complex', 'PCA', 'Two-hybrid'
+    # 'Affinity Capture-MS', 'Affinity Capture-Western'
+    # 'Reconstituted Complex', 'PCA', 'Two-hybrid', 'Co-crystal Structure', 'Co-purification'
 
     # Import
     biogrid = pd.read_csv(BIOGRID_FILE, sep='\t')
