@@ -204,10 +204,10 @@ if __name__ == '__main__':
 
     # - Annotate regressions with Drug -> Target -> Protein (in PPI)
     lm_df_crispr = ppi_annotation(lm_df_crispr, exp_type={'Affinity Capture-MS', 'Affinity Capture-Western'}, int_type={'physical'}, target_thres=3)
-    print(lm_df_crispr[(lm_df_crispr['beta'].abs() > .5) & (lm_df_crispr['lr_fdr'] < 0.05)].sort_values('lr_fdr'))
+    print(lm_df_crispr[(lm_df_crispr['beta'].abs() > .25) & (lm_df_crispr['lr_fdr'] < 0.1)].sort_values('lr_fdr'))
 
     # - Top associations
-    plot_df = lm_df_crispr[(lm_df_crispr['beta'].abs() > .5) & (lm_df_crispr['lr_fdr'] < .05)]
+    plot_df = lm_df_crispr[(lm_df_crispr['beta'].abs() > .25) & (lm_df_crispr['lr_fdr'] < .1)]
     order = list(plot_df.groupby('DRUG_NAME')['lr_fdr'].min().sort_values().index)[:10]
     plot_drug_associations_barplot(plot_df, order)
 

@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
-from cdrug.drug import is_same_drug
+from cdrug import is_same_drug
 
 
 if __name__ == '__main__':
