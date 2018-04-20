@@ -64,6 +64,9 @@ SNS_RC = {
 
 sns.set(style='ticks', context='paper', rc=SNS_RC, font_scale=.75)
 
+# - DRUG INFO COLUMNS
+DRUG_INFO_COLUMNS = ['DRUG_ID_lib', 'DRUG_NAME', 'VERSION']
+
 
 # - GETS
 def get_drugsheet():
@@ -309,29 +312,3 @@ def dist_drugtarget_genes(drug_targets, genes, ppi):
             dmatrix[drug] = dict(zip(*(genes, np.min(ppi.shortest_paths(source=drug_genes, target=genes), axis=0))))
 
     return dmatrix
-
-
-def ppi_annotation(df, int_type, exp_type, target_thres=4):
-    # PPI annotation
-    ppi = build_biogrid_ppi(int_type=int_type, exp_type=exp_type)
-
-    # Drug target
-    d_targets = get_drugtargets()
-
-    # Calculate distance between drugs and CRISPR genes in PPI
-    dist_d_g = dist_drugtarget_genes(d_targets, set(df['GeneSymbol']), ppi)
-
-    # Annotate drug regressions
-    df = df.assign(
-        target=[
-            dist_d_g[d][g] if d in dist_d_g and g in dist_d_g[d] else np.nan for d, g in df[['DRUG_ID_lib', 'GeneSymbol']].values
-        ]
-    )
-
-    # Discrete annotation of targets
-    df = df.assign(target_thres=['Target' if i == 0 else ('%d' % i if i < target_thres else '>={}'.format(target_thres)) for i in df['target']])
-
-    # Preserve the non-mapped drugs
-    df.loc[df['target'].apply(np.isnan), 'target_thres'] = np.nan
-
-    return df

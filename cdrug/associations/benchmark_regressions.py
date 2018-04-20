@@ -7,8 +7,8 @@ import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 import cdrug.associations as lr_files
-from statsmodels.stats.multitest import multipletests
-from sklearn.metrics import f1_score, precision_score, recall_score
+from cdrug.associations import multipletests_per_drug, ppi_annotation
+from sklearn.metrics import f1_score, precision_score, recall_score, roc_auc_score
 
 
 LR_STATUS = {
@@ -28,11 +28,8 @@ def get_signif_regressions(df, thres_fdr=0.1, thres_beta=0.25):
     return df[(df['lr_fdr'] < thres_fdr) & (df['beta'].abs() > thres_beta)]
 
 
-def get_metric(df, func=precision_score, true_set=None, thres_fdr=0.1, thres_beta=0.25):
-    if true_set is None:
-        true_set = ['Target', '1']
-
-    y_pred = ((df['beta'].abs() > thres_beta)).astype(int)
+def get_metric(df, func, true_set, thres_fdr=0.1, thres_beta=0.25):
+    y_pred = ((df['beta'].abs() > thres_beta) & (df['lr_fdr'].abs() < thres_fdr)).astype(int)
 
     y_true = df['target_thres'].isin(true_set).astype(int)
 
@@ -48,14 +45,14 @@ if __name__ == '__main__':
     regression_files = {f: pd.read_csv(f) for f in regression_files}
 
     # - FDR correction
-    regression_files = {f: regression_files[f].assign(lr_fdr=multipletests(regression_files[f]['lr_pval'])[1]) for f in regression_files}
+    regression_files = {f: multipletests_per_drug(regression_files[f]) for f in regression_files}
 
     # - Annotate PPI
-    regression_files = {f: cdrug.ppi_annotation(regression_files[f], exp_type=None, int_type={'physical'}) for f in regression_files}
+    regression_files = {f: ppi_annotation(regression_files[f], exp_type=None, int_type={'physical'}) for f in regression_files}
 
     # - Benchmark best threshold
     trueset = ['Target', '1']
-    thres_fdr, thres_beta = 0.1, .5
+    thres_fdr, thres_beta = 0.05, .5
 
     plot_df = pd.DataFrame([{
         'file': f, 'count': get_signif_regressions(regression_files[f], thres_fdr, thres_beta).shape[0]

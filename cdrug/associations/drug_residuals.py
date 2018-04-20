@@ -12,6 +12,12 @@ from cdrug.plot.corrplot import plot_corrplot
 
 
 if __name__ == '__main__':
+    # WES
+    wes = pd.read_csv(cdrug.WES_COUNT)
+
+    # Samplesheet
+    ss = cdrug.get_samplesheet()
+
     # Linear regressions
     lm_df_crispr = pd.read_csv(lr_files.LR_DRUG_CRISPR)
 
@@ -20,7 +26,6 @@ if __name__ == '__main__':
 
     # CIRSPR CN corrected logFC
     crispr = cdrug.get_crispr(dtype='logFC')
-    crispr_scaled = cdrug.scale_crispr(crispr)
 
     # MOBEM
     mobem = cdrug.get_mobem()
@@ -32,31 +37,27 @@ if __name__ == '__main__':
     lm_df_crispr = cdrug.ppi_annotation(lm_df_crispr, exp_type={'Affinity Capture-MS', 'Affinity Capture-Western'}, int_type={'physical'})
 
     # --
-    df = lm_df_crispr.query('target == 1')
-    df = df[df['beta'] > .5]
-
-    idx = 68
+    idx = 6
 
     d_id, d_name, d_screen, gene = lm_df_crispr.loc[idx, ['DRUG_ID_lib', 'DRUG_NAME', 'VERSION', 'GeneSymbol']].values
 
-    y = drespo.loc[(d_id, d_name, d_screen), samples].dropna()
-    x = crispr_scaled.loc[df.loc[idx, 'GeneSymbol'], y.index]
+    x = drespo.loc[(d_id, d_name, d_screen), samples].dropna()
+    y = crispr.loc[lm_df_crispr.loc[idx, 'GeneSymbol'], x.index]
 
     lm_1 = sm.OLS(y, sm.add_constant(x)).fit()
     print(lm_1.summary())
 
     z = mobem[y.index].T.astype(float)
-    z = z.loc[:, z.sum() >= 5]
+    z = z.loc[:, z.sum() >= 3]
 
     resid_sum = lm_1.resid.to_frame().T.dot(z).loc[0]
     resid_mean = resid_sum / z.sum()
-    resid_mean.sort_values()
 
     lm_2 = sm.OLS(lm_1.resid, sm.add_constant(z)).fit()
-    print(lm_2.summary())
+    print(lm_2.params.sort_values())
 
     # -
-    x, y, z = '{}'.format(gene), '{} {}'.format(d_name, d_screen), '{}'.format('gain.cnaPANCAN303')
+    x, y, z = '{}'.format(gene), '{} {}'.format(d_name, d_screen), '{}'.format('EGFR_mut')
 
     #
     plot_df = pd.concat([lm_1.resid.rename('residuals'), mobem.loc[z]], axis=1).dropna()
@@ -74,8 +75,8 @@ if __name__ == '__main__':
         mobem.loc[z].rename(z)
     ], axis=1).dropna()
 
-    g = plot_corrplot(x, y, plot_df, add_hline=True, lowess=False)
-    sns.regplot(x, y, data=plot_df[plot_df[z] == 1], ax=g.ax_joint, color=cdrug.PAL_SET2[1], fit_reg=False)
+    g = plot_corrplot(y, x, plot_df, add_hline=True, lowess=False)
+    sns.regplot(y, x, data=plot_df[plot_df[z] == 1], ax=g.ax_joint, color=cdrug.PAL_SET2[1], fit_reg=False)
 
     plt.gcf().set_size_inches(2., 2.)
     plt.savefig('reports/residuals_corrplot.pdf', bbox_inches='tight')
