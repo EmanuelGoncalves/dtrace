@@ -2,17 +2,12 @@
 # Copyright (C) 2018 Emanuel Goncalves
 
 import cdrug
-import textwrap
-import numpy as np
 import pandas as pd
-import seaborn as sns
 import matplotlib.pyplot as plt
 from sklearn.manifold import TSNE
 import cdrug.associations as lr_files
 from sklearn.decomposition import PCA
-from cdrug.plot.corrplot import plot_corrplot
 from cdrug.associations import multipletests_per_drug, ppi_annotation
-from sklearn.metrics import roc_auc_score, recall_score, precision_score, f1_score
 
 
 if __name__ == '__main__':

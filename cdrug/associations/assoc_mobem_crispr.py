@@ -7,31 +7,62 @@ import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 import cdrug.associations as lr_files
+from cdrug.associations import multipletests_per_drug
 from statsmodels.stats.multitest import multipletests
 
 
+THRES_FDR, THRES_BETA = .1, 0.25
+
+
+def get_significant_crispr_associations(associations, thres_fdr, thres_beta):
+    df = associations[(associations['beta'].abs() > thres_beta) & (associations['lr_fdr'] < thres_fdr)]
+    df = {(d, g) for d, g in df[['DRUG_ID_lib', 'GeneSymbol']].values}
+    return df
+
+
+def is_feature_in(drug, feature, signif_associations):
+    """
+    drug, feature = 1021, 'gain.cnaPANCAN344..MYCN.'
+
+    :param feature:
+    :return:
+    """
+    feature_genes = cdrug.mobem_feature_to_gene(feature)
+
+    if len(feature_genes) != 0:
+        is_in = len({(drug, gene) for gene in feature_genes}.intersection(signif_associations)) > 0
+
+    else:
+        is_in = np.nan
+
+    return is_in
+
+
+def annotate_significant(df, signif):
+    df = df.assign(crispr_signif=[is_feature_in(d, f, signif) for d, f in df[['DRUG_ID_lib', 'level_3']].values])
+    return df
+
+
 if __name__ == '__main__':
-
     # - Import linear regressions
-    lm_df_mobems = pd.read_csv(lr_files.LR_BINARY_DRUG_MOBEMS)
-    lm_df_crispr = pd.read_csv(lr_files.LR_BINARY_DRUG_CRISPR)
+    lr_mobem = pd.read_csv(lr_files.LR_BINARY_DRUG_MOBEMS_ALL)
+    lr_crispr = pd.read_csv(lr_files.LR_DRUG_CRISPR)
+
+    # - Compute FDR per drug
+    lr_mobem = multipletests_per_drug(lr_mobem)
+    lr_crispr = multipletests_per_drug(lr_crispr)
+
+    # - Remove Genetic Feature without any gene mapped
+    crispr_genes = set(lr_crispr['GeneSymbol'])
+    lr_mobem = lr_mobem[[len(cdrug.mobem_feature_to_gene(i).intersection(crispr_genes)) > 0 for i in lr_mobem['level_3']]]
+
+    # - CRISPR significant (Drug, Gene) associations
+    signif_crispr = get_significant_crispr_associations(lr_crispr, THRES_FDR, THRES_BETA)
 
     # -
-    crispr_genes = set(lm_df_crispr['GeneSymbol'])
-    mobems_genes = pd.DataFrame([
-        {'gene': g, 'feature': f} for f in set(lm_df_mobems['level_3']) for g in cdrug.mobem_feature_to_gene(f) if g in crispr_genes
-    ])
+    lr_mobem = annotate_significant(lr_mobem, signif_crispr)
+    print(lr_mobem[['DRUG_ID_lib', 'DRUG_NAME', 'VERSION', 'level_3', 'lr_fdr', 'crispr_signif']].sort_values('lr_fdr'))
 
     # -
-    lm_df_mobems_subset = lm_df_mobems[lm_df_mobems['level_3'].isin(mobems_genes['feature'])]
-    lm_df_crispr_subset = lm_df_crispr[lm_df_crispr['GeneSymbol'].isin(mobems_genes['gene'])]
-
-    lm_df_mobems_subset = lm_df_mobems_subset.assign(lr_fdr=multipletests(lm_df_mobems_subset['lr_pval'])[1])
-    lm_df_crispr_subset = lm_df_crispr_subset.assign(lr_fdr=multipletests(lm_df_crispr_subset['lr_pval'])[1])
-
-    signif_crispr = lm_df_crispr_subset[lm_df_crispr_subset['lr_fdr'] < 0.1]
-    signif_mobems = lm_df_mobems_subset[lm_df_mobems_subset['lr_fdr'] < 0.1]
-
-    signif_crispr_assoc = [(d, g) for d, g in signif_crispr[['DRUG_ID_lib', 'GeneSymbol']].values]
-    [np.any([(d, g) in signif_crispr_assoc for g in cdrug.mobem_feature_to_gene(fs)]) for d, fs in signif_mobems[['DRUG_ID_lib', 'level_3']].values]
-
+    df = lr_mobem[(lr_mobem['beta'].abs() > THRES_BETA) & (lr_mobem['lr_fdr'] < THRES_FDR)]
+    df.groupby(['DRUG_ID_lib', 'DRUG_NAME', 'VERSION', 'level_3'])['crispr_signif'].max().sum()

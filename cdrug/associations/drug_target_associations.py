@@ -13,6 +13,9 @@ from cdrug.associations import multipletests_per_drug, ppi_annotation
 from sklearn.metrics import roc_auc_score, recall_score, precision_score, f1_score
 
 
+THRES_FDR, THRES_BETA = .1, 0.25
+
+
 def drug_count_barplot(df):
     plot_df = pd.Series({
         'All': len({(i, n, v) for i, n, v in df[cdrug.DRUG_INFO_COLUMNS].values}),
@@ -52,11 +55,11 @@ def drug_beta_histogram(plot_df):
     plt.close('all')
 
 
-def recapitulated_drug_targets_barplot(thres_fdr, thres_beta):
-    plot_df = lm_df_crispr.dropna(subset=['target'])
+def recapitulated_drug_targets_barplot(df, thres_fdr, thres_beta):
+    plot_df = df.dropna(subset=['target'])
     plot_df = pd.Series({
         'Non-significant': len({n for i, n, v in plot_df[cdrug.DRUG_INFO_COLUMNS].values}),
-        'Significant': len({n for i, n, v in plot_df.query('lr_fdr < {} & beta > {}'.format(thres_fdr, thres_beta))[cdrug.DRUG_INFO_COLUMNS].values}),
+        'Significant': len({n for i, n, v in plot_df.query('lr_fdr < {} & beta > {} & target < 1'.format(thres_fdr, thres_beta))[cdrug.DRUG_INFO_COLUMNS].values}),
     }).rename('count')
 
     for i, l in enumerate(plot_df.index):
@@ -106,7 +109,7 @@ if __name__ == '__main__':
     drug_beta_histogram(lm_df_crispr.dropna())
 
     # - Drugs that have a target significantly associated
-    recapitulated_drug_targets_barplot(.1, .25)
+    recapitulated_drug_targets_barplot(lm_df_crispr, THRES_FDR, THRES_BETA)
 
     # -
     plot_df = lm_df_crispr.dropna(subset=['target']).set_index(cdrug.DRUG_INFO_COLUMNS)

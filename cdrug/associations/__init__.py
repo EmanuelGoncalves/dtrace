@@ -19,6 +19,7 @@ LR_DRUG_RNASEQ = 'data/drug_regressions_rnaseq.csv'
 
 # - BINARY ASSOCIATIONS
 LR_BINARY_DRUG_MOBEMS = 'data/drug_regressions_binary_mobems.csv'
+LR_BINARY_DRUG_MOBEMS_ALL = 'data/drug_regressions_binary_mobems_all.csv'
 
 LR_BINARY_DRUG_CRISPR = 'data/drug_regressions_binary_crispr.csv'
 

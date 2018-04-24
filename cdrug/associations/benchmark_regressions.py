@@ -8,7 +8,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import cdrug.associations as lr_files
 from cdrug.associations import multipletests_per_drug, ppi_annotation
-from sklearn.metrics import f1_score, precision_score, recall_score, roc_auc_score
+from sklearn.metrics import roc_auc_score, average_precision_score
 
 
 LR_STATUS = {
@@ -19,21 +19,26 @@ LR_STATUS = {
 }
 
 
-def drugs_to_consider(df, thres_beta=.5):
-    return set(df[df['beta'].abs() > thres_beta]['DRUG_ID_lib'])
+THRES_FDR, THRES_BETA, TRUESET = .1, 0.25, {'Target'}
 
 
-def get_signif_regressions(df, thres_fdr=0.1, thres_beta=0.25):
-    df = df[df['DRUG_ID_lib'].isin(drugs_to_consider(df))]
-    return df[(df['lr_fdr'] < thres_fdr) & (df['beta'].abs() > thres_beta)]
+def evaluate_lr(lr_df, true_set, thres_fdr, thres_beta):
+    # Drop drug targets not annotated
+    df = lr_df.dropna(subset=['target'])
 
+    # Significant associations
+    df = df.assign(signif=((df['beta'].abs() > thres_beta) & (df['lr_fdr'].abs() < thres_fdr)).astype(int))
 
-def get_metric(df, func, true_set, thres_fdr=0.1, thres_beta=0.25):
-    y_pred = ((df['beta'].abs() > thres_beta) & (df['lr_fdr'].abs() < thres_fdr)).astype(int)
+    # Annotate if association is in Trueset
+    df = df.assign(trueset=df['target_thres'].isin(true_set).astype(int))
 
-    y_true = df['target_thres'].isin(true_set).astype(int)
+    res = {
+        'count': int(df['signif'].sum()),
+        'avg_precision': average_precision_score(df['trueset'], 1 - df['lr_fdr']),
+        'aroc': roc_auc_score(df['trueset'], df['lr_fdr'])
+    }
 
-    return func(y_true, y_pred)
+    return res
 
 
 if __name__ == '__main__':
@@ -51,19 +56,10 @@ if __name__ == '__main__':
     regression_files = {f: ppi_annotation(regression_files[f], exp_type=None, int_type={'physical'}) for f in regression_files}
 
     # - Benchmark best threshold
-    trueset = ['Target', '1']
-    thres_fdr, thres_beta = 0.05, .5
-
-    plot_df = pd.DataFrame([{
-        'file': f, 'count': get_signif_regressions(regression_files[f], thres_fdr, thres_beta).shape[0]
-    } for f in regression_files])
-
-    plot_df = plot_df.assign(scale=[LR_STATUS[f]['scale'] for f in plot_df['file']])
-    plot_df = plot_df.assign(growth=[LR_STATUS[f]['growth'] for f in plot_df['file']])
-
-    plot_df = plot_df.assign(precision=[get_metric(regression_files[f], precision_score, trueset, thres_fdr, thres_beta) for f in plot_df['file']])
-    plot_df = plot_df.assign(recall=[get_metric(regression_files[f], recall_score, trueset, thres_fdr, thres_beta) for f in plot_df['file']])
-    plot_df = plot_df.assign(f1score=[get_metric(regression_files[f], f1_score, trueset, thres_fdr, thres_beta) for f in plot_df['file']])
+    # lr_df, true_set, thres_fdr, thres_beta = regression_files[f], TRUESET, THRES_FDR, THRES_BETA
+    plot_df = pd.DataFrame({f: evaluate_lr(regression_files[f], TRUESET, THRES_FDR, THRES_BETA) for f in regression_files}).T
+    plot_df = plot_df.assign(scale=[LR_STATUS[f]['scale'] for f in plot_df.index])
+    plot_df = plot_df.assign(growth=[LR_STATUS[f]['growth'] for f in plot_df.index])
 
     #
     value_vars, id_vars = ['precision', 'recall', 'f1score', 'count'], ['file', 'scale', 'growth']

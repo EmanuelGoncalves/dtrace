@@ -18,7 +18,6 @@ HART_NON_ESSENTIAL = 'data/gene_sets/curated_BAGEL_nonEssential.csv'
 GROWTHRATE_FILE = 'data/gdsc/growth/growth_rate.csv'
 
 # - CRISPR
-CRISPR_GENE_FILE = 'data/meta/_00_Genes_for_panCancer_assocStudies.csv'
 CRISPR_GENE_FC_CORRECTED = 'data/crispr/CRISPRcleaned_logFCs.tsv'
 CRISPR_GENE_BAGEL = 'data/crispr/BayesianFactors.tsv'
 CRISPR_GENE_BINARY = 'data/crispr/binaryDepScores.tsv'
