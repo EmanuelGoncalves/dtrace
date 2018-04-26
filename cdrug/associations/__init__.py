@@ -4,7 +4,6 @@
 import numpy as np
 import pandas as pd
 from statsmodels.stats.multitest import multipletests
-from cdrug.assemble.assemble_ppi import build_biogrid_ppi
 from cdrug import get_drugtargets, dist_drugtarget_genes, DRUG_INFO_COLUMNS
 
 # - CONTINUOUS CRISPR ASSOCIATIONS
@@ -38,9 +37,35 @@ def multipletests_per_drug(lr_associations, method='bonferroni'):
     return df
 
 
-def ppi_annotation(df, int_type, exp_type, target_thres=4):
+def ppi_corr(ppi, m_corr, m_corr_thres=None):
+    """
+    Annotate PPI network based on Pearson correlation between the vertices of each edge using
+    m_corr data-frame and m_corr_thres (Pearson > m_corr_thress).
+
+    :param ppi:
+    :param m_corr:
+    :param m_corr_thres:
+    :return:
+    """
+    # Subset PPI network
+    ppi = ppi.subgraph([i.index for i in ppi.vs if i['name'] in m_corr.index])
+
+    # Edge correlation
+    crispr_pcc = np.corrcoef(m_corr.loc[ppi.vs['name']].values)
+    ppi.es['corr'] = [crispr_pcc[i.source, i.target] for i in ppi.es]
+
+    # Sub-set by correlation between vertices of each edge
+    if m_corr_thres is not None:
+        ppi = ppi.subgraph_edges([i.index for i in ppi.es if abs(i['corr']) > m_corr_thres])
+
+    print(ppi.summary())
+
+    return ppi
+
+
+def ppi_annotation(df, ppi_type, ppi_kws, target_thres=4):
     # PPI annotation
-    ppi = build_biogrid_ppi(int_type=int_type, exp_type=exp_type)
+    ppi = ppi_type(**ppi_kws)
 
     # Drug target
     d_targets = get_drugtargets()

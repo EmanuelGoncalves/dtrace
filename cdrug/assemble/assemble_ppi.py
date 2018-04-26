@@ -5,13 +5,9 @@ import igraph
 import pandas as pd
 
 
-STRING_FILE = 'data/resources/string/9606.protein.links.full.v10.5.txt'
-STRING_ALIAS_FILE = 'data/resources/string/9606.protein.aliases.v10.5.txt'
-STRING_PICKLE = 'data/igraph_string.pickle'
-
+STRING_FILE = 'data/ppi/9606.protein.links.full.v10.5.txt'
+STRING_ALIAS_FILE = 'data/ppi/9606.protein.aliases.v10.5.txt'
 BIOGRID_FILE = 'data/ppi/BIOGRID-ORGANISM-Homo_sapiens-3.4.157.tab2.txt'
-BIOGRID_PICKLE = 'data/igraph_biogrid.pickle'
-
 OMNIPATH_FILE = 'data/resources/omnipath/omnipathdb.org.txt'
 
 
@@ -49,7 +45,7 @@ def build_omnipath_ppi(is_directed=True, is_signed=True):
     return net_i
 
 
-def build_biogrid_ppi(exp_type=None, int_type=None, organism=9606, export_pickle=False):
+def build_biogrid_ppi(exp_type=None, int_type=None, organism=9606, export_pickle=None):
     # 'Affinity Capture-MS', 'Affinity Capture-Western'
     # 'Reconstituted Complex', 'PCA', 'Two-hybrid', 'Co-crystal Structure', 'Co-purification'
 
@@ -104,13 +100,13 @@ def build_biogrid_ppi(exp_type=None, int_type=None, organism=9606, export_pickle
     print(net_i.summary())
 
     # Export
-    if export_pickle:
-        net_i.write_pickle(BIOGRID_PICKLE)
+    if export_pickle is not None:
+        net_i.write_pickle(export_pickle)
 
     return net_i
 
 
-def build_string_ppi(score_thres=900, export_pickle=False):
+def build_string_ppi(score_thres=900, export_pickle=None):
     # ENSP map to gene symbol
     gmap = pd.read_csv(STRING_ALIAS_FILE, sep='\t')
     gmap = gmap[['BioMart_HUGO' in i.split(' ') for i in gmap['source']]]
@@ -151,8 +147,8 @@ def build_string_ppi(score_thres=900, export_pickle=False):
     print(net_i.summary())
 
     # Export
-    if export_pickle:
-        net_i.write_pickle(STRING_PICKLE)
+    if export_pickle is not None:
+        net_i.write_pickle(export_pickle)
 
     return net_i
 

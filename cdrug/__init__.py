@@ -4,7 +4,6 @@
 import numpy as np
 import pandas as pd
 import seaborn as sns
-from cdrug.assemble.assemble_ppi import STRING_PICKLE, BIOGRID_PICKLE, build_biogrid_ppi
 
 # - META DATA
 SAMPLESHEET_FILE = 'data/meta/samplesheet.csv'
@@ -137,6 +136,11 @@ def get_drugtargets():
     d_targets = {k: {t.strip() for t in d_targets[k].split(';')} for k in d_targets}
 
     return d_targets
+
+
+def get_geneexpression():
+    df = pd.read_csv(RNASEQ_VOOM, index_col=0)
+    return df
 
 
 def get_essential_genes():

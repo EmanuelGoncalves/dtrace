@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import cdrug.associations as lr_files
 from cdrug.plot.corrplot import plot_corrplot
 from cdrug.associations import multipletests_per_drug, ppi_annotation
+from cdrug.assemble.assemble_ppi import build_biogrid_ppi, build_string_ppi
 from sklearn.metrics import roc_curve, auc, roc_auc_score, average_precision_score
 
 
@@ -203,7 +204,12 @@ if __name__ == '__main__':
     lm_df_crispr = multipletests_per_drug(lm_df_crispr)
 
     # - Annotate regressions with Drug -> Target -> Protein (in PPI)
-    lm_df_crispr = ppi_annotation(lm_df_crispr, exp_type={'Affinity Capture-MS', 'Affinity Capture-Western'}, int_type={'physical'}, target_thres=3)
+    # lm_df_crispr = ppi_annotation(
+    #     lm_df_crispr, ppi_type=build_biogrid_ppi, ppi_kws=dict(int_type={'physical'}, exp_type={'Affinity Capture-MS', 'Affinity Capture-Western'}), target_thres=3,
+    # )
+    lm_df_crispr = ppi_annotation(
+        lm_df_crispr, ppi_type=build_string_ppi, ppi_kws=dict(score_thres=900), target_thres=3,
+    )
     print(lm_df_crispr[(lm_df_crispr['beta'].abs() > .25) & (lm_df_crispr['lr_fdr'] < 0.1)].sort_values('lr_fdr'))
 
     # - Top associations
