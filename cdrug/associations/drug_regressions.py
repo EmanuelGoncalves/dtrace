@@ -50,6 +50,11 @@ if __name__ == '__main__':
 
     print('#(Genomic features) = {}; #(Drugs) = {}; #(Genes) = {}'.format(len(set(mobems.index)), len(set(drespo.index)), len(set(crispr.index))))
 
+    # - Linear Regression: CRISPR ~ Genomic (binary) + Covariates
+    lm_df_crispr_mobems = lm_drug(mobems[samples].T, crispr_logfc_scaled[samples].T, covariates.loc[samples])
+    lm_df_crispr_mobems.sort_values('lr_pval').to_csv(lr_files.LR_CRISPR_MOBEMS, index=False)
+    print('[INFO] Done: CRISPR ~ Genomic (binary) + Covariates')
+
     # - Linear Regression: Drug ~ Genomic (binary) + Covariates
     lm_df_mobems = lm_drug(mobems[samples].T, drespo[samples].T, covariates.loc[samples])
     lm_df_mobems.sort_values('lr_pval').to_csv(lr_files.LR_BINARY_DRUG_MOBEMS, index=False)

@@ -13,6 +13,9 @@ LR_DRUG_CRISPR_NOGROWTH = 'data/drug_regressions_crispr_NOGROWTH.csv'
 LR_DRUG_CRISPR_NOSCALE = 'data/drug_regressions_crispr_NOSCALE.csv'
 LR_DRUG_CRISPR_NOSCALE_NOGROWTH = 'data/drug_regressions_crispr_NOSCALE_NOGROWTH.csv'
 
+# - CONTINOUS CRISPR MOBEMS ASSOCIATIONS
+LR_CRISPR_MOBEMS = 'data/crispr_regressions.csv'
+
 # - CONTINUOUS RNASEQ ASSOCIATIONS
 LR_DRUG_RNASEQ = 'data/drug_regressions_rnaseq.csv'
 
