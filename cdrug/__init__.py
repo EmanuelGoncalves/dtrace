@@ -46,8 +46,8 @@ PAL_DBGD = ['#37454B', '#F2C500']
 PAL_TAB20C = sns.color_palette('tab20c', n_colors=20).as_hex()
 PAL_SET2 = sns.color_palette('Set2', n_colors=8).as_hex() + ['#333333']
 
-PAL_BIN = {1: PAL_SET2[1], 0: PAL_SET2[8]}
-PAL_DRUG_VERSION = dict(RS=PAL_SET2[1], v17=PAL_SET2[8])
+PAL_BIN = {1: PAL_SET2[1], 0: '#000000'}
+PAL_DRUG_VERSION = dict(RS=PAL_SET2[1], v17='#000000')
 
 # - PLOTTING AESTHETICS
 SNS_RC = {
@@ -261,7 +261,12 @@ def build_covariates(variables=None, add_growth=True, samples=None):
     return covariates
 
 
-def is_same_drug(drug_id_1, drug_id_2):
+def is_in_druglist(drug_ids):
+    drug_list = get_drugsheet()
+    return np.all([d in drug_list.index for d in drug_ids])
+
+
+def is_same_drug(drug_id_1, drug_id_2, drugsheet=None):
     """
     From 2 drug IDs check if Drug ID 1 has Name or Synonyms in common with Drug ID 2.
 
@@ -270,7 +275,7 @@ def is_same_drug(drug_id_1, drug_id_2):
     :return: Bool
     """
 
-    drug_list = get_drugsheet()
+    drug_list = get_drugsheet() if drugsheet is None else drugsheet
 
     for i, d in enumerate([drug_id_1, drug_id_2]):
         assert d in drug_list.index, 'Drug ID {} not in drug list'.format(i)
@@ -280,7 +285,7 @@ def is_same_drug(drug_id_1, drug_id_2):
     return len(drug_names[drug_id_1].intersection(drug_names[drug_id_2])) > 0
 
 
-def get_drug_names(drug_id):
+def get_drug_names(drug_id, drugsheet=None):
     """
     From a Drug ID get drug Name and Synonyms.
 
@@ -288,7 +293,7 @@ def get_drug_names(drug_id):
     :return:
     """
 
-    drug_list = get_drugsheet()
+    drug_list = get_drugsheet() if drugsheet is None else drugsheet
 
     if drug_id not in drug_list.index:
         print('{} Drug ID not in drug list'.format(drug_id))
@@ -315,3 +320,10 @@ def dist_drugtarget_genes(drug_targets, genes, ppi):
             dmatrix[drug] = dict(zip(*(genes, np.min(ppi.shortest_paths(source=drug_genes, target=genes), axis=0))))
 
     return dmatrix
+
+
+def read_gmt(file_path):
+    with open(file_path) as f:
+        signatures = {l.split('\t')[0]: set(l.strip().split('\t')[2:]) for l in f.readlines()}
+
+    return signatures

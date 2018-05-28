@@ -8,6 +8,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from matplotlib import colors
 from sklearn.decomposition import PCA
+from sklearn.feature_selection import f_regression
 
 
 def drug_counts_hist(plot_df, by):
@@ -61,7 +62,6 @@ def pca_pairplot(pca, by):
         g = g.map_offdiag(plt.scatter, s=3, edgecolor='white', lw=.1, color=plot_df['growth_rate_median'], cmap=cmap, alpha=.5)
         cax = g.fig.add_axes([.98, .4, .01, .2])
         plt.colorbar(cax=cax)
-        # cax.set_ylabel('Growth rate (median day 1 / day 4)', rotation=270)
 
     else:
         g = g.map_offdiag(plt.scatter, s=3, edgecolor='white', lw=.1)
@@ -137,3 +137,26 @@ if __name__ == '__main__':
     plt.gcf().set_size_inches(2., 2.)
     plt.savefig('reports/pca_sample_jointplot_pc1_growth.pdf', bbox_inches='tight')
     plt.close('all')
+
+    # -
+    rnaseq = pd.read_csv(cdrug.RNASEQ_VOOM, index_col=0)
+
+    y = pca['sample']['pcs']['PC1']
+    X = rnaseq.reindex(y.index, axis=1).dropna(1).T
+
+    f_scores, f_pvals = f_regression(X, y[X.index])
+    df = pd.DataFrame({'feature': X.columns, 'f': f_scores, 'p': f_pvals}).sort_values('p')
+    print(df.head(10))
+
+    sns.jointplot(X['AMOTL2'], y[X.index], color=cdrug.PAL_BIN[0])
+    plt.show()
+
+    sns.boxplot(X['BRAF_mut'], y[X.index], notch=True, palette=cdrug.PAL_BIN)
+    plt.show()
+
+    f_scores, f_pvals = f_regression(X, growth.loc[X.index, 'growth_rate_median'])
+    df_growth = pd.DataFrame({'feature': X.columns, 'f': f_scores, 'p': f_pvals}).sort_values('p')
+    print(df_growth.head(10))
+
+    sns.jointplot(X['NOB1'], growth.loc[X.index, 'growth_rate_median'], color=cdrug.PAL_BIN[0])
+    plt.show()

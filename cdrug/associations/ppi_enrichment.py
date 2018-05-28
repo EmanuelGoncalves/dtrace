@@ -6,8 +6,10 @@ import textwrap
 import numpy as np
 import pandas as pd
 import seaborn as sns
+import scipy.stats as st
 import matplotlib.pyplot as plt
 import cdrug.associations as lr_files
+from natsort import natsorted
 from cdrug.plot.corrplot import plot_corrplot
 from cdrug.associations import multipletests_per_drug, ppi_annotation
 from cdrug.assemble.assemble_ppi import build_biogrid_ppi, build_string_ppi
@@ -33,10 +35,10 @@ def target_enrichment(df, betas=None, pvalue=None):
     aucs = []
     for b in np.arange(0, .6, .1):
         for p in [1e-4, 1e-3, 1e-2, 1e-1, .15, .2]:
-            plot_df = df[(df['beta'].abs() > b) & (df['lr_fdr'] < p)]
+            plot_df = df[(df['beta'].abs() > b) & (df['fdr'] < p)]
 
             for t in order:
-                y_true, y_score = (plot_df['target_thres'] == t).astype(int), 1 - plot_df['lr_fdr']
+                y_true, y_score = (plot_df['target_thres'] == t).astype(int), 1 - plot_df['fdr']
 
                 aucs.append({'beta': b, 'pval': p, 'thres': t, 'score': roc_auc_score(y_true, y_score), 'type': 'auc'})
                 aucs.append({'beta': b, 'pval': p, 'thres': t, 'score': average_precision_score(y_true, y_score), 'type': 'precision'})
@@ -51,7 +53,7 @@ def target_enrichment(df, betas=None, pvalue=None):
 
 def plot_drug_associations_barplot(plot_df, order, ppi_text_offset=0.075, drug_name_offset=1., ylim_offset=1.1, fdr_line=0.05):
     # Group Drug ~ Gene associations
-    df = plot_df.groupby(['DRUG_NAME', 'GeneSymbol']).first().reset_index().sort_values('lr_fdr')
+    df = plot_df.groupby(['DRUG_NAME', 'GeneSymbol']).first().reset_index().sort_values('fdr')
 
     # Pick top 10 associations for each drug
     df = df.groupby('DRUG_NAME').head(10).set_index('DRUG_NAME')
@@ -59,7 +61,7 @@ def plot_drug_associations_barplot(plot_df, order, ppi_text_offset=0.075, drug_n
     df__, xpos = [], 0
     for drug_name in order:
         df_ = df.loc[[drug_name]]
-        df_ = df_.assign(y=-np.log10(df_['lr_fdr']))
+        df_ = df_.assign(y=-np.log10(df_['fdr']))
 
         df_ = df_.assign(xpos=np.arange(xpos, xpos + df_.shape[0]))
         xpos += (df_.shape[0] + 2)
@@ -99,9 +101,9 @@ def plot_drug_associations_barplot(plot_df, order, ppi_text_offset=0.075, drug_n
 
 
 def plot_count_associations(lm_res_df, fdr_thres, beta_thres, min_nevents=5):
-    df = lm_res_df[(lm_res_df['beta'].abs() > beta_thres) & (lm_res_df['lr_fdr'] < fdr_thres)].copy()
+    df = lm_res_df[(lm_res_df['beta'].abs() > beta_thres) & (lm_res_df['fdr'] < fdr_thres)].copy()
 
-    df = df.groupby('DRUG_NAME')['lr_fdr'].count().sort_values(ascending=False).reset_index()
+    df = df.groupby('DRUG_NAME')['fdr'].count().sort_values(ascending=False).reset_index()
 
     df.columns = ['drug', 'counts']
 
@@ -161,11 +163,11 @@ def plot_drug_corr(idx):
 
 
 def plot_arocs(df, thres_fdr, thres_beta):
-    plot_df = df[(df['beta'].abs() > thres_beta) & (df['lr_fdr'] < thres_fdr)].dropna()
+    plot_df = df[(df['beta'].abs() > thres_beta) & (df['fdr'] < thres_fdr)].dropna()
 
     ax = plt.gca()
     for t, c in ORDER_PAL.items():
-        fpr, tpr, _ = roc_curve((plot_df['target_thres'] == t).astype(int), 1 - plot_df['lr_fdr'])
+        fpr, tpr, _ = roc_curve((plot_df['target_thres'] == t).astype(int), 1 - plot_df['fdr'])
         ax.plot(fpr, tpr, label='AROC({}) = {:.2f}'.format(t, auc(fpr, tpr)), lw=1., c=c)
 
     ax.plot((0, 1), (0, 1), 'k--', lw=.3, alpha=.5)
@@ -182,13 +184,67 @@ def plot_arocs(df, thres_fdr, thres_beta):
     plt.close('all')
 
 
+def aurc(df, outfile=None, thres_label='target_thres', rank_label='pval', min_events=5, legend_size=6, title='', legend_title=''):
+    aucs = {}
+
+    ax = plt.gca() if outfile is not None else None
+
+    for t, c in ORDER_PAL.items():
+        index_set = set(df[df[thres_label] == t].index)
+
+        if len(index_set) >= min_events:
+            # Build data-frame
+            x = df[rank_label].sort_values().dropna()
+
+            # Observed cumsum
+            y = x.index.isin(index_set)
+            y = np.cumsum(y) / sum(y)
+
+            # Rank fold-changes
+            x = st.rankdata(x) / x.shape[0]
+
+            # Calculate AUC
+            f_auc = auc(x, y)
+            aucs[t] = f_auc
+
+            # Plot
+            if outfile is not None:
+                ax.plot(x, y, label='{}: AURC={:.2f}'.format(t, f_auc), lw=1., c=c)
+
+    if outfile is not None:
+        # Random
+        ax.plot((0, 1), (0, 1), 'k--', lw=.3, alpha=.5)
+
+        # Limits
+        ax.set_xlim(0, 1)
+        ax.set_ylim(0, 1)
+
+        # Labels
+        ax.set_xlabel('Ranked')
+        ax.set_ylabel('Recall')
+
+        ax.legend(loc=4)
+
+        ax.set_title(title)
+        legend = ax.legend(loc=4, title=legend_title, prop={'size': legend_size})
+        legend.get_title().set_fontsize('{}'.format(legend_size))
+
+        # plt.show()
+        plt.gcf().set_size_inches(3, 3)
+        plt.savefig(outfile, bbox_inches='tight', dpi=600)
+        plt.close('all')
+
+    return ax, aucs
+
+
 if __name__ == '__main__':
     # - Imports
     # Samplesheet
     ss = cdrug.get_samplesheet()
 
     # Linear regressions
-    lm_df_crispr = pd.read_csv(lr_files.LR_DRUG_CRISPR)
+    lm_df_crispr = pd.read_csv('data/drug_regressions_crispr_limix.csv')
+    # lm_df_crispr = pd.read_csv(lr_files.LR_DRUG_CRISPR)
 
     # Drug response
     drespo = cdrug.get_drugresponse()
@@ -201,27 +257,26 @@ if __name__ == '__main__':
     samples = list(set(drespo).intersection(crispr))
 
     # - Compute FDR per drug
-    lm_df_crispr = multipletests_per_drug(lm_df_crispr)
+    lm_df_crispr = multipletests_per_drug(lm_df_crispr, field='pval')
 
     # - Annotate regressions with Drug -> Target -> Protein (in PPI)
-    # lm_df_crispr = ppi_annotation(
-    #     lm_df_crispr, ppi_type=build_biogrid_ppi, ppi_kws=dict(int_type={'physical'}, exp_type={'Affinity Capture-MS', 'Affinity Capture-Western'}), target_thres=3,
-    # )
     lm_df_crispr = ppi_annotation(
         lm_df_crispr, ppi_type=build_string_ppi, ppi_kws=dict(score_thres=900), target_thres=3,
     )
-    print(lm_df_crispr[(lm_df_crispr['beta'].abs() > .25) & (lm_df_crispr['lr_fdr'] < 0.1)].sort_values('lr_fdr'))
+    print(lm_df_crispr[(lm_df_crispr['beta'].abs() > .25) & (lm_df_crispr['fdr'] < 0.1)].sort_values('fdr'))
 
     # - Top associations
-    plot_df = lm_df_crispr[(lm_df_crispr['beta'].abs() > .25) & (lm_df_crispr['lr_fdr'] < .1)]
-    order = list(plot_df.groupby('DRUG_NAME')['lr_fdr'].min().sort_values().index)[:10]
+    plot_df = lm_df_crispr[(lm_df_crispr['beta'].abs() > .25) & (lm_df_crispr['fdr'] < .1)]
+    order = list(plot_df.groupby('DRUG_NAME')['fdr'].min().sort_values().index)[:10]
     plot_drug_associations_barplot(plot_df, order)
 
     # - Count signif assoc per drug
-    plot_count_associations(lm_df_crispr, 0.1, .25, min_nevents=15)
+    plot_count_associations(lm_df_crispr, 0.1, .25, min_nevents=3)
 
     # - Plot Drug ~ CRISPR corrplot
-    plot_drug_corr(372)
+    plot_drug_corr(2113601)
 
     # - AROC enrichment
     plot_arocs(lm_df_crispr, .1, .5)
+
+    aurc(lm_df_crispr, outfile='reports/ppi_signif_aurc.pdf', rank_label='pval')

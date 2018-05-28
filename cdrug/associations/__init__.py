@@ -26,14 +26,14 @@ LR_BINARY_DRUG_MOBEMS_ALL = 'data/drug_regressions_binary_mobems_all.csv'
 LR_BINARY_DRUG_CRISPR = 'data/drug_regressions_binary_crispr.csv'
 
 
-def multipletests_per_drug(lr_associations, method='bonferroni'):
+def multipletests_per_drug(lr_associations, method='bonferroni', field='lr_pval'):
     d_unique = {(d_id, d_name, d_version) for d_id, d_name, d_version in lr_associations[DRUG_INFO_COLUMNS].values}
 
     df = lr_associations.set_index(DRUG_INFO_COLUMNS)
 
     df = pd.concat([
         df.loc[(d_id, d_name, d_version)].assign(
-            lr_fdr=multipletests(df.loc[(d_id, d_name, d_version), 'lr_pval'], method=method)[1]
+            fdr=multipletests(df.loc[(d_id, d_name, d_version), field], method=method)[1]
         ) for d_id, d_name, d_version in d_unique
     ]).reset_index()
 

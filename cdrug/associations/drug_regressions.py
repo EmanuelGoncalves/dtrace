@@ -36,6 +36,7 @@ if __name__ == '__main__':
     # - Covariates
     covariates = cdrug.build_covariates(samples=samples, add_growth=True).dropna()
     covariates_no_growth = covariates.drop('growth_rate_median', axis=1)
+    covariates_with_tp53 = pd.concat([covariates, mobems.loc['TP53_mut']], axis=1).dropna()
 
     samples = list(set(covariates.index))
     print('#(Samples) = {}'.format(len(samples)))
@@ -69,8 +70,11 @@ if __name__ == '__main__':
     regression_sets = [
         {'file': lr_files.LR_DRUG_CRISPR, 'xs': crispr_logfc_scaled, 'ws': covariates},
         {'file': lr_files.LR_DRUG_CRISPR_NOGROWTH, 'xs': crispr_logfc_scaled, 'ws': covariates_no_growth},
+
         {'file': lr_files.LR_DRUG_CRISPR_NOSCALE, 'xs': crispr_logfc, 'ws': covariates},
         {'file': lr_files.LR_DRUG_CRISPR_NOSCALE_NOGROWTH, 'xs': crispr_logfc, 'ws': covariates_no_growth},
+
+        {'file': lr_files.LR_DRUG_CRISPR_NOTP53, 'xs': crispr_logfc_scaled, 'ws': covariates_with_tp53},
     ]
 
     for v in regression_sets:

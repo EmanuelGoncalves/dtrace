@@ -2,7 +2,6 @@
 # Copyright (C) 2018 Emanuel Goncalves
 
 import cdrug
-import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
@@ -45,15 +44,24 @@ def plot_corrplot(
 
 
 def _marginal_boxplot(a, xs=None, ys=None, zs=None, vertical=False, **kws):
-    ax = sns.boxplot(x=zs, y=ys, orient='v', **kws) if vertical else sns.boxplot(x=xs, y=zs, orient='h', **kws)
+    if vertical:
+        ax = sns.boxplot(x=zs, y=ys, orient='v', **kws)
+    else:
+        ax = sns.boxplot(x=xs, y=zs, orient='h', **kws)
+
     ax.set_ylabel('')
     ax.set_xlabel('')
 
 
-def plot_corrplot_discrete(x, y, z, dataframe):
-    line_kws = dict(linewidth=.5)
-    scatter_kws = dict(s=20, edgecolor='w', linewidth=.3, alpha=.8)
+def plot_corrplot_discrete(x, y, z, dataframe, scatter_kws=None, line_kws=None):
+    # - Fillin defaults
+    if scatter_kws is None:
+        scatter_kws = dict(s=20, edgecolor='w', linewidth=.3, alpha=.8)
 
+    if line_kws is None:
+        line_kws = dict(linewidth=.5)
+
+    # -
     g = sns.JointGrid(x, y, dataframe, space=0, ratio=8)
 
     g.plot_marginals(
