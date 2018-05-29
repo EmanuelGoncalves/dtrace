@@ -1,14 +1,14 @@
 #!/usr/bin/env python
 # Copyright (C) 2018 Emanuel Goncalves
 
-import cdrug
+import drispr
 import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
-import cdrug.associations as lr_files
+import drispr.associations as lr_files
 from sklearn.preprocessing import StandardScaler
-from cdrug.associations import multipletests_per_drug
+from drispr.associations import multipletests_per_drug
 from sklearn.linear_model import LinearRegression, ElasticNetCV
 from sklearn.model_selection import ShuffleSplit, cross_val_score
 
@@ -32,12 +32,12 @@ if __name__ == '__main__':
     lr_rnaseq = multipletests_per_drug(lr_rnaseq)
 
     # - Import data-sets
-    drespo = cdrug.get_drugresponse()
+    drespo = drispr.get_drugresponse()
 
-    crispr = cdrug.get_crispr(dtype='logFC')
-    crispr_scaled = cdrug.scale_crispr(crispr)
+    crispr = drispr.get_crispr(dtype='logFC')
+    crispr_scaled = drispr.scale_crispr(crispr)
 
-    rnaseq = pd.read_csv(cdrug.RNASEQ_VOOM, index_col=0)
+    rnaseq = pd.read_csv(drispr.RNASEQ_VOOM, index_col=0)
 
     samples = list(set(rnaseq).intersection(drespo).intersection(crispr))
     print('#(Samples) = {}'.format(len(samples)))
@@ -81,8 +81,8 @@ if __name__ == '__main__':
     plot_df = res_df.groupby(['DRUG_ID_lib', 'DRUG_NAME', 'VERSION'])['crispr', 'rnaseq'].median().reset_index()
     plot_df = plot_df[(plot_df['crispr'] > 0) & (plot_df['rnaseq'] > 0)]
 
-    plt.scatter(plot_df['crispr'], plot_df['rnaseq'], marker='o', color=cdrug.PAL_BIN[0], s=5)
-    sns.kdeplot(plot_df['crispr'], plot_df['rnaseq'], zorder=0, linewidths=.5, cmap=sns.light_palette(cdrug.PAL_BIN[0], as_cmap=True))
+    plt.scatter(plot_df['crispr'], plot_df['rnaseq'], marker='o', color=drispr.PAL_BIN[0], s=5)
+    sns.kdeplot(plot_df['crispr'], plot_df['rnaseq'], zorder=0, linewidths=.5, cmap=sns.light_palette(drispr.PAL_BIN[0], as_cmap=True))
 
     xy_min, xy_max = 0, 0.5
     plt.plot((xy_min, xy_max), (xy_min, xy_max), 'k--', lw=.3, alpha=.5)

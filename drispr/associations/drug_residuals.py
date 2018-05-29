@@ -1,34 +1,34 @@
 #!/usr/bin/env python
 # Copyright (C) 2018 Emanuel Goncalves
 
-import cdrug
+import drispr
 import numpy as np
 import pandas as pd
 import seaborn as sns
 import statsmodels.api as sm
 import matplotlib.pyplot as plt
-import cdrug.associations as lr_files
-from cdrug.plot.corrplot import plot_corrplot
+import drispr.associations as lr_files
+from drispr.plot.corrplot import plot_corrplot
 
 
 if __name__ == '__main__':
     # WES
-    wes = pd.read_csv(cdrug.WES_COUNT)
+    wes = pd.read_csv(drispr.WES_COUNT)
 
     # Samplesheet
-    ss = cdrug.get_samplesheet()
+    ss = drispr.get_samplesheet()
 
     # Linear regressions
     lm_df_crispr = pd.read_csv(lr_files.LR_DRUG_CRISPR)
 
     # Drug response
-    drespo = cdrug.get_drugresponse()
+    drespo = drispr.get_drugresponse()
 
     # CIRSPR CN corrected logFC
-    crispr = cdrug.get_crispr(dtype='logFC')
+    crispr = drispr.get_crispr(dtype='logFC')
 
     # RNA-seq
-    gexp = cdrug.get_geneexpression()
+    gexp = drispr.get_geneexpression()
 
     samples = list(set(drespo).intersection(crispr).intersection(gexp))
     print(len(samples))
@@ -53,8 +53,8 @@ if __name__ == '__main__':
     # #
     # plot_df = pd.concat([lm_1.resid.rename('residuals'), gexp.loc[z]], axis=1).dropna()
     #
-    # sns.boxplot(z, 'residuals', data=plot_df, palette=cdrug.PAL_BIN, linewidth=.3, sym='')
-    # sns.swarmplot(z, 'residuals', data=plot_df, alpha=.8, edgecolor='white', linewidth=.3, size=2, palette=cdrug.PAL_BIN)
+    # sns.boxplot(z, 'residuals', data=plot_df, palette=drispr.PAL_BIN, linewidth=.3, sym='')
+    # sns.swarmplot(z, 'residuals', data=plot_df, alpha=.8, edgecolor='white', linewidth=.3, size=2, palette=drispr.PAL_BIN)
     # plt.gcf().set_size_inches(1., 2.)
     # plt.savefig('reports/residuals_boxplot.pdf', bbox_inches='tight')
     # plt.close('all')
@@ -67,7 +67,7 @@ if __name__ == '__main__':
     ], axis=1).dropna()
 
     s = plt.scatter(plot_df[y], plot_df[x], c=plot_df[z], s=8, edgecolor='white', lw=.3, cmap='RdYlGn', alpha=.5)
-    sns.regplot(plot_df[y], plot_df[x], scatter=False, line_kws=dict(lw=1., color=cdrug.PAL_SET2[1]))
+    sns.regplot(plot_df[y], plot_df[x], scatter=False, line_kws=dict(lw=1., color=drispr.PAL_SET2[1]))
 
     plt.colorbar(s)
 

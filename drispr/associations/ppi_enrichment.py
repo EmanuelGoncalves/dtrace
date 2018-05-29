@@ -1,23 +1,23 @@
 #!/usr/bin/env python
 # Copyright (C) 2018 Emanuel Goncalves
 
-import cdrug
+import drispr
 import textwrap
 import numpy as np
 import pandas as pd
 import seaborn as sns
 import scipy.stats as st
 import matplotlib.pyplot as plt
-import cdrug.associations as lr_files
+import drispr.associations as lr_files
 from natsort import natsorted
-from cdrug.plot.corrplot import plot_corrplot
-from cdrug.associations import multipletests_per_drug, ppi_annotation
-from cdrug.assemble.assemble_ppi import build_biogrid_ppi, build_string_ppi
+from drispr.plot.corrplot import plot_corrplot
+from drispr.associations import multipletests_per_drug, ppi_annotation
+from drispr.assemble.assemble_ppi import build_biogrid_ppi, build_string_ppi
 from sklearn.metrics import roc_curve, auc, roc_auc_score, average_precision_score
 
 
 ORDER = ['Target', '1', '2', '>=3']
-ORDER_COLOR = [cdrug.PAL_SET2[1]] + sns.light_palette(cdrug.PAL_SET2[8], len(ORDER) - 1, reverse=True).as_hex()
+ORDER_COLOR = [drispr.PAL_SET2[1]] + sns.light_palette(drispr.PAL_SET2[8], len(ORDER) - 1, reverse=True).as_hex()
 ORDER_PAL = dict(zip(*(ORDER, ORDER_COLOR)))
 
 
@@ -29,7 +29,7 @@ def target_enrichment(df, betas=None, pvalue=None):
         pvalue = [1e-4, 1e-3, 1e-2, 1e-1, .15, .2]
 
     order = ['Target', '1', '2', '3', '>=4']
-    order_color = [cdrug.PAL_SET2[1]] + sns.light_palette(cdrug.PAL_SET2[8], len(order) - 1, reverse=True).as_hex()
+    order_color = [drispr.PAL_SET2[1]] + sns.light_palette(drispr.PAL_SET2[8], len(order) - 1, reverse=True).as_hex()
     order_pal = dict(zip(*(order, order_color)))
 
     aucs = []
@@ -72,11 +72,11 @@ def plot_drug_associations_barplot(plot_df, order, ppi_text_offset=0.075, drug_n
 
     # Significant line
     if fdr_line is not None:
-        plt.axhline(-np.log10(0.05), ls='--', lw=.5, c=cdrug.PAL_BIN[0], alpha=.3, zorder=0)
+        plt.axhline(-np.log10(fdr_line), ls='--', lw=.5, c=drispr.PAL_BIN[0], alpha=.3, zorder=0)
 
     # Barplot
-    plt.bar(df.query('target != 0')['xpos'], df.query('target != 0')['y'], .8, color=cdrug.PAL_BIN[0], align='center', zorder=5)
-    plt.bar(df.query('target == 0')['xpos'], df.query('target == 0')['y'], .8, color=cdrug.PAL_BIN[1], align='center', zorder=5)
+    plt.bar(df.query('target != 0')['xpos'], df.query('target != 0')['y'], .8, color=drispr.PAL_BIN[0], align='center', zorder=5)
+    plt.bar(df.query('target == 0')['xpos'], df.query('target == 0')['y'], .8, color=drispr.PAL_BIN[1], align='center', zorder=5)
 
     # Distance to target text
     for x, y, t in df[['xpos', 'y', 'target']].values:
@@ -89,7 +89,7 @@ def plot_drug_associations_barplot(plot_df, order, ppi_text_offset=0.075, drug_n
     for k, v in df.groupby('DRUG_NAME')['xpos'].mean().sort_values().to_dict().items():
         plt.text(v, df['y'].max() * drug_name_offset, textwrap.fill(k, 15), ha='center', fontsize=6, zorder=10)
 
-    plt.grid(True, color=cdrug.PAL_SET2[7], linestyle='-', linewidth=.1, alpha=.5, zorder=0, axis='y')
+    plt.grid(True, color=drispr.PAL_SET2[7], linestyle='-', linewidth=.1, alpha=.5, zorder=0, axis='y')
 
     plt.xticks(df['xpos'], df['GeneSymbol'], rotation=90, fontsize=5)
     plt.ylabel('Log-ratio FDR (-log10)')
@@ -110,9 +110,9 @@ def plot_count_associations(lm_res_df, fdr_thres, beta_thres, min_nevents=5):
     if min_nevents is not None:
         df = df[df['counts'] >= min_nevents]
 
-    ax = sns.barplot('counts', 'drug', data=df, color=cdrug.PAL_BIN[0], linewidth=.8, orient='h')
+    ax = sns.barplot('counts', 'drug', data=df, color=drispr.PAL_BIN[0], linewidth=.8, orient='h')
 
-    ax.xaxis.grid(True, color=cdrug.PAL_SET2[7], linestyle='-', linewidth=.1, alpha=.5, zorder=0)
+    ax.xaxis.grid(True, color=drispr.PAL_SET2[7], linestyle='-', linewidth=.1, alpha=.5, zorder=0)
 
     plt.ylabel('')
     plt.xlabel('#(associations)')
@@ -153,7 +153,7 @@ def plot_drug_corr(idx):
 
     g = sns.FacetGrid(plot_df, col='variable', size=2, legend_out=True, despine=False, sharey=False, sharex=True)
 
-    g = g.map(sns.regplot, d_name, 'value', color=cdrug.PAL_BIN[0], line_kws=dict(lw=1., color=cdrug.PAL_SET2[1]), scatter_kws=dict(edgecolor='w', lw=.3, s=12))
+    g = g.map(sns.regplot, d_name, 'value', color=drispr.PAL_BIN[0], line_kws=dict(lw=1., color=drispr.PAL_SET2[1]), scatter_kws=dict(edgecolor='w', lw=.3, s=12))
 
     g.set_titles('{col_name}')
 
@@ -240,19 +240,19 @@ def aurc(df, outfile=None, thres_label='target_thres', rank_label='pval', min_ev
 if __name__ == '__main__':
     # - Imports
     # Samplesheet
-    ss = cdrug.get_samplesheet()
+    ss = drispr.get_samplesheet()
 
     # Linear regressions
     lm_df_crispr = pd.read_csv('data/drug_regressions_crispr_limix.csv')
     # lm_df_crispr = pd.read_csv(lr_files.LR_DRUG_CRISPR)
 
     # Drug response
-    drespo = cdrug.get_drugresponse()
+    drespo = drispr.get_drugresponse()
 
     # CIRSPR CN corrected logFC
-    crispr = cdrug.get_crispr(dtype='logFC')
-    crispr_scaled = cdrug.scale_crispr(crispr)
-    crispr_binary = cdrug.get_crispr('depletions')
+    crispr = drispr.get_crispr(dtype='logFC')
+    crispr_scaled = drispr.scale_crispr(crispr)
+    crispr_binary = drispr.get_crispr('depletions')
 
     samples = list(set(drespo).intersection(crispr))
 
@@ -268,7 +268,7 @@ if __name__ == '__main__':
     # - Top associations
     plot_df = lm_df_crispr[(lm_df_crispr['beta'].abs() > .25) & (lm_df_crispr['fdr'] < .1)]
     order = list(plot_df.groupby('DRUG_NAME')['fdr'].min().sort_values().index)[:10]
-    plot_drug_associations_barplot(plot_df, order)
+    plot_drug_associations_barplot(plot_df, order, fdr_line=.1)
 
     # - Count signif assoc per drug
     plot_count_associations(lm_df_crispr, 0.1, .25, min_nevents=3)
@@ -277,6 +277,7 @@ if __name__ == '__main__':
     plot_drug_corr(2113601)
 
     # - AROC enrichment
-    plot_arocs(lm_df_crispr, .1, .5)
+    plot_arocs(lm_df_crispr, .1, .2)
 
-    aurc(lm_df_crispr, outfile='reports/ppi_signif_aurc.pdf', rank_label='pval')
+    df = lm_df_crispr[(lm_df_crispr['beta'].abs() > .2) & (lm_df_crispr['fdr'] < .1)]
+    aurc(df, outfile='reports/ppi_signif_aurc.pdf', rank_label='pval')

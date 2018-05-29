@@ -1,35 +1,39 @@
 #!/usr/bin/env python
 # Copyright (C) 2018 Emanuel Goncalves
 
-import cdrug
+import drispr
 import pandas as pd
 import matplotlib.pyplot as plt
 from sklearn.manifold import TSNE
-import cdrug.associations as lr_files
+import drispr.associations as lr_files
 from sklearn.decomposition import PCA
-from cdrug.associations import multipletests_per_drug, ppi_annotation
+from drispr.associations import multipletests_per_drug, ppi_annotation
+from drispr.assemble.assemble_ppi import build_biogrid_ppi, build_string_ppi
 
 
 if __name__ == '__main__':
     # - Imports
     # Linear regressions
-    lm_df_crispr = pd.read_csv(lr_files.LR_DRUG_CRISPR)
+    # lm_df_crispr = pd.read_csv(lr_files.LR_DRUG_CRISPR)
+    lm_df_crispr = pd.read_csv('data/drug_regressions_crispr_limix.csv')
 
     # - Compute FDR per drug
-    lm_df_crispr = multipletests_per_drug(lm_df_crispr)
+    lm_df_crispr = multipletests_per_drug(lm_df_crispr, field='pval')
 
     # - Annotate regressions with Drug -> Target -> Protein (in PPI)
-    lm_df_crispr = ppi_annotation(lm_df_crispr, exp_type={'Affinity Capture-MS', 'Affinity Capture-Western'}, int_type={'physical'}, target_thres=3)
+    lm_df_crispr = ppi_annotation(
+        lm_df_crispr, ppi_type=build_string_ppi, ppi_kws=dict(score_thres=900), target_thres=3,
+    )
 
     # - Create unique ID for drug
-    lm_df_crispr = lm_df_crispr.assign(DrugId=['|'.join(map(str, i)) for i in lm_df_crispr[cdrug.DRUG_INFO_COLUMNS].values])
+    lm_df_crispr = lm_df_crispr.assign(DrugId=['|'.join(map(str, i)) for i in lm_df_crispr[drispr.DRUG_INFO_COLUMNS].values])
 
     # - Build betas matrix
     lm_betas = pd.pivot_table(lm_df_crispr, index='GeneSymbol', columns='DrugId', values='beta')
 
     # - Drug with significant associations
-    drugs = list(set(lm_df_crispr[(lm_df_crispr['beta'].abs() > .25) & (lm_df_crispr['lr_fdr'] < .1)]['DrugId']))
-    genes = list(set(lm_df_crispr[(lm_df_crispr['beta'].abs() > .25) & (lm_df_crispr['lr_fdr'] < .1)]['GeneSymbol']))
+    drugs = list(set(lm_df_crispr[(lm_df_crispr['beta'].abs() > .2) & (lm_df_crispr['fdr'] < .1)]['DrugId']))
+    genes = list(set(lm_df_crispr[(lm_df_crispr['beta'].abs() > .2) & (lm_df_crispr['fdr'] < .1)]['GeneSymbol']))
     drugs_screen = lm_df_crispr.groupby('DrugId')['VERSION'].first().loc[drugs]
 
     # -
@@ -58,7 +62,7 @@ if __name__ == '__main__':
         for t in [0, 1]:
             plot_df = tsne_dict[s].query('target == {}'.format(t))
 
-            axs[i].scatter(plot_df['P1'], plot_df['P2'], c=cdrug.PAL_BIN[t], label='W/Target' if t else 'No Target', edgecolors='white', lw=.3, alpha=.8, s=10)
+            axs[i].scatter(plot_df['P1'], plot_df['P2'], c=drispr.PAL_BIN[t], label='W/Target' if t else 'No Target', edgecolors='white', lw=.3, alpha=.8, s=10)
 
         axs[i].get_xaxis().set_visible(False)
         axs[i].get_yaxis().set_visible(False)

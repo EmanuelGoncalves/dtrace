@@ -1,15 +1,15 @@
 #!/usr/bin/env python
 # Copyright (C) 2018 Emanuel Goncalves
 
-import cdrug
+import drispr
 import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
-import cdrug.associations as lr_files
-from cdrug.associations import multipletests_per_drug
+import drispr.associations as lr_files
+from drispr.associations import multipletests_per_drug
 from statsmodels.stats.multitest import multipletests
-from cdrug.plot.corrplot import plot_corrplot_discrete
+from drispr.plot.corrplot import plot_corrplot_discrete
 
 
 THRES_FDR, THRES_BETA = .1, 0.5
@@ -17,10 +17,10 @@ THRES_FDR, THRES_BETA = .1, 0.5
 
 if __name__ == '__main__':
     # - Import
-    mobems = cdrug.get_mobem()
-    drespo = cdrug.get_drugresponse()
+    mobems = drispr.get_mobem()
+    drespo = drispr.get_drugresponse()
 
-    crispr = cdrug.get_crispr(dtype='logFC')
+    crispr = drispr.get_crispr(dtype='logFC')
 
     samples = list(set(mobems).intersection(drespo).intersection(crispr))
     print('#(Samples) = {}'.format(len(samples)))

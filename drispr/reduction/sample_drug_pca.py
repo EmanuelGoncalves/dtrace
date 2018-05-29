@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # Copyright (C) 2018 Emanuel Goncalves
 
-import cdrug
+import drispr
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -12,10 +12,10 @@ from sklearn.feature_selection import f_regression
 
 
 def drug_counts_hist(plot_df, by):
-    plt.axes().yaxis.grid(True, color=cdrug.PAL_SET2[7], linestyle='-', linewidth=.1, alpha=.5, zorder=0)
+    plt.axes().yaxis.grid(True, color=drispr.PAL_SET2[7], linestyle='-', linewidth=.1, alpha=.5, zorder=0)
 
     if by == 'drug':
-        for v, c in cdrug.PAL_DRUG_VERSION.items():
+        for v, c in drispr.PAL_DRUG_VERSION.items():
             sns.distplot(plot_df.query("VERSION == '{}'".format(v))['count'], color=c, kde=False, bins=20, label=v, hist_kws={'alpha': 1.})
 
             md_count = plot_df.query("VERSION == '{}'".format(v))['count'].median()
@@ -26,7 +26,7 @@ def drug_counts_hist(plot_df, by):
         plt.legend()
 
     elif by == 'sample':
-        sns.distplot(plot_df['count'], color=cdrug.PAL_SET2[8], kde=False, bins=20, hist_kws={'alpha': 1.})
+        sns.distplot(plot_df['count'], color=drispr.PAL_SET2[8], kde=False, bins=20, hist_kws={'alpha': 1.})
 
         md_count = plot_df['count'].median()
         plt.axvline(md_count, c='white', lw=.3, ls='--')
@@ -52,13 +52,13 @@ def pca_pairplot(pca, by):
 
     g = sns.PairGrid(
         plot_df, vars=['PC1', 'PC2', 'PC3'], despine=False, size=1, hue='VERSION' if by == 'drug' else None,
-        palette=cdrug.PAL_DRUG_VERSION if by == 'drug' else None
+        palette=drispr.PAL_DRUG_VERSION if by == 'drug' else None
     )
 
-    g = g.map_diag(plt.hist, color=cdrug.PAL_SET2[8] if by == 'sample' else None)
+    g = g.map_diag(plt.hist, color=drispr.PAL_SET2[8] if by == 'sample' else None)
 
     if by == 'sample':
-        cmap = sns.light_palette(cdrug.PAL_SET2[8], as_cmap=True)
+        cmap = sns.light_palette(drispr.PAL_SET2[8], as_cmap=True)
         g = g.map_offdiag(plt.scatter, s=3, edgecolor='white', lw=.1, color=plot_df['growth_rate_median'], cmap=cmap, alpha=.5)
         cax = g.fig.add_axes([.98, .4, .01, .2])
         plt.colorbar(cax=cax)
@@ -82,14 +82,14 @@ def pca_pairplot(pca, by):
 if __name__ == '__main__':
     # - Imports
     # Samplesheet
-    ss = pd.read_csv(cdrug.SAMPLESHEET_FILE, index_col=0)
+    ss = pd.read_csv(drispr.SAMPLESHEET_FILE, index_col=0)
 
     # Drug response
-    d_response = pd.read_csv(cdrug.DRUG_RESPONSE_FILE, index_col=[0, 1, 2], header=[0, 1])
+    d_response = pd.read_csv(drispr.DRUG_RESPONSE_FILE, index_col=[0, 1, 2], header=[0, 1])
     d_response.columns = d_response.columns.droplevel(0)
 
     # Growth rate
-    growth = pd.read_csv(cdrug.GROWTHRATE_FILE, index_col=0)
+    growth = pd.read_csv(drispr.GROWTHRATE_FILE, index_col=0)
 
     # - Plot Histogram IC50s per Drug
     drug_counts_hist(d_response.count(1).rename('count').reset_index(), by='drug')
@@ -124,12 +124,12 @@ if __name__ == '__main__':
     pci = 1
 
     g = sns.jointplot(
-        'PC{}'.format(pci), 'growth_rate_median', data=plot_df, kind='reg', space=0, color=cdrug.PAL_SET2[8],
+        'PC{}'.format(pci), 'growth_rate_median', data=plot_df, kind='reg', space=0, color=drispr.PAL_SET2[8],
         marginal_kws=dict(kde=False), annot_kws=dict(stat='R'),
-        joint_kws=dict(lowess=True, scatter_kws=dict(edgecolor='w', lw=.3, s=10, alpha=.6), line_kws=dict(lw=1., color=cdrug.PAL_SET2[1], alpha=1.))
+        joint_kws=dict(lowess=True, scatter_kws=dict(edgecolor='w', lw=.3, s=10, alpha=.6), line_kws=dict(lw=1., color=drispr.PAL_SET2[1], alpha=1.))
     )
 
-    g.ax_joint.axvline(0, ls='-', lw=0.1, c=cdrug.PAL_SET2[7], zorder=0)
+    g.ax_joint.axvline(0, ls='-', lw=0.1, c=drispr.PAL_SET2[7], zorder=0)
 
     vexp = pca[by]['vex']['PC{}'.format(pci)]
     g.set_axis_labels('PC{} ({:.1f}%)'.format(pci, vexp * 100), 'Growth rate\n(median day 1 / day 4)')
@@ -139,7 +139,7 @@ if __name__ == '__main__':
     plt.close('all')
 
     # -
-    rnaseq = pd.read_csv(cdrug.RNASEQ_VOOM, index_col=0)
+    rnaseq = pd.read_csv(drispr.RNASEQ_VOOM, index_col=0)
 
     y = pca['sample']['pcs']['PC1']
     X = rnaseq.reindex(y.index, axis=1).dropna(1).T
@@ -148,15 +148,15 @@ if __name__ == '__main__':
     df = pd.DataFrame({'feature': X.columns, 'f': f_scores, 'p': f_pvals}).sort_values('p')
     print(df.head(10))
 
-    sns.jointplot(X['AMOTL2'], y[X.index], color=cdrug.PAL_BIN[0])
+    sns.jointplot(X['AMOTL2'], y[X.index], color=drispr.PAL_BIN[0])
     plt.show()
 
-    sns.boxplot(X['BRAF_mut'], y[X.index], notch=True, palette=cdrug.PAL_BIN)
+    sns.boxplot(X['BRAF_mut'], y[X.index], notch=True, palette=drispr.PAL_BIN)
     plt.show()
 
     f_scores, f_pvals = f_regression(X, growth.loc[X.index, 'growth_rate_median'])
     df_growth = pd.DataFrame({'feature': X.columns, 'f': f_scores, 'p': f_pvals}).sort_values('p')
     print(df_growth.head(10))
 
-    sns.jointplot(X['NOB1'], growth.loc[X.index, 'growth_rate_median'], color=cdrug.PAL_BIN[0])
+    sns.jointplot(X['NOB1'], growth.loc[X.index, 'growth_rate_median'], color=drispr.PAL_BIN[0])
     plt.show()

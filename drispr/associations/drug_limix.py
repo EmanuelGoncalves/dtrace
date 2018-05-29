@@ -1,39 +1,39 @@
 #!/usr/bin/env python
 # Copyright (C) 2018 Emanuel Goncalves
 
-import cdrug
+import drispr
 import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 from limix.qtl import scan
 from sklearn.preprocessing import StandardScaler
-from cdrug.associations import multipletests_per_drug
+from drispr.associations import multipletests_per_drug
 
 
 if __name__ == '__main__':
     # - Import
-    mobems = cdrug.get_mobem()
-    drespo = cdrug.get_drugresponse()
+    mobems = drispr.get_mobem()
+    drespo = drispr.get_drugresponse()
 
-    crispr = cdrug.get_crispr(dtype='both')
-    crispr_logfc = cdrug.get_crispr(dtype='logFC')
-    crispr_logfc_scaled = cdrug.scale_crispr(crispr_logfc)
+    crispr = drispr.get_crispr(dtype='both')
+    crispr_logfc = drispr.get_crispr(dtype='logFC')
+    crispr_logfc_scaled = drispr.scale_crispr(crispr_logfc)
 
     samples = list(set(mobems).intersection(drespo).intersection(crispr))
     print('#(Samples) = {}'.format(len(samples)))
 
     # - Covariates
-    covariates = cdrug.build_covariates(samples=samples, add_growth=True).dropna()
+    covariates = drispr.build_covariates(samples=samples, add_growth=True).dropna()
 
     samples = list(set(covariates.index))
     print('#(Samples) = {}'.format(len(samples)))
 
     # - Filter
-    mobems = cdrug.filter_mobem(mobems[samples])
-    drespo = cdrug.filter_drugresponse(drespo[samples])
+    mobems = drispr.filter_mobem(mobems[samples])
+    drespo = drispr.filter_drugresponse(drespo[samples])
 
-    crispr = cdrug.filter_crispr(crispr[samples])
+    crispr = drispr.filter_crispr(crispr[samples])
     crispr_logfc_scaled_filtered = crispr_logfc_scaled.loc[crispr.index, samples]
     print('#(Genomic features) = {}; #(Drugs) = {}; #(Genes) = {}'.format(len(set(mobems.index)), len(set(drespo.index)), len(set(crispr.index))))
 
