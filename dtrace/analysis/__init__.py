@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 
 # - PALETTES
 PAL_SET2 = sns.color_palette('Set2', n_colors=8).as_hex()
-PAL_DRISPR = [PAL_SET2[1], '#E1E1E1', '#656565']
+PAL_DTRACE = [PAL_SET2[1], '#E1E1E1', '#656565']
 
 # - DEFAULT AESTHETICS
 SNS_RC = {

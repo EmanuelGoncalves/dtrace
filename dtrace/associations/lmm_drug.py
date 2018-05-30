@@ -56,9 +56,9 @@ if __name__ == '__main__':
     )
 
     # - Linear Mixed Model
-    lmm_res = pd.concat([lmm_association(d, drespo, crispr_logfc) for d in drespo.index]).reset_index(drop=True)
+    lmm_res = pd.concat([lmm_association(d, drespo, crispr_logfc) for d in drespo.index])
     lmm_res = multipletests_per_drug(lmm_res, field='pval')
     print(lmm_res.sort_values('pval').head(60))
 
     # - Export
-    lmm_res.to_csv('data/drug_lmm_regressions.csv')
+    lmm_res.to_csv('data/drug_lmm_regressions.csv', index=False)

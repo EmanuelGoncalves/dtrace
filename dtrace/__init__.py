@@ -13,6 +13,9 @@ DRUGSHEET_FILE = 'data/meta/drug_samplesheet_updated.txt'
 HART_ESSENTIAL = 'data/gene_sets/curated_BAGEL_essential.csv'
 HART_NON_ESSENTIAL = 'data/gene_sets/curated_BAGEL_nonEssential.csv'
 
+# - CRISPR-Cas9 library
+CRISPR_LIB = 'data/meta/KY_Library_v1.0.csv'
+
 # - DATA
 # GROWTH RATE
 GROWTHRATE_FILE = 'data/gdsc/growth/growth_rate.csv'

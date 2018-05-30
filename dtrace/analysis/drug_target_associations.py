@@ -6,8 +6,8 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
-from dtrace.associations import multipletests_per_drug, ppi_annotation
 from dtrace.assemble.assemble_ppi import build_string_ppi
+from dtrace.associations import multipletests_per_drug, ppi_annotation, DRUG_INFO_COLUMNS
 
 THRES_FDR, THRES_BETA = .1, 0.25
 
