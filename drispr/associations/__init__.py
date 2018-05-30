@@ -4,7 +4,10 @@
 import numpy as np
 import pandas as pd
 from statsmodels.stats.multitest import multipletests
-from drispr import get_drugtargets, dist_drugtarget_genes, DRUG_INFO_COLUMNS
+from drispr import get_drugtargets, dist_drugtarget_genes
+
+
+DRUG_INFO_COLUMNS = ['DRUG_ID_lib', 'DRUG_NAME', 'VERSION']
 
 
 def multipletests_per_drug(lr_associations, method='bonferroni', field='lr_pval'):

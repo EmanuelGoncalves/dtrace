@@ -5,8 +5,6 @@ import pydot
 import drispr
 import numpy as np
 import pandas as pd
-import seaborn as sns
-import matplotlib.pyplot as plt
 from drispr import get_drugtargets
 from drispr.assemble.assemble_ppi import build_biogrid_ppi, build_string_ppi
 from drispr.associations import LR_DRUG_CRISPR, multipletests_per_drug, ppi_corr
