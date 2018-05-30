@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # Copyright (C) 2018 Emanuel Goncalves
 
-import trace
+import dtrace
 import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
-import trace.associations as lr_files
-from trace.associations import multipletests_per_drug, ppi_annotation
+import dtrace.associations as lr_files
+from dtrace.associations import multipletests_per_drug, ppi_annotation
 from sklearn.metrics import roc_auc_score, average_precision_score
 
 
@@ -68,10 +68,10 @@ if __name__ == '__main__':
     df = pd.melt(plot_df, value_vars=value_vars, id_vars=id_vars)
 
     g = sns.FacetGrid(df, col='variable', aspect=.5, legend_out=True, despine=False, sharey=False)
-    g = g.map(sns.barplot, 'scale', 'value', 'growth', palette=sns.light_palette(trace.PAL_SET2[8], 3, reverse=True).as_hex()[:-1], ci=None)
+    g = g.map(sns.barplot, 'scale', 'value', 'growth', palette=sns.light_palette(dtrace.PAL_SET2[8], 3, reverse=True).as_hex()[:-1], ci=None)
 
     for label, ax in zip(value_vars, np.ravel(g.axes)):
-        ax.yaxis.grid(True, color=trace.PAL_SET2[7], linestyle='-', linewidth=.1, alpha=.5, zorder=0)
+        ax.yaxis.grid(True, color=dtrace.PAL_SET2[7], linestyle='-', linewidth=.1, alpha=.5, zorder=0)
 
         ax.set_title(titles[label])
 

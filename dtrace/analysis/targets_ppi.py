@@ -2,12 +2,12 @@
 # Copyright (C) 2018 Emanuel Goncalves
 
 import pydot
-import trace
+import dtrace
 import numpy as np
 import pandas as pd
-from trace import get_drugtargets
-from trace.assemble.assemble_ppi import build_biogrid_ppi, build_string_ppi
-from trace.associations import LR_DRUG_CRISPR, multipletests_per_drug, ppi_corr
+from dtrace import get_drugtargets
+from dtrace.assemble.assemble_ppi import build_biogrid_ppi, build_string_ppi
+from dtrace.associations import LR_DRUG_CRISPR, multipletests_per_drug, ppi_corr
 
 
 if __name__ == '__main__':
@@ -18,8 +18,8 @@ if __name__ == '__main__':
     lr = multipletests_per_drug(lr)
 
     # CIRSPR CN corrected logFC
-    crispr = trace.get_crispr(dtype='logFC')
-    crispr_scaled = trace.scale_crispr(crispr)
+    crispr = dtrace.get_crispr(dtype='logFC')
+    crispr_scaled = dtrace.scale_crispr(crispr)
 
     # PPI annotation
     # ppi = build_biogrid_ppi(int_type=int_type, exp_type=exp_type)
@@ -45,7 +45,7 @@ if __name__ == '__main__':
     #
     thres_corr = .3
     palette = pd.Series(
-        [trace.PAL_BIN[1]] + sns.light_palette(trace.PAL_BIN[0], n_colors=3, reverse=True).as_hex()
+        [dtrace.PAL_BIN[1]] + sns.light_palette(dtrace.PAL_BIN[0], n_colors=3, reverse=True).as_hex()
     , index=range(4))
 
     graph = pydot.Dot(graph_type='graph', pagedir='TR')

@@ -1,11 +1,11 @@
 #!/usr/bin/env python
 # Copyright (C) 2018 Emanuel Goncalves
 
-import trace
+import dtrace
 import pandas as pd
 from limix.qtl import scan
 from sklearn.preprocessing import StandardScaler
-from trace.associations import multipletests_per_drug
+from dtrace.associations import multipletests_per_drug
 
 
 def lmm_association(drug, y, x):
@@ -36,19 +36,19 @@ def lmm_association(drug, y, x):
 
 if __name__ == '__main__':
     # - Import
-    mobems = trace.get_mobem()
-    drespo = trace.get_drugresponse()
+    mobems = dtrace.get_mobem()
+    drespo = dtrace.get_drugresponse()
 
-    crispr = trace.get_crispr(dtype='both')
-    crispr_logfc = trace.get_crispr(dtype='logFC', scale=True)
+    crispr = dtrace.get_crispr(dtype='both')
+    crispr_logfc = dtrace.get_crispr(dtype='logFC', scale=True)
 
     samples = list(set(mobems).intersection(drespo).intersection(crispr))
     print('#(Samples) = {}'.format(len(samples)))
 
     # - Filter
-    drespo = trace.filter_drugresponse(drespo[samples])
+    drespo = dtrace.filter_drugresponse(drespo[samples])
 
-    crispr = trace.filter_crispr(crispr[samples])
+    crispr = dtrace.filter_crispr(crispr[samples])
     crispr_logfc = crispr_logfc.loc[crispr.index, samples]
 
     print(

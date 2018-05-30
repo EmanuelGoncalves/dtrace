@@ -1,25 +1,25 @@
 #!/usr/bin/env python
 # Copyright (C) 2018 Emanuel Goncalves
 
-import trace
+import dtrace
 import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
-from trace import is_same_drug
+from dtrace import is_same_drug
 
 
 if __name__ == '__main__':
     # - Imports
-    d_v17 = pd.read_csv(trace.DRUG_RESPONSE_V17)
-    d_vrs = pd.read_csv(trace.DRUG_RESPONSE_VRS)
+    d_v17 = pd.read_csv(dtrace.DRUG_RESPONSE_V17)
+    d_vrs = pd.read_csv(dtrace.DRUG_RESPONSE_VRS)
 
     # - Check drugs overlap
     df_count = {}
     for t, f in [('All', False), ('Pub or Web', True)]:
         df_count[t] = {}
 
-        ds = trace.import_drug_list(filter_web_pub=f)
+        ds = dtrace.import_drug_list(filter_web_pub=f)
 
         d_id_v17 = list(set(d_v17['DRUG_ID_lib']).intersection(ds.index))
         d_match_v17 = pd.DataFrame({d1: {d2: int(is_same_drug(d1, d2, ds)) for d2 in d_id_v17} for d1 in d_id_v17})
@@ -44,11 +44,11 @@ if __name__ == '__main__':
     plot_df = pd.melt(df_count.reset_index(), id_vars='index', value_vars=['All', 'Pub or Web'])
 
     order = ['V17', 'RS', 'Overlap', 'Total']
-    pal = dict(zip(*(set(plot_df['variable']), [trace.PAL_SET2[8], trace.PAL_SET2[1]])))
+    pal = dict(zip(*(set(plot_df['variable']), [dtrace.PAL_SET2[8], dtrace.PAL_SET2[1]])))
 
     sns.barplot('index', 'value', 'variable', plot_df, palette=pal, order=order, saturation=1)
 
-    plt.axes().yaxis.grid(True, color=trace.PAL_SET2[7], linestyle='-', linewidth=.1, alpha=.5, zorder=0)
+    plt.axes().yaxis.grid(True, color=dtrace.PAL_SET2[7], linestyle='-', linewidth=.1, alpha=.5, zorder=0)
 
     plt.legend(title='Drugs')
     plt.ylabel('Number of unique drugs')

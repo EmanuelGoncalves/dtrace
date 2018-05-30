@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # Copyright (C) 2018 Emanuel Goncalves
 
-import trace
+import dtrace
 import pandas as pd
 
 INDEX_VALUE = 'IC50_nat_log'
@@ -11,8 +11,8 @@ INDEX_DRUG = ('DRUG_ID_lib', 'DRUG_NAME', 'VERSION')
 
 if __name__ == '__main__':
     # - Imports
-    d_v17 = pd.read_csv(trace.DRUG_RESPONSE_V17).assign(VERSION='v17')
-    d_vrs = pd.read_csv(trace.DRUG_RESPONSE_VRS).assign(VERSION='RS')
+    d_v17 = pd.read_csv(dtrace.DRUG_RESPONSE_V17).assign(VERSION='v17')
+    d_vrs = pd.read_csv(dtrace.DRUG_RESPONSE_VRS).assign(VERSION='RS')
 
     # Build tables
     d_v17_matrix = pd.pivot_table(d_v17, index=INDEX_DRUG, columns=INDEX_SAMPLE, values=INDEX_VALUE)
@@ -20,4 +20,4 @@ if __name__ == '__main__':
 
     # - Merge screens
     d_merged = pd.concat([d_v17_matrix, d_vrs_matrix], axis=0)
-    d_merged.to_csv(trace.DRUG_RESPONSE_FILE)
+    d_merged.to_csv(dtrace.DRUG_RESPONSE_FILE)

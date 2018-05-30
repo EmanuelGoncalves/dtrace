@@ -4,7 +4,7 @@
 import numpy as np
 import pandas as pd
 from statsmodels.stats.multitest import multipletests
-from trace import get_drugtargets, dist_drugtarget_genes
+from dtrace import get_drugtargets, dist_drugtarget_genes
 
 
 DRUG_INFO_COLUMNS = ['DRUG_ID_lib', 'DRUG_NAME', 'VERSION']

@@ -43,7 +43,7 @@ MOBEM = 'data/PANCAN_mobem.csv'
 RNASEQ_VOOM = 'data/gdsc/gene_expression/merged_voom_preprocessed.csv'
 
 # - ASSOCIATIONS
-LMM_DRUG = 'data/drug_lmm_regressions.csv'
+DRUG_LMM = 'data/drug_lmm_regressions.csv'
 
 
 # - GETS

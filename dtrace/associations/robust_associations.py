@@ -1,11 +1,11 @@
 #!/usr/bin/env python
 # Copyright (C) 2018 Emanuel Goncalves
 
-import trace
+import dtrace
 import pandas as pd
 import matplotlib.pyplot as plt
-import trace.associations as lr_files
-from trace.associations import multipletests_per_drug
+import dtrace.associations as lr_files
+from dtrace.associations import multipletests_per_drug
 from statsmodels.stats.multitest import multipletests
 from analysis.plot.corrplot import plot_corrplot_discrete
 
@@ -15,10 +15,10 @@ THRES_FDR, THRES_BETA = .1, 0.5
 
 if __name__ == '__main__':
     # - Import
-    mobems = trace.get_mobem()
-    drespo = trace.get_drugresponse()
+    mobems = dtrace.get_mobem()
+    drespo = dtrace.get_drugresponse()
 
-    crispr = trace.get_crispr(dtype='logFC')
+    crispr = dtrace.get_crispr(dtype='logFC')
 
     samples = list(set(mobems).intersection(drespo).intersection(crispr))
     print('#(Samples) = {}'.format(len(samples)))

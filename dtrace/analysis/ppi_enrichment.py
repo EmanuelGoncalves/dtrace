@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # Copyright (C) 2018 Emanuel Goncalves
 
-import trace
+import dtrace
 import textwrap
 import numpy as np
 import pandas as pd
@@ -9,13 +9,13 @@ import seaborn as sns
 import scipy.stats as st
 import matplotlib.pyplot as plt
 from analysis.plot.corrplot import plot_corrplot
-from trace.associations import multipletests_per_drug, ppi_annotation
-from trace.assemble.assemble_ppi import build_string_ppi
+from dtrace.associations import multipletests_per_drug, ppi_annotation
+from dtrace.assemble.assemble_ppi import build_string_ppi
 from sklearn.metrics import roc_curve, auc, roc_auc_score, average_precision_score
 
 
 ORDER = ['Target', '1', '2', '>=3']
-ORDER_COLOR = [trace.PAL_SET2[1]] + sns.light_palette(trace.PAL_SET2[8], len(ORDER) - 1, reverse=True).as_hex()
+ORDER_COLOR = [dtrace.PAL_SET2[1]] + sns.light_palette(dtrace.PAL_SET2[8], len(ORDER) - 1, reverse=True).as_hex()
 ORDER_PAL = dict(zip(*(ORDER, ORDER_COLOR)))
 
 
@@ -27,7 +27,7 @@ def target_enrichment(df, betas=None, pvalue=None):
         pvalue = [1e-4, 1e-3, 1e-2, 1e-1, .15, .2]
 
     order = ['Target', '1', '2', '3', '>=4']
-    order_color = [trace.PAL_SET2[1]] + sns.light_palette(trace.PAL_SET2[8], len(order) - 1, reverse=True).as_hex()
+    order_color = [dtrace.PAL_SET2[1]] + sns.light_palette(dtrace.PAL_SET2[8], len(order) - 1, reverse=True).as_hex()
     order_pal = dict(zip(*(order, order_color)))
 
     aucs = []
@@ -70,11 +70,11 @@ def plot_drug_associations_barplot(plot_df, order, ppi_text_offset=0.075, drug_n
 
     # Significant line
     if fdr_line is not None:
-        plt.axhline(-np.log10(fdr_line), ls='--', lw=.5, c=trace.PAL_BIN[0], alpha=.3, zorder=0)
+        plt.axhline(-np.log10(fdr_line), ls='--', lw=.5, c=dtrace.PAL_BIN[0], alpha=.3, zorder=0)
 
     # Barplot
-    plt.bar(df.query('target != 0')['xpos'], df.query('target != 0')['y'], .8, color=trace.PAL_BIN[0], align='center', zorder=5)
-    plt.bar(df.query('target == 0')['xpos'], df.query('target == 0')['y'], .8, color=trace.PAL_BIN[1], align='center', zorder=5)
+    plt.bar(df.query('target != 0')['xpos'], df.query('target != 0')['y'], .8, color=dtrace.PAL_BIN[0], align='center', zorder=5)
+    plt.bar(df.query('target == 0')['xpos'], df.query('target == 0')['y'], .8, color=dtrace.PAL_BIN[1], align='center', zorder=5)
 
     # Distance to target text
     for x, y, t in df[['xpos', 'y', 'target']].values:
@@ -87,7 +87,7 @@ def plot_drug_associations_barplot(plot_df, order, ppi_text_offset=0.075, drug_n
     for k, v in df.groupby('DRUG_NAME')['xpos'].mean().sort_values().to_dict().items():
         plt.text(v, df['y'].max() * drug_name_offset, textwrap.fill(k, 15), ha='center', fontsize=6, zorder=10)
 
-    plt.grid(True, color=trace.PAL_SET2[7], linestyle='-', linewidth=.1, alpha=.5, zorder=0, axis='y')
+    plt.grid(True, color=dtrace.PAL_SET2[7], linestyle='-', linewidth=.1, alpha=.5, zorder=0, axis='y')
 
     plt.xticks(df['xpos'], df['GeneSymbol'], rotation=90, fontsize=5)
     plt.ylabel('Log-ratio FDR (-log10)')
@@ -108,9 +108,9 @@ def plot_count_associations(lm_res_df, fdr_thres, beta_thres, min_nevents=5):
     if min_nevents is not None:
         df = df[df['counts'] >= min_nevents]
 
-    ax = sns.barplot('counts', 'drug', data=df, color=trace.PAL_BIN[0], linewidth=.8, orient='h')
+    ax = sns.barplot('counts', 'drug', data=df, color=dtrace.PAL_BIN[0], linewidth=.8, orient='h')
 
-    ax.xaxis.grid(True, color=trace.PAL_SET2[7], linestyle='-', linewidth=.1, alpha=.5, zorder=0)
+    ax.xaxis.grid(True, color=dtrace.PAL_SET2[7], linestyle='-', linewidth=.1, alpha=.5, zorder=0)
 
     plt.ylabel('')
     plt.xlabel('#(associations)')
@@ -151,7 +151,7 @@ def plot_drug_corr(idx):
 
     g = sns.FacetGrid(plot_df, col='variable', size=2, legend_out=True, despine=False, sharey=False, sharex=True)
 
-    g = g.map(sns.regplot, d_name, 'value', color=trace.PAL_BIN[0], line_kws=dict(lw=1., color=trace.PAL_SET2[1]), scatter_kws=dict(edgecolor='w', lw=.3, s=12))
+    g = g.map(sns.regplot, d_name, 'value', color=dtrace.PAL_BIN[0], line_kws=dict(lw=1., color=dtrace.PAL_SET2[1]), scatter_kws=dict(edgecolor='w', lw=.3, s=12))
 
     g.set_titles('{col_name}')
 
@@ -238,19 +238,19 @@ def aurc(df, outfile=None, thres_label='target_thres', rank_label='pval', min_ev
 if __name__ == '__main__':
     # - Imports
     # Samplesheet
-    ss = trace.get_samplesheet()
+    ss = dtrace.get_samplesheet()
 
     # Linear regressions
     lm_df_crispr = pd.read_csv('data/drug_regressions_crispr_limix.csv')
     # lm_df_crispr = pd.read_csv(lr_files.LR_DRUG_CRISPR)
 
     # Drug response
-    drespo = trace.get_drugresponse()
+    drespo = dtrace.get_drugresponse()
 
     # CIRSPR CN corrected logFC
-    crispr = trace.get_crispr(dtype='logFC')
-    crispr_scaled = trace.scale_crispr(crispr)
-    crispr_binary = trace.get_crispr('depletions')
+    crispr = dtrace.get_crispr(dtype='logFC')
+    crispr_scaled = dtrace.scale_crispr(crispr)
+    crispr_binary = dtrace.get_crispr('depletions')
 
     samples = list(set(drespo).intersection(crispr))
 
