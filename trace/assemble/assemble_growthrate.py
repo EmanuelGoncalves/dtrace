@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # Copyright (C) 2018 Emanuel Goncalves
 
-import drispr
+import trace
 import numpy as np
 import pandas as pd
 
@@ -28,4 +28,4 @@ if __name__ == '__main__':
     grate = assemble_growth_rates('data/gdsc/growth/growth_rates_screening_set_1536_180119.csv')
 
     # Export
-    grate.to_csv(drispr.GROWTHRATE_FILE)
+    grate.to_csv(trace.GROWTHRATE_FILE)
