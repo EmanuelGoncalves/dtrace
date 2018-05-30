@@ -263,15 +263,15 @@ if __name__ == '__main__':
     lm_df_crispr = ppi_annotation(
         lm_df_crispr, ppi_type=build_string_ppi, ppi_kws=dict(score_thres=900), target_thres=3,
     )
-    print(lm_df_crispr[(lm_df_crispr['beta'].abs() > .25) & (lm_df_crispr['fdr'] < 0.1)].sort_values('fdr'))
+    print(lm_df_crispr[(lm_df_crispr['beta'].abs() > .2) & (lm_df_crispr['fdr'] < 0.05)].sort_values('fdr'))
 
     # - Top associations
-    plot_df = lm_df_crispr[(lm_df_crispr['beta'].abs() > .25) & (lm_df_crispr['fdr'] < .1)]
+    plot_df = lm_df_crispr[(lm_df_crispr['beta'].abs() > .2) & (lm_df_crispr['fdr'] < .1)]
     order = list(plot_df.groupby('DRUG_NAME')['fdr'].min().sort_values().index)[:10]
     plot_drug_associations_barplot(plot_df, order, fdr_line=.1)
 
     # - Count signif assoc per drug
-    plot_count_associations(lm_df_crispr, 0.1, .25, min_nevents=3)
+    plot_count_associations(lm_df_crispr, 0.1, .2, min_nevents=3)
 
     # - Plot Drug ~ CRISPR corrplot
     plot_drug_corr(2113601)
@@ -279,5 +279,9 @@ if __name__ == '__main__':
     # - AROC enrichment
     plot_arocs(lm_df_crispr, .1, .2)
 
-    df = lm_df_crispr[(lm_df_crispr['beta'].abs() > .2) & (lm_df_crispr['fdr'] < .1)]
+    lm_d_signif = lm_df_crispr.dropna(subset=['target']).groupby(['DRUG_ID_lib', 'DRUG_NAME', 'VERSION'])['fdr'].min()
+    lm_d_signif = set(lm_d_signif[lm_d_signif < .1].index)
+
+    df = lm_df_crispr[[(did, dname, dscreen) in lm_d_signif for did, dname, dscreen in lm_df_crispr[['DRUG_ID_lib', 'DRUG_NAME', 'VERSION']].values]]
+
     aurc(df, outfile='reports/ppi_signif_aurc.pdf', rank_label='pval')

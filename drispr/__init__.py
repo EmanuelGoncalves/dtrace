@@ -95,13 +95,14 @@ def get_drugresponse():
     return d_response
 
 
-def get_crispr(dtype='logFC', fdr_thres=0.05):
+def get_crispr(dtype='logFC', fdr_thres=0.05, scale=False):
     """
     CRISPR-Cas9 scores as log fold-changes (CN corrected) or binary matrices marking (1) significant
     depletions (dtype = 'depletions'), enrichments (dtype = 'enrichments') or both (dtype = 'both').
 
     :param dtype: String (default = 'logFC')
     :param fdr_thres: Float (default = 0.1)
+    :param scale: Boolean (default = False)
     :return: pandas.DataFrame
     """
 
@@ -119,6 +120,9 @@ def get_crispr(dtype='logFC', fdr_thres=0.05):
 
     else:
         crispr = pd.read_csv(CRISPR_GENE_FC_CORRECTED, index_col=0, sep='\t').dropna()
+
+        if scale:
+            crispr = scale_crispr(crispr)
 
     return crispr
 

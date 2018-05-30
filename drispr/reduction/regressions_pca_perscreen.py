@@ -37,10 +37,10 @@ if __name__ == '__main__':
     drugs_screen = lm_df_crispr.groupby('DrugId')['VERSION'].first().loc[drugs]
 
     # -
-    df = lm_betas.loc[genes, drugs].T
+    df = lm_betas.loc[:, drugs].T
 
     # TSNE
-    perplexity, learning_rate, n_iter = 20, 400, 1000
+    perplexity, learning_rate, n_iter = 40, 200, 1000
 
     tsne_dict = {}
     for s in set(drugs_screen):

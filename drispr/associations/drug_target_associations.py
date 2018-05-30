@@ -113,7 +113,7 @@ if __name__ == '__main__':
     drug_beta_histogram(lm_df_crispr.dropna())
 
     # - Drugs that have a target significantly associated
-    lm_d_signif = lm_df_crispr.groupby(['DRUG_ID_lib', 'DRUG_NAME', 'VERSION'])['fdr'].min()
+    lm_d_signif = lm_df_crispr.dropna(subset=['target']).groupby(['DRUG_ID_lib', 'DRUG_NAME', 'VERSION'])['fdr'].min()
     lm_d_signif = set(lm_d_signif[lm_d_signif < .05].index)
 
     df = lm_df_crispr[[(did, dname, dscreen) in lm_d_signif for did, dname, dscreen in lm_df_crispr[['DRUG_ID_lib', 'DRUG_NAME', 'VERSION']].values]]
