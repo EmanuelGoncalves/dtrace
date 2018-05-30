@@ -3,8 +3,7 @@
 
 import numpy as np
 import pandas as pd
-import seaborn as sns
-from drispr.plot import SNS_RC
+
 
 # - META DATA
 SAMPLESHEET_FILE = 'data/meta/samplesheet.csv'
@@ -45,20 +44,6 @@ RNASEQ_VOOM = 'data/gdsc/gene_expression/merged_voom_preprocessed.csv'
 
 # - ASSOCIATIONS
 LMM_DRUG = 'data/drug_lmm_regressions.csv'
-
-# - PALETTES
-PAL_DBGD = ['#37454B', '#F2C500']
-PAL_TAB20C = sns.color_palette('tab20c', n_colors=20).as_hex()
-PAL_SET2 = sns.color_palette('Set2', n_colors=8).as_hex() + ['#333333']
-
-PAL_BIN = {1: PAL_SET2[1], 0: '#000000'}
-PAL_DRUG_VERSION = dict(RS=PAL_SET2[1], v17='#000000')
-
-# - PLOTTING AESTHETICS
-sns.set(style='ticks', context='paper', rc=SNS_RC, font_scale=.75)
-
-# - DRUG INFO COLUMNS
-DRUG_INFO_COLUMNS = ['DRUG_ID_lib', 'DRUG_NAME', 'VERSION']
 
 
 # - GETS

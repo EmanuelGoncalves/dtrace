@@ -8,11 +8,9 @@ import pandas as pd
 import seaborn as sns
 import scipy.stats as st
 import matplotlib.pyplot as plt
-import drispr.associations as lr_files
-from natsort import natsorted
-from drispr.plot.corrplot import plot_corrplot
+from analysis.plot.corrplot import plot_corrplot
 from drispr.associations import multipletests_per_drug, ppi_annotation
-from drispr.assemble.assemble_ppi import build_biogrid_ppi, build_string_ppi
+from drispr.assemble.assemble_ppi import build_string_ppi
 from sklearn.metrics import roc_curve, auc, roc_auc_score, average_precision_score
 
 

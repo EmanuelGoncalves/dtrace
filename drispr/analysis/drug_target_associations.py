@@ -2,17 +2,12 @@
 # Copyright (C) 2018 Emanuel Goncalves
 
 import drispr
-import textwrap
 import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
-import drispr.associations as lr_files
-from drispr.plot.corrplot import plot_corrplot
 from drispr.associations import multipletests_per_drug, ppi_annotation
-from drispr.assemble.assemble_ppi import build_biogrid_ppi, build_string_ppi
-from sklearn.metrics import roc_auc_score, recall_score, precision_score, f1_score
-
+from drispr.assemble.assemble_ppi import build_string_ppi
 
 THRES_FDR, THRES_BETA = .1, 0.25
 
