@@ -4,6 +4,7 @@
 import numpy as np
 import pandas as pd
 import seaborn as sns
+from drispr.plot import SNS_RC
 
 # - META DATA
 SAMPLESHEET_FILE = 'data/meta/samplesheet.csv'
@@ -13,33 +14,37 @@ DRUGSHEET_FILE = 'data/meta/drug_samplesheet_updated.txt'
 HART_ESSENTIAL = 'data/gene_sets/curated_BAGEL_essential.csv'
 HART_NON_ESSENTIAL = 'data/gene_sets/curated_BAGEL_nonEssential.csv'
 
-# - GROWTH RATE
+# - DATA
+# GROWTH RATE
 GROWTHRATE_FILE = 'data/gdsc/growth/growth_rate.csv'
 
-# - CRISPR
+# CRISPR
 CRISPR_GENE_FC_CORRECTED = 'data/crispr/CRISPRcleaned_logFCs.tsv'
 CRISPR_GENE_BAGEL = 'data/crispr/BayesianFactors.tsv'
 CRISPR_GENE_BINARY = 'data/crispr/binaryDepScores.tsv'
 CRISPR_MAGECK_DEP_FDR = 'data/crispr/MAGeCK_depFDRs.tsv'
 CRISPR_MAGECK_ENR_FDR = 'data/crispr/MAGeCK_enrFDRs.tsv'
 
-# - DRUG-RESPONSE
+# DRUG-RESPONSE
 DRUG_RESPONSE_FILE = 'data/drug_ic50_merged_matrix.csv'
 
 DRUG_RESPONSE_V17 = 'data/drug/screening_set_384_all_owners_fitted_data_20180308.csv'
 DRUG_RESPONSE_VRS = 'data/drug/rapid_screen_1536_all_owners_fitted_data_20180308.csv'
 
-# - NUMBER OF MUTATIONS
+# NUMBER OF MUTATIONS
 WES_COUNT = 'data/gdsc/WES_variants.csv'
 
-# - METHYLATION
+# METHYLATION
 METHYLATION_GENE_PROMOTER = 'data/gdsc/methylation/methy_beta_gene_promoter.csv'
 
-# - MOBEM
+# MOBEM
 MOBEM = 'data/PANCAN_mobem.csv'
 
-# - GENE-EXPRESSION
+# GENE-EXPRESSION
 RNASEQ_VOOM = 'data/gdsc/gene_expression/merged_voom_preprocessed.csv'
+
+# - ASSOCIATIONS
+LMM_DRUG = 'data/drug_lmm_regressions.csv'
 
 # - PALETTES
 PAL_DBGD = ['#37454B', '#F2C500']
@@ -50,16 +55,6 @@ PAL_BIN = {1: PAL_SET2[1], 0: '#000000'}
 PAL_DRUG_VERSION = dict(RS=PAL_SET2[1], v17='#000000')
 
 # - PLOTTING AESTHETICS
-SNS_RC = {
-    'axes.linewidth': .3,
-    'xtick.major.width': .3,
-    'ytick.major.width': .3,
-    'xtick.major.size': 2.5,
-    'ytick.major.size': 2.5,
-    'xtick.direction': 'in',
-    'ytick.direction': 'in'
-}
-
 sns.set(style='ticks', context='paper', rc=SNS_RC, font_scale=.75)
 
 # - DRUG INFO COLUMNS

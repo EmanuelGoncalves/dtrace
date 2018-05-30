@@ -6,25 +6,6 @@ import pandas as pd
 from statsmodels.stats.multitest import multipletests
 from drispr import get_drugtargets, dist_drugtarget_genes, DRUG_INFO_COLUMNS
 
-# - CONTINUOUS CRISPR ASSOCIATIONS
-LR_DRUG_CRISPR = 'data/drug_regressions_crispr.csv'
-LR_DRUG_CRISPR_NOGROWTH = 'data/drug_regressions_crispr_NOGROWTH.csv'
-
-LR_DRUG_CRISPR_NOSCALE = 'data/drug_regressions_crispr_NOSCALE.csv'
-LR_DRUG_CRISPR_NOSCALE_NOGROWTH = 'data/drug_regressions_crispr_NOSCALE_NOGROWTH.csv'
-
-# - CONTINOUS CRISPR MOBEMS ASSOCIATIONS
-LR_CRISPR_MOBEMS = 'data/crispr_regressions.csv'
-
-# - CONTINUOUS RNASEQ ASSOCIATIONS
-LR_DRUG_RNASEQ = 'data/drug_regressions_rnaseq.csv'
-
-# - BINARY ASSOCIATIONS
-LR_BINARY_DRUG_MOBEMS = 'data/drug_regressions_binary_mobems.csv'
-LR_BINARY_DRUG_MOBEMS_ALL = 'data/drug_regressions_binary_mobems_all.csv'
-
-LR_BINARY_DRUG_CRISPR = 'data/drug_regressions_binary_crispr.csv'
-
 
 def multipletests_per_drug(lr_associations, method='bonferroni', field='lr_pval'):
     d_unique = {(d_id, d_name, d_version) for d_id, d_name, d_version in lr_associations[DRUG_INFO_COLUMNS].values}
