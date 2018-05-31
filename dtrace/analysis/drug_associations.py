@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
+from collections import OrderedDict
 from natsort import natsorted
 from dtrace.analysis import PAL_DTRACE
 from dtrace.assemble.assemble_ppi import build_string_ppi
@@ -54,7 +55,7 @@ def manhattan_plot(lmm_drug, fdr_line=.05):
     plt.xlabel('Chromosome')
 
 
-def top_associations_barplot(lmm_drug, fdr_line=0.05, ntop=30, ppi_text_offset=0.075, drug_name_offset=1., ylim_offset=1.1):
+def top_associations_barplot(lmm_drug, fdr_line=0.05, ntop=40):
     # Filter for signif associations
     df = lmm_drug\
         .query('fdr < {}'.format(fdr_line))\
@@ -102,11 +103,68 @@ def top_associations_barplot(lmm_drug, fdr_line=0.05, ntop=30, ppi_text_offset=0
 
         for x, y, t in df_irow[['xpos', 'logpval', 'target']].values:
             l = '-' if np.isnan(t) or np.isposinf(t) else ('T' if t == 0 else str(int(t)))
-            axs[irow].text(x, y - (df['logpval'].max() * ppi_text_offset), l, color='white', ha='center', fontsize=6, zorder=10)
+            axs[irow].text(x, y + 0.25, l, color=PAL_DTRACE[0] if t == 0 else PAL_DTRACE[2], ha='center', fontsize=6, zorder=10)
 
         sns.despine(ax=axs[irow], right=True, top=True)
         axs[irow].axes.get_xaxis().set_ticks([])
         axs[irow].set_ylabel('Drug-gene association\n(-log10 p-value)')
+
+
+def plot_count_associations(lmm_drug, fdr_line=0.05, min_events=2):
+    df = lmm_drug[lmm_drug['fdr'] < fdr_line]
+    df = df.groupby(DRUG_INFO_COLUMNS)['fdr'].count().rename('count').sort_values(ascending=False).reset_index()
+    df = df.assign(name=['{} ({}, {})'.format(n, i, v) for i, n, v in df[DRUG_INFO_COLUMNS].values])
+    df = df.query('count >= {}'.format(min_events))
+
+    sns.barplot('count', 'name', data=df, color=PAL_DTRACE[2], linewidth=.8, orient='h')
+    sns.despine(right=True, top=True)
+
+    plt.ylabel('')
+    plt.xlabel('Count')
+    plt.title('Significant associations FDR<{}%'.format(fdr_line * 100))
+
+
+def recapitulated_drug_targets_barplot(lmm_drug, fdr_line=0.05):
+    d_all = {' ; '.join(map(str, i)) for i in lmm_drug[DRUG_INFO_COLUMNS].values}
+    d_signif = {' ; '.join(map(str, i)) for i in lmm_drug.query('fdr < {}'.format(fdr_line))[DRUG_INFO_COLUMNS].values}
+
+    d_target_all = {' ; '.join(map(str, i)) for i in lmm_drug.dropna(subset=['target'])[DRUG_INFO_COLUMNS].values}
+    d_target_signif = {' ; '.join(map(str, i)) for i in lmm_drug.dropna(subset=['target']).query('fdr < {}'.format(fdr_line))[DRUG_INFO_COLUMNS].values}
+
+    d_target_correct = {' ; '.join(map(str, i)) for i in lmm_drug.dropna(subset=['target']).query('fdr < {} & target == 0'.format(fdr_line))[DRUG_INFO_COLUMNS].values}
+
+    plot_df = pd.DataFrame(dict(
+        names=['All', 'w/Association', 'w/Annotation', 'w/Annotation+Association', 'w/Target'],
+        count=list(map(len, [d_all, d_signif, d_target_all, d_target_signif, d_target_correct]))
+    ))
+    plot_df = plot_df.assign(pos=range(plot_df.shape[0]))
+
+    sns.barplot('count', 'names', data=plot_df, color=PAL_DTRACE[2], orient='h')
+    sns.despine(right=True, top=True)
+    plt.xlabel('Number of drugs')
+    plt.ylabel('')
+
+
+def beta_histogram(lmm_drug, fdr_line=0.05):
+    kde_kws = dict(cut=0, lw=1, zorder=1, alpha=.8)
+    hist_kws = dict(alpha=.4, zorder=1)
+
+    label_order = ['All', 'Target', 'Target + Significant']
+
+    sns.distplot(lmm_drug['beta'], color=PAL_DTRACE[1], kde_kws=kde_kws, hist_kws=hist_kws, label=label_order[0], bins=30)
+    sns.distplot(lmm_drug.query('target == 0')['beta'], color=PAL_DTRACE[2], kde_kws=kde_kws, hist_kws=hist_kws, label=label_order[1], bins=30)
+    sns.rugplot(lmm_drug.query('fdr < {} & target == 0'.format(fdr_line))['beta'], color=PAL_DTRACE[0], lw=.3, label=label_order[2])
+
+    sns.despine(right=True, top=True)
+
+    plt.axvline(0, c=PAL_DTRACE[1], lw=.3, ls='-', zorder=0)
+
+    plt.xlabel('Association beta')
+    plt.ylabel('Density')
+
+    handles, labels = plt.gca().get_legend_handles_labels()
+    by_label = dict(zip(labels, handles))
+    plt.legend([by_label[l] for l in label_order], label_order, prop={'size': 6}, loc=2)
 
 
 if __name__ == '__main__':
@@ -127,4 +185,22 @@ if __name__ == '__main__':
     top_associations_barplot(lmm_drug)
     plt.gcf().set_size_inches(8, 6)
     plt.savefig('reports/drug_associations_barplot.pdf', bbox_inches='tight')
+    plt.close('all')
+
+    # - Count number of significant associations per drug
+    plot_count_associations(lmm_drug)
+    plt.gcf().set_size_inches(2, 8)
+    plt.savefig('reports/drug_associations_count.pdf', bbox_inches='tight')
+    plt.close('all')
+
+    # - Count number of significant associations overall
+    recapitulated_drug_targets_barplot(lmm_drug)
+    plt.gcf().set_size_inches(2, 1)
+    plt.savefig('reports/drug_associations_count_signif.pdf', bbox_inches='tight')
+    plt.close('all')
+
+    # - Associations beta histogram
+    beta_histogram(lmm_drug)
+    plt.gcf().set_size_inches(2, 2)
+    plt.savefig('reports/drug_associations_beta_histogram.pdf', bbox_inches='tight')
     plt.close('all')
