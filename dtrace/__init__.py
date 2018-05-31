@@ -33,6 +33,8 @@ DRUG_RESPONSE_FILE = 'data/drug_ic50_merged_matrix.csv'
 DRUG_RESPONSE_V17 = 'data/drug/screening_set_384_all_owners_fitted_data_20180308.csv'
 DRUG_RESPONSE_VRS = 'data/drug/rapid_screen_1536_all_owners_fitted_data_20180308.csv'
 
+DRUG_RESPONSE_MAXC = 'data/drug_max_concentration.csv'
+
 # NUMBER OF MUTATIONS
 WES_COUNT = 'data/gdsc/WES_variants.csv'
 

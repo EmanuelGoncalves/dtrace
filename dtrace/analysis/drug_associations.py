@@ -7,7 +7,6 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
-from collections import OrderedDict
 from natsort import natsorted
 from dtrace.analysis import PAL_DTRACE
 from dtrace.assemble.assemble_ppi import build_string_ppi

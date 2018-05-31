@@ -6,6 +6,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from scipy.stats import pearsonr
+from dtrace.analysis import PAL_DTRACE
 
 
 def plot_corrplot(
@@ -16,7 +17,7 @@ def plot_corrplot(
         scatter_kws = dict(edgecolor='w', lw=.3, s=12)
 
     if line_kws is None:
-        line_kws = dict(lw=1., color=dtrace.PAL_SET2[1])
+        line_kws = dict(lw=1., color=PAL_DTRACE[0])
 
     if annot_kws is None:
         annot_kws = dict(stat='R')
@@ -26,16 +27,16 @@ def plot_corrplot(
 
     # - Joint and Marginal plot
     g = sns.jointplot(
-        x, y, data=dataframe, kind='reg', space=0, color=dtrace.PAL_SET2[8], annot_kws=annot_kws,
+        x, y, data=dataframe, kind='reg', space=0, color=PAL_DTRACE[2], annot_kws=annot_kws,
         marginal_kws=marginal_kws, joint_kws=dict(lowess=lowess, scatter_kws=scatter_kws, line_kws=line_kws)
     )
 
     # - Extras
     if add_hline:
-        g.ax_joint.axhline(0, ls='-', lw=0.1, c=dtrace.PAL_SET2[7])
+        g.ax_joint.axhline(0, ls='-', lw=0.1, c=PAL_DTRACE[1])
 
     if add_vline:
-        g.ax_joint.axvline(0, ls='-', lw=0.1, c=dtrace.PAL_SET2[7])
+        g.ax_joint.axvline(0, ls='-', lw=0.1, c=PAL_DTRACE[1])
 
     # - Labels
     g.set_axis_labels('{} (log2 FC)'.format(x), '{} (ln IC50)'.format(y))
