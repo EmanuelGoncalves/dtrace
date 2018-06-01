@@ -6,13 +6,14 @@ import textwrap
 import numpy as np
 import pandas as pd
 import seaborn as sns
+import scipy.stats as st
 import matplotlib.pyplot as plt
 from natsort import natsorted
+from sklearn.metrics import auc
 from sklearn.manifold import TSNE
-from sklearn.decomposition import PCA
 from dtrace.analysis import PAL_DTRACE
 from dtrace.assemble.assemble_ppi import build_string_ppi
-from dtrace.associations import ppi_annotation, DRUG_INFO_COLUMNS
+from dtrace.associations import ppi_annotation, corr_drugtarget_gene, DRUG_INFO_COLUMNS
 
 
 def manhattan_plot(lmm_drug, fdr_line=.05):
@@ -229,9 +230,8 @@ def beta_corr_boxplot(lmm_drug):
     plt.ylabel('')
 
 
-def drug_beta_tsne(lmm_drug, fdr=0.05, perplexity=50, learning_rate=150, n_iter=1000, n_components=50):
+def drug_beta_tsne(lmm_drug, fdr=0.05, perplexity=55, learning_rate=150, n_iter=1000):
     d_targets = dtrace.get_drugtargets()
-    drugsheet = dtrace.get_drugsheet()
 
     # Drugs into
     drugs = {tuple(i) for i in lmm_drug.query('fdr < {}'.format(fdr))[DRUG_INFO_COLUMNS].values}
@@ -246,7 +246,6 @@ def drug_beta_tsne(lmm_drug, fdr=0.05, perplexity=50, learning_rate=150, n_iter=
     tsnes = []
     for s in drugs_screen:
         tsne_df = betas.loc[list(drugs_screen[s])]
-        tsne_df = pd.DataFrame(PCA(n_components=n_components).fit_transform(tsne_df), index=tsne_df.index)
 
         tsne = TSNE(perplexity=perplexity, learning_rate=learning_rate, n_iter=n_iter).fit_transform(tsne_df)
 
@@ -266,10 +265,68 @@ def drug_beta_tsne(lmm_drug, fdr=0.05, perplexity=50, learning_rate=150, n_iter=
     )
 
     g.map(plt.scatter, 'P1', 'P2', alpha=.7, lw=.3, edgecolor='white')
+    g.set_titles('{col_name}')
     g.add_legend()
 
-    # plt.gcf().set_size_inches(4, 2)
-    plt.savefig('reports/drug_associations_beta_tsne.pdf', bbox_inches='tight')
+
+def drug_aurc(lmm_drug, fdr=0.05, corr=0.25, label='target', rank_label='pval', legend_size=6, title='', legend_title=''):
+    # Subset to entries that have a target
+    df = lmm_drug.query("{} != '-'".format(label))
+    df = df[(df['target'] == 'T') | (df['corr'].abs() > corr)]
+
+    drugs_signif = {tuple(i) for i in df.query('fdr < {}'.format(fdr))[DRUG_INFO_COLUMNS].values}
+    df = df[[tuple(i) in drugs_signif for i in df[DRUG_INFO_COLUMNS].values]]
+
+    # Define order and palette
+    order = natsorted(set(df[label]))
+    order.insert(0, order.pop(order.index('T')))
+
+    pal = [PAL_DTRACE[0]] + sns.light_palette(PAL_DTRACE[2], n_colors=len(order)).as_hex()[1:]
+    pal = pd.Series(pal, index=order)
+
+    # Initial plot
+    ax = plt.gca()
+
+    # Build curve for each group
+    for t in pal.index:
+        index_set = set(df[df[label] == t].index)
+
+        # Build data-frame
+        x = df[rank_label].sort_values().dropna()
+
+        # Observed cumsum
+        y = x.index.isin(index_set)
+        y = np.cumsum(y) / sum(y)
+
+        # Rank fold-changes
+        x = st.rankdata(x) / x.shape[0]
+
+        # Calculate AUC
+        f_auc = auc(x, y)
+
+        # Plot
+        auc_label = 'Target' if t == 'T' else 'Distance {}'.format(t)
+        ax.plot(x, y, label='{} (AURC={:.2f})'.format(auc_label, f_auc), lw=1., c=pal[t])
+
+    # Random
+    ax.plot((0, 1), (0, 1), 'k--', lw=.3, alpha=.5)
+
+    # Limits
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, 1)
+
+    # Labels
+    ax.set_xlabel('Ranked')
+    ax.set_ylabel('Recall')
+
+    ax.legend(loc=4)
+
+    ax.set_title(title)
+    legend = ax.legend(loc=4, title=legend_title, prop={'size': legend_size})
+    legend.get_title().set_fontsize('{}'.format(legend_size))
+
+    plt.gcf().set_size_inches(3, 3)
+    plt.savefig('reports/drug_associations_aurc.pdf', bbox_inches='tight')
     plt.close('all')
 
 
@@ -278,8 +335,10 @@ if __name__ == '__main__':
     lmm_drug = pd.read_csv(dtrace.DRUG_LMM)
 
     lmm_drug = ppi_annotation(
-        lmm_drug, ppi_type=build_string_ppi, ppi_kws=dict(score_thres=900), target_thres=4,
+        lmm_drug, ppi_type=build_string_ppi, ppi_kws=dict(score_thres=900), target_thres=3,
     )
+
+    lmm_drug = corr_drugtarget_gene(lmm_drug)
 
     # - Drug associations manhattan plot
     manhattan_plot(lmm_drug)
@@ -300,7 +359,7 @@ if __name__ == '__main__':
     plt.close('all')
 
     # - Count number of significant associations overall
-    recapitulated_drug_targets_barplot(lmm_drug, fdr=.1)
+    recapitulated_drug_targets_barplot(lmm_drug)
     plt.gcf().set_size_inches(2, 1)
     plt.savefig('reports/drug_associations_count_signif.pdf', bbox_inches='tight')
     plt.close('all')
@@ -315,4 +374,21 @@ if __name__ == '__main__':
     beta_corr_boxplot(lmm_drug)
     plt.gcf().set_size_inches(3, 1)
     plt.savefig('reports/drug_associations_beta_corr_boxplot.pdf', bbox_inches='tight')
+    plt.close('all')
+
+    # - Drug betas TSNE
+    drug_beta_tsne(lmm_drug)
+    plt.savefig('reports/drug_associations_beta_tsne.pdf', bbox_inches='tight')
+    plt.close('all')
+
+    # - Drug target/ppi enrichment curves
+    drug_aurc(lmm_drug)
+    plt.gcf().set_size_inches(3, 3)
+    plt.savefig('reports/drug_associations_aurc.pdf', bbox_inches='tight')
+    plt.close('all')
+
+    # -
+    drug_aurc(lmm_drug)
+    plt.gcf().set_size_inches(3, 3)
+    plt.savefig('reports/drug_associations_aurc.pdf', bbox_inches='tight')
     plt.close('all')

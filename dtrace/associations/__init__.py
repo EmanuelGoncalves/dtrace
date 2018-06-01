@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 # Copyright (C) 2018 Emanuel Goncalves
 
+import dtrace
 import numpy as np
 import pandas as pd
-from dtrace import get_drugtargets
 from statsmodels.stats.multitest import multipletests
 
 
@@ -22,6 +22,40 @@ def multipletests_per_drug(lr_associations, method='bonferroni', field='lr_pval'
     ]).reset_index()
 
     return df
+
+
+def corr_drugtarget_gene(lmm_drug):
+    # Get CRISPR
+    crispr = dtrace.get_crispr(dtype='logFC', scale=True)
+
+    # List all drugs and genes used for associations
+    drugs, genes = set(lmm_drug['DRUG_ID_lib']), set(lmm_drug['GeneSymbol'])
+
+    # Assemble drug targets for which associations where tested
+    d_targets = dtrace.get_drugtargets()
+    d_targets = {d: d_targets[d].intersection(genes) for d in d_targets if d in drugs}
+    d_targets = {d: d_targets[d] for d in d_targets if len(d_targets[d]) > 0}
+
+    # List all tested targets
+    targets = {g for d in d_targets for g in d_targets[d]}
+
+    # Correlation matrix
+    c_genes = list(targets.union(genes))
+    c_corr = pd.DataFrame(np.corrcoef(crispr.loc[c_genes].values), index=c_genes, columns=c_genes).to_dict()
+
+    def get_drug_gene_corr(d, g):
+        if (d not in d_targets) or (g not in c_corr):
+            return np.nan
+
+        elif g in d_targets[d]:
+            return 1.
+
+        else:
+            return max([c_corr[t][g] for t in d_targets[d]], key=abs)
+
+    lmm_drug = lmm_drug.assign(corr=[get_drug_gene_corr(d, g) for d, g in lmm_drug[['DRUG_ID_lib', 'GeneSymbol']].values])
+
+    return lmm_drug
 
 
 def ppi_corr(ppi, m_corr, m_corr_thres=None):
@@ -88,7 +122,7 @@ def ppi_annotation(df, ppi_type, ppi_kws, target_thres=4):
     ppi = ppi_type(**ppi_kws)
 
     # Drug target
-    d_targets = get_drugtargets()
+    d_targets = dtrace.get_drugtargets()
     d_targets = {k: d_targets[k] for k in df_drugs if k in d_targets}
 
     # Calculate distance between drugs and CRISPRed genes in PPI
