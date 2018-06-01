@@ -141,20 +141,23 @@ def get_nonessential_genes():
 
 
 # - DATA-SETS FILTER FUNCTIONS
-def filter_drugresponse(d_response, min_events=3, min_meas=0.85):
+def filter_drugresponse(d_response, min_events=3, min_meas=0.85, max_c=0.5):
     """
     Filter Drug-response (ln IC50) data-set to consider only drugs with measurements across
-    at least min_meas (deafult=0.85) of the total cell lines measured and drugs with an IC50
-    lower than the global average in at least min_events (default = 3) cell lines.
+    at least min_meas (deafult=0.85 (85%)) of the total cell lines measured and drugs have an IC50
+    lower than the maximum screened concentration (offeseted by max_c (default = 0.5 (50%)) in at least
+    min_events (default = 3) cell lines.
 
     :param d_response:
     :param min_events:
     :param min_meas:
     :return:
     """
+    d_maxc = np.log(pd.read_csv(DRUG_RESPONSE_MAXC, index_col=[0, 1, 2]) * max_c)
+
     df = d_response[d_response.count(1) > (d_response.shape[1] * min_meas)]
 
-    df = df[(df < df.median().median()).sum(1) >= min_events]
+    df = df[[sum(df.loc[i] < d_maxc.loc[i, 'max_conc_micromolar']) >= min_events for i in df.index]]
 
     return df
 
@@ -164,7 +167,7 @@ def filter_mobem(mobem, min_events=3):
     return df
 
 
-def filter_crispr(crispr, min_events=3, fdr_thres=0.05):
+def filter_crispr(crispr, min_events=3, fdr_thres=0.05, ess_thres=-1, sample_perc=0.5):
     """
     Filter CRISPR-Cas9 data-set to consider only genes that show a significant depletion or
     enrichment, MAGeCK depletion/enrichment FDR < fdr_thres (default = 0.05), in at least
@@ -179,6 +182,10 @@ def filter_crispr(crispr, min_events=3, fdr_thres=0.05):
     signif_genes = signif_genes[signif_genes.sum(1) >= min_events]
 
     df = crispr.loc[signif_genes.index]
+
+    df = df[(df < ess_thres).sum(1) < (sample_perc * df.shape[1])]
+
+    df = df[(df.abs() > 0.5).sum(1) >= min_events]
 
     return df
 
@@ -294,21 +301,6 @@ def get_drug_names(drug_id, drugsheet=None):
     drug_synonyms = [] if str(drug_synonyms).lower() == 'nan' else drug_synonyms.split(', ')
 
     return set(drgu_name + drug_synonyms)
-
-
-def dist_drugtarget_genes(drug_targets, genes, ppi):
-    genes = genes.intersection(set(ppi.vs['name']))
-    assert len(genes) != 0, 'No genes overlapping with PPI provided'
-
-    dmatrix = {}
-
-    for drug in drug_targets:
-        drug_genes = drug_targets[drug].intersection(genes)
-
-        if len(drug_genes) != 0:
-            dmatrix[drug] = dict(zip(*(genes, np.min(ppi.shortest_paths(source=drug_genes, target=genes), axis=0))))
-
-    return dmatrix
 
 
 def read_gmt(file_path):

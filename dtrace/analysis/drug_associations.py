@@ -91,18 +91,20 @@ def top_associations_barplot(lmm_drug, fdr_line=0.05, ntop=40):
     for irow in set(df['irow']):
         df_irow = df[df['irow'] == irow]
 
-        axs[irow].bar(df_irow.query('target != 0')['xpos'], df_irow.query('target != 0')['logpval'], .8, color=PAL_DTRACE[2], align='center', zorder=5)
-        axs[irow].bar(df_irow.query('target == 0')['xpos'], df_irow.query('target == 0')['logpval'], .8, color=PAL_DTRACE[0], align='center', zorder=5)
+        df_irow_ = df_irow.query("target != 'T'")
+        axs[irow].bar(df_irow_['xpos'], df_irow_['logpval'], .8, color=PAL_DTRACE[2], align='center', zorder=5)
+
+        df_irow_ = df_irow.query("target == 'T'")
+        axs[irow].bar(df_irow_['xpos'], df_irow_['logpval'], .8, color=PAL_DTRACE[0], align='center', zorder=5)
 
         for k, v in df_irow.groupby('DRUG_NAME')['xpos'].min().sort_values().to_dict().items():
-            axs[irow].text(v - 1.25, 0.1, textwrap.fill(k, 15), va='bottom', fontsize=7, zorder=10, rotation='vertical', color=PAL_DTRACE[2])
+            axs[irow].text(v - 1.2, 0.1, textwrap.fill(k, 15), va='bottom', fontsize=7, zorder=10, rotation='vertical', color=PAL_DTRACE[2])
 
         for g, p in df_irow[['GeneSymbol', 'xpos']].values:
             axs[irow].text(p, 0.1, g, ha='center', va='bottom', fontsize=5, zorder=10, rotation='vertical', color='white')
 
         for x, y, t in df_irow[['xpos', 'logpval', 'target']].values:
-            l = '-' if np.isnan(t) or np.isposinf(t) else ('T' if t == 0 else str(int(t)))
-            axs[irow].text(x, y + 0.25, l, color=PAL_DTRACE[0] if t == 0 else PAL_DTRACE[2], ha='center', fontsize=6, zorder=10)
+            axs[irow].text(x, y + 0.25, t, color=PAL_DTRACE[0] if t == 'T' else PAL_DTRACE[2], ha='center', fontsize=6, zorder=10)
 
         sns.despine(ax=axs[irow], right=True, top=True)
         axs[irow].axes.get_xaxis().set_ticks([])
@@ -123,20 +125,21 @@ def plot_count_associations(lmm_drug, fdr_line=0.05, min_events=2):
     plt.title('Significant associations FDR<{}%'.format(fdr_line * 100))
 
 
-def recapitulated_drug_targets_barplot(lmm_drug, fdr_line=0.05):
-    d_all = {' ; '.join(map(str, i)) for i in lmm_drug[DRUG_INFO_COLUMNS].values}
-    d_signif = {' ; '.join(map(str, i)) for i in lmm_drug.query('fdr < {}'.format(fdr_line))[DRUG_INFO_COLUMNS].values}
+def recapitulated_drug_targets_barplot(lmm_drug, fdr=0.05):
+    df_genes = set(lmm_drug['GeneSymbol'])
 
-    d_target_all = {' ; '.join(map(str, i)) for i in lmm_drug.dropna(subset=['target'])[DRUG_INFO_COLUMNS].values}
-    d_target_signif = {' ; '.join(map(str, i)) for i in lmm_drug.dropna(subset=['target']).query('fdr < {}'.format(fdr_line))[DRUG_INFO_COLUMNS].values}
+    d_targets = dtrace.get_drugtargets()
 
-    d_target_correct = {' ; '.join(map(str, i)) for i in lmm_drug.dropna(subset=['target']).query('fdr < {} & target == 0'.format(fdr_line))[DRUG_INFO_COLUMNS].values}
+    d_all = {tuple(i) for i in lmm_drug[DRUG_INFO_COLUMNS].values}
+    d_annot = {tuple(i) for i in d_all if i[0] in d_targets}
+    d_tested = {tuple(i) for i in d_annot if len(d_targets[i[0]].intersection(df_genes)) > 0}
+    d_tested_signif = {tuple(i) for i in lmm_drug.query('fdr < {}'.format(fdr))[DRUG_INFO_COLUMNS].values if tuple(i) in d_tested}
+    d_tested_correct = {tuple(i) for i in lmm_drug.query("fdr < {} & target == 'T'".format(fdr))[DRUG_INFO_COLUMNS].values if tuple(i) in d_tested_signif}
 
     plot_df = pd.DataFrame(dict(
-        names=['All', 'w/Association', 'w/Annotation', 'w/Annotation+Association', 'w/Target'],
-        count=list(map(len, [d_all, d_signif, d_target_all, d_target_signif, d_target_correct]))
+        names=['All', 'w/Target', 'w/Tested target', 'w/Signif tested target', 'w/Correct target'],
+        count=list(map(len, [d_all, d_annot, d_tested, d_tested_signif, d_tested_correct]))
     ))
-    plot_df = plot_df.assign(pos=range(plot_df.shape[0]))
 
     sns.barplot('count', 'names', data=plot_df, color=PAL_DTRACE[2], orient='h')
     sns.despine(right=True, top=True)
@@ -144,15 +147,14 @@ def recapitulated_drug_targets_barplot(lmm_drug, fdr_line=0.05):
     plt.ylabel('')
 
 
-def beta_histogram(lmm_drug, fdr_line=0.05):
+def beta_histogram(lmm_drug):
     kde_kws = dict(cut=0, lw=1, zorder=1, alpha=.8)
     hist_kws = dict(alpha=.4, zorder=1)
 
     label_order = ['All', 'Target', 'Target + Significant']
 
-    sns.distplot(lmm_drug['beta'], color=PAL_DTRACE[1], kde_kws=kde_kws, hist_kws=hist_kws, label=label_order[0], bins=30)
-    sns.distplot(lmm_drug.query('target == 0')['beta'], color=PAL_DTRACE[2], kde_kws=kde_kws, hist_kws=hist_kws, label=label_order[1], bins=30)
-    sns.rugplot(lmm_drug.query('fdr < {} & target == 0'.format(fdr_line))['beta'], color=PAL_DTRACE[0], lw=.3, label=label_order[2])
+    sns.distplot(lmm_drug['beta'], color=PAL_DTRACE[2], kde_kws=kde_kws, hist_kws=hist_kws, label=label_order[0], bins=30)
+    sns.distplot(lmm_drug.query("target == 'T'")['beta'], color=PAL_DTRACE[0], kde_kws=kde_kws, hist_kws=hist_kws, label=label_order[1], bins=30)
 
     sns.despine(right=True, top=True)
 
@@ -161,9 +163,7 @@ def beta_histogram(lmm_drug, fdr_line=0.05):
     plt.xlabel('Association beta')
     plt.ylabel('Density')
 
-    handles, labels = plt.gca().get_legend_handles_labels()
-    by_label = dict(zip(labels, handles))
-    plt.legend([by_label[l] for l in label_order], label_order, prop={'size': 6}, loc=2)
+    plt.legend(prop={'size': 6}, loc=2)
 
 
 if __name__ == '__main__':
@@ -171,7 +171,7 @@ if __name__ == '__main__':
     lmm_drug = pd.read_csv(dtrace.DRUG_LMM)
 
     lmm_drug = ppi_annotation(
-        lmm_drug, ppi_type=build_string_ppi, ppi_kws=dict(score_thres=900), target_thres=3,
+        lmm_drug, ppi_type=build_string_ppi, ppi_kws=dict(score_thres=900), target_thres=4,
     )
 
     # - Drug associations manhattan plot
@@ -193,7 +193,7 @@ if __name__ == '__main__':
     plt.close('all')
 
     # - Count number of significant associations overall
-    recapitulated_drug_targets_barplot(lmm_drug)
+    recapitulated_drug_targets_barplot(lmm_drug, fdr=.1)
     plt.gcf().set_size_inches(2, 1)
     plt.savefig('reports/drug_associations_count_signif.pdf', bbox_inches='tight')
     plt.close('all')

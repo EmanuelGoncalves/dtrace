@@ -25,7 +25,7 @@ if __name__ == '__main__':
 
     # -
     drug_maxconcentration = pd.concat([
-        np.log(d_vrs.groupby(DRUG_INFO_COLUMNS)['max_conc_micromolar'].min()),
-        np.log(d_v17.groupby(DRUG_INFO_COLUMNS)['max_conc_micromolar'].min())
+        d_vrs.groupby(DRUG_INFO_COLUMNS)['max_conc_micromolar'].min(),
+        d_v17.groupby(DRUG_INFO_COLUMNS)['max_conc_micromolar'].min()
     ]).sort_values().reset_index()
     drug_maxconcentration.to_csv(dtrace.DRUG_RESPONSE_MAXC, index=False)

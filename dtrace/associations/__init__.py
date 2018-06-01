@@ -3,8 +3,8 @@
 
 import numpy as np
 import pandas as pd
+from dtrace import get_drugtargets
 from statsmodels.stats.multitest import multipletests
-from dtrace import get_drugtargets, dist_drugtarget_genes
 
 
 DRUG_INFO_COLUMNS = ['DRUG_ID_lib', 'DRUG_NAME', 'VERSION']
@@ -50,28 +50,67 @@ def ppi_corr(ppi, m_corr, m_corr_thres=None):
     return ppi
 
 
+def dist_drugtarget_genes(drug_targets, genes, ppi):
+    genes = genes.intersection(set(ppi.vs['name']))
+    assert len(genes) != 0, 'No genes overlapping with PPI provided'
+
+    dmatrix = {}
+
+    for drug in drug_targets:
+        drug_genes = drug_targets[drug].intersection(genes)
+
+        if len(drug_genes) != 0:
+            dmatrix[drug] = dict(zip(*(genes, np.min(ppi.shortest_paths(source=drug_genes, target=genes), axis=0))))
+
+    return dmatrix
+
+
+def ppi_dist_to_string(d, target_thres):
+    if d == 0:
+        res = 'T'
+
+    elif d == np.inf:
+        res = '-'
+
+    elif d < target_thres:
+        res = str(int(d))
+
+    else:
+        res = '>={}'.format(target_thres)
+
+    return res
+
+
 def ppi_annotation(df, ppi_type, ppi_kws, target_thres=4):
+    df_genes, df_drugs = set(df['GeneSymbol']), set(df['DRUG_ID_lib'])
+
     # PPI annotation
     ppi = ppi_type(**ppi_kws)
 
     # Drug target
     d_targets = get_drugtargets()
+    d_targets = {k: d_targets[k] for k in df_drugs if k in d_targets}
 
-    # Calculate distance between drugs and CRISPR genes in PPI
-    dist_d_g = dist_drugtarget_genes(d_targets, set(df['GeneSymbol']), ppi)
+    # Calculate distance between drugs and CRISPRed genes in PPI
+    dist_d_g = dist_drugtarget_genes(d_targets, df_genes, ppi)
 
     # Annotate drug regressions
-    df = df.assign(
-        target=[
-            dist_d_g[d][g] if d in dist_d_g and g in dist_d_g[d] else np.nan for d, g in df[['DRUG_ID_lib', 'GeneSymbol']].values
-        ]
-    )
+    def drug_gene_annot(d, g):
+        if d not in d_targets:
+            res = '-'
 
-    # Discrete annotation of targets
-    df = df.assign(target_thres=['Target' if i == 0 else ('%d' % i if i < target_thres else '>={}'.format(target_thres)) for i in df['target']])
+        elif g in d_targets[d]:
+            res = 'T'
 
-    # Preserve the non-mapped drugs
-    df.loc[df['target'].apply(np.isnan), 'target_thres'] = np.nan
+        elif d not in dist_d_g or g not in dist_d_g[d]:
+            res = '-'
+
+        else:
+            res = ppi_dist_to_string(dist_d_g[d][g], target_thres)
+
+        return res
+
+    df = df.assign(target=[drug_gene_annot(d, g) for d, g in df[['DRUG_ID_lib', 'GeneSymbol']].values])
 
     return df
 
