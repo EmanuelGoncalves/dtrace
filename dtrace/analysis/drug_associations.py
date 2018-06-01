@@ -8,6 +8,8 @@ import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 from natsort import natsorted
+from sklearn.manifold import TSNE
+from sklearn.decomposition import PCA
 from dtrace.analysis import PAL_DTRACE
 from dtrace.assemble.assemble_ppi import build_string_ppi
 from dtrace.associations import ppi_annotation, DRUG_INFO_COLUMNS
@@ -166,6 +168,111 @@ def beta_histogram(lmm_drug):
     plt.legend(prop={'size': 6}, loc=2)
 
 
+def beta_corr_boxplot(lmm_drug):
+    # Build betas matrix
+    betas = pd.pivot_table(lmm_drug, index=DRUG_INFO_COLUMNS, columns='GeneSymbol', values='beta')
+
+    # Drug information
+    drugsheet = dtrace.get_drugsheet()
+
+    # Drug annotation
+    def classify_drug_pairs(d1, d2):
+        d1_id, d1_name, d1_screen = d1.split(' ; ')
+        d2_id, d2_name, d2_screen = d2.split(' ; ')
+
+        d1_id, d2_id = int(d1_id), int(d2_id)
+
+        # Check if Drugs are the same
+        if d1_id in drugsheet.index and d2_id in drugsheet.index:
+            dsame = dtrace.is_same_drug(d1_id, d2_id, drugsheet=drugsheet)
+
+        else:
+            dsame = d1_name == d2_name
+
+        # Check if Drugs were screened with same panel
+        if dsame & (d1_screen == d2_screen):
+            return 'Same Drug & Screen'
+        elif dsame:
+            return 'Same Drug'
+        else:
+            return 'Different'
+
+    # Correlation matrix and upper triangle
+    betas_corr = betas.T.corr()
+    betas_corr = betas_corr.where(np.triu(np.ones(betas_corr.shape), 1).astype(np.bool))
+
+    # Merge drug info
+    betas_corr.index = [' ; '.join(map(str, i)) for i in betas_corr.index]
+    betas_corr.columns = [' ; '.join(map(str, i)) for i in betas_corr.columns]
+
+    # Unstack
+    betas_corr = betas_corr.unstack().dropna()
+    betas_corr = betas_corr.reset_index()
+    betas_corr.columns = ['drug_1', 'drug_2', 'r']
+
+    # Annotate if same drugs
+    betas_corr = betas_corr.assign(
+        dtype=[classify_drug_pairs(d1, d2) for d1, d2 in betas_corr[['drug_1', 'drug_2']].values]
+    )
+
+    # Plot
+    order = ['Different', 'Same Drug', 'Same Drug & Screen']
+    pal = dict(zip(*(order, sns.light_palette(PAL_DTRACE[2], len(order) + 1).as_hex()[1:])))
+
+    sns.boxplot('r', 'dtype', data=betas_corr, orient='h', order=order, palette=pal, fliersize=1, notch=True, linewidth=.3)
+
+    sns.despine(top=True, right=True)
+
+    plt.axvline(0, lw=0.3, c=PAL_DTRACE[1], zorder=0)
+
+    plt.xlabel('Pearson\'s R')
+    plt.ylabel('')
+
+
+def drug_beta_tsne(lmm_drug, fdr=0.05, perplexity=50, learning_rate=150, n_iter=1000, n_components=50):
+    d_targets = dtrace.get_drugtargets()
+    drugsheet = dtrace.get_drugsheet()
+
+    # Drugs into
+    drugs = {tuple(i) for i in lmm_drug.query('fdr < {}'.format(fdr))[DRUG_INFO_COLUMNS].values}
+    drugs_annot = {tuple(i) for i in drugs if i[0] in d_targets}
+    drugs_screen = {v: {d for d in drugs if d[2] == v} for v in ['v17', 'RS']}
+
+    # Build drug association beta matrix
+    betas = pd.pivot_table(lmm_drug, index=DRUG_INFO_COLUMNS, columns='GeneSymbol', values='beta')
+    betas = betas.loc[list(drugs)]
+
+    # TSNE
+    tsnes = []
+    for s in drugs_screen:
+        tsne_df = betas.loc[list(drugs_screen[s])]
+        tsne_df = pd.DataFrame(PCA(n_components=n_components).fit_transform(tsne_df), index=tsne_df.index)
+
+        tsne = TSNE(perplexity=perplexity, learning_rate=learning_rate, n_iter=n_iter).fit_transform(tsne_df)
+
+        tsne = pd.DataFrame(tsne, index=tsne_df.index, columns=['P1', 'P2']).reset_index()
+        tsne = tsne.assign(target=[int(tuple(i) in drugs_annot) for i in tsne[DRUG_INFO_COLUMNS].values])
+
+        tsnes.append(tsne)
+
+    tsnes = pd.concat(tsnes)
+
+    # Plot
+    pal = {0: PAL_DTRACE[2], 1: PAL_DTRACE[0]}
+
+    g = sns.FacetGrid(
+        tsnes, col='VERSION', hue='target', palette=pal, hue_order=[1, 0], sharey=False, sharex=False, legend_out=True, despine=False,
+        size=2, aspect=1
+    )
+
+    g.map(plt.scatter, 'P1', 'P2', alpha=.7, lw=.3, edgecolor='white')
+    g.add_legend()
+
+    # plt.gcf().set_size_inches(4, 2)
+    plt.savefig('reports/drug_associations_beta_tsne.pdf', bbox_inches='tight')
+    plt.close('all')
+
+
 if __name__ == '__main__':
     # - Linear regressions
     lmm_drug = pd.read_csv(dtrace.DRUG_LMM)
@@ -202,4 +309,10 @@ if __name__ == '__main__':
     beta_histogram(lmm_drug)
     plt.gcf().set_size_inches(2, 2)
     plt.savefig('reports/drug_associations_beta_histogram.pdf', bbox_inches='tight')
+    plt.close('all')
+
+    # - Drug betas correlation
+    beta_corr_boxplot(lmm_drug)
+    plt.gcf().set_size_inches(3, 1)
+    plt.savefig('reports/drug_associations_beta_corr_boxplot.pdf', bbox_inches='tight')
     plt.close('all')
