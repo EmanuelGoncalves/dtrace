@@ -7,48 +7,66 @@ import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 from dtrace import is_same_drug
+from dtrace.analysis import PAL_DTRACE
 
 
-if __name__ == '__main__':
-    # - Imports
-    d_v17 = pd.read_csv(dtrace.DRUG_RESPONSE_V17)
-    d_vrs = pd.read_csv(dtrace.DRUG_RESPONSE_VRS)
+def drugs_overlap():
+    # Import drug-response data
+    drespo = dtrace.get_drugresponse()
 
-    # - Check drugs overlap
+    # Import drug information
+    dsheet = dtrace.get_drugsheet()
+
+    # Check drugs overlap
     df_count = {}
     for t, f in [('All', False), ('Pub or Web', True)]:
         df_count[t] = {}
 
-        ds = dtrace.import_drug_list(filter_web_pub=f)
+        # Subset drug list
+        if t == 'Pub or Web':
+            drug_pub = dsheet[(dsheet['Web Release'] == 'Y') | (dsheet['Suitable for publication'] == 'Y')]
+            drugs = [tuple(i) for i in drespo.index if i[0] in drug_pub.index]
+        else:
+            drugs = [tuple(i) for i in drespo.index]
 
-        d_id_v17 = list(set(d_v17['DRUG_ID_lib']).intersection(ds.index))
-        d_match_v17 = pd.DataFrame({d1: {d2: int(is_same_drug(d1, d2, ds)) for d2 in d_id_v17} for d1 in d_id_v17})
-        df_count[t]['V17'] = d_match_v17.shape[0] - sum(sum(np.tril(d_match_v17, -1)))
+        # Count unique drugs in v17
+        drugs_v17 = [i for i in drugs if i[2] == 'v17']
+        drugs_v17_match = pd.DataFrame({d1: {d2: int(is_same_drug(d1[0], d2[0], dsheet)) for d2 in drugs_v17} for d1 in drugs_v17})
+        df_count[t]['V17'] = drugs_v17_match.shape[0] - sum(sum(np.tril(drugs_v17_match, -1)))
 
-        d_id_vrs = list(set(d_vrs['DRUG_ID_lib']).intersection(ds.index))
-        d_match_vrs = pd.DataFrame({d1: {d2: int(is_same_drug(d1, d2, ds)) for d2 in d_id_vrs} for d1 in d_id_vrs})
-        df_count[t]['RS'] = d_match_vrs.shape[0] - sum(sum(np.tril(d_match_vrs, -1)))
+        # Count unique drugs in RS
+        drugs_rs = [i for i in drugs if i[2] == 'RS']
+        drugs_rs_match = pd.DataFrame({d1: {d2: int(is_same_drug(d1[0], d2[0], dsheet)) for d2 in drugs_rs} for d1 in drugs_rs})
+        df_count[t]['RS'] = drugs_rs_match.shape[0] - sum(sum(np.tril(drugs_rs_match, -1)))
 
-        #
-        d_match_overlap = pd.DataFrame({d1: {d2: int(is_same_drug(d1, d2, ds)) for d2 in d_id_v17} for d1 in d_id_vrs})
+        # Overlap
+        d_match_overlap = pd.DataFrame({d1: {d2: int(is_same_drug(d1[0], d2[0], dsheet)) for d2 in drugs_v17} for d1 in drugs_rs})
         df_count[t]['Overlap'] = sum(sum(d_match_overlap.values))
 
-        #
+        # Total
         df_count[t]['Total'] = df_count[t]['V17'] + df_count[t]['RS'] - df_count[t]['Overlap']
 
         print('V17: {}; RS: {}; Overlap: {}'.format(df_count[t]['V17'], df_count[t]['RS'], df_count[t]['Overlap']))
 
     df_count = pd.DataFrame(df_count)
+    df_count = pd.melt(df_count.reset_index(), id_vars='index', value_vars=['All', 'Pub or Web'])
 
-    #
-    plot_df = pd.melt(df_count.reset_index(), id_vars='index', value_vars=['All', 'Pub or Web'])
+    return df_count
 
+
+if __name__ == '__main__':
+    # - Build data-frame of drugs overlaping
+    drug_overlap = drugs_overlap()
+
+    # - Plot
     order = ['V17', 'RS', 'Overlap', 'Total']
-    pal = dict(zip(*(set(plot_df['variable']), [dtrace.PAL_SET2[8], dtrace.PAL_SET2[1]])))
+    pal = dict(zip(*(set(drug_overlap['variable']), [PAL_DTRACE[2], PAL_DTRACE[0]])))
 
-    sns.barplot('index', 'value', 'variable', plot_df, palette=pal, order=order, saturation=1)
+    sns.barplot('index', 'value', 'variable', drug_overlap, palette=pal, order=order, saturation=1)
 
-    plt.axes().yaxis.grid(True, color=dtrace.PAL_SET2[7], linestyle='-', linewidth=.1, alpha=.5, zorder=0)
+    sns.despine(top=True, right=True)
+
+    plt.axes().yaxis.grid(True, color=PAL_DTRACE[1], linestyle='-', linewidth=.1, alpha=.5, zorder=0)
 
     plt.legend(title='Drugs')
     plt.ylabel('Number of unique drugs')

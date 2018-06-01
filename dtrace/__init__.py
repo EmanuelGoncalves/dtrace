@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # Copyright (C) 2018 Emanuel Goncalves
 
+import warnings
 import numpy as np
 import pandas as pd
 
@@ -273,8 +274,13 @@ def is_same_drug(drug_id_1, drug_id_2, drugsheet=None):
 
     drug_list = get_drugsheet() if drugsheet is None else drugsheet
 
-    for i, d in enumerate([drug_id_1, drug_id_2]):
-        assert d in drug_list.index, 'Drug ID {} not in drug list'.format(i)
+    if drug_id_1 not in drug_list.index:
+        warnings.warn('Drug ID {} not in drug list'.format(drug_id_1))
+        return False
+
+    if drug_id_2 not in drug_list.index:
+        warnings.warn('Drug ID {} not in drug list'.format(drug_id_2))
+        return False
 
     drug_names = {d: get_drug_names(d, drug_list) for d in [drug_id_1, drug_id_2]}
 
