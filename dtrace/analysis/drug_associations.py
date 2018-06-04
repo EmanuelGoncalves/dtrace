@@ -8,10 +8,12 @@ import pandas as pd
 import seaborn as sns
 import scipy.stats as st
 import matplotlib.pyplot as plt
+from scipy.stats import ttest_ind
 from natsort import natsorted
 from sklearn.metrics import auc
 from sklearn.manifold import TSNE
 from dtrace.analysis import PAL_DTRACE
+from sklearn.preprocessing import StandardScaler
 from dtrace.assemble.assemble_ppi import build_string_ppi
 from dtrace.associations import ppi_annotation, corr_drugtarget_gene, DRUG_INFO_COLUMNS
 
@@ -230,7 +232,7 @@ def beta_corr_boxplot(lmm_drug):
     plt.ylabel('')
 
 
-def drug_beta_tsne(lmm_drug, fdr=0.05, perplexity=55, learning_rate=150, n_iter=1000):
+def drug_beta_tsne(lmm_drug, fdr=0.05, perplexity=15, learning_rate=200, n_iter=2000):
     d_targets = dtrace.get_drugtargets()
 
     # Drugs into
@@ -246,8 +248,9 @@ def drug_beta_tsne(lmm_drug, fdr=0.05, perplexity=55, learning_rate=150, n_iter=
     tsnes = []
     for s in drugs_screen:
         tsne_df = betas.loc[list(drugs_screen[s])]
+        tsne_df = pd.DataFrame(StandardScaler().fit_transform(tsne_df.T).T, index=tsne_df.index, columns=tsne_df.columns)
 
-        tsne = TSNE(perplexity=perplexity, learning_rate=learning_rate, n_iter=n_iter).fit_transform(tsne_df)
+        tsne = TSNE(perplexity=perplexity, learning_rate=learning_rate, n_iter=n_iter, init='pca').fit_transform(tsne_df)
 
         tsne = pd.DataFrame(tsne, index=tsne_df.index, columns=['P1', 'P2']).reset_index()
         tsne = tsne.assign(target=[int(tuple(i) in drugs_annot) for i in tsne[DRUG_INFO_COLUMNS].values])
@@ -325,9 +328,35 @@ def drug_aurc(lmm_drug, fdr=0.05, corr=0.25, label='target', rank_label='pval', 
     legend = ax.legend(loc=4, title=legend_title, prop={'size': legend_size})
     legend.get_title().set_fontsize('{}'.format(legend_size))
 
-    plt.gcf().set_size_inches(3, 3)
-    plt.savefig('reports/drug_associations_aurc.pdf', bbox_inches='tight')
-    plt.close('all')
+
+def boxplot_kinobead(lmm_drug):
+    drug_id_fdr = lmm_drug.groupby('DRUG_ID_lib')['fdr'].min()
+
+    def from_ids_to_minfdr(ids):
+        if str(ids).lower() == 'nan':
+            return np.nan
+        else:
+            return drug_id_fdr.reindex(list(map(int, ids.split(';')))).min()
+
+    catds = pd.read_csv('data/klaeger_et_al_catds_most_potent.csv')
+    catds = catds.assign(fdr=[from_ids_to_minfdr(i) for i in catds['ids']])
+    catds = catds.assign(signif=[('NA' if np.isnan(i) else ('Yes' if i < 0.05 else 'No')) for i in catds['fdr']])
+
+    t, p = ttest_ind(catds[catds['signif'] == 'No']['CATDS_most_potent'], catds[catds['signif'] == 'NA']['CATDS_most_potent'], equal_var=False)
+
+    order = ['No', 'Yes', 'NA']
+    pal = {'No': PAL_DTRACE[2], 'Yes': PAL_DTRACE[0], 'NA': PAL_DTRACE[1]}
+
+    sns.boxplot(catds['signif'], catds['CATDS_most_potent'], notch=True, palette=pal, linewidth=.3, fliersize=1.5, order=order)
+    sns.swarmplot(catds['signif'], catds['CATDS_most_potent'], palette=pal, linewidth=.3, size=2, order=order)
+    plt.axhline(0.5, lw=.3, c=PAL_DTRACE[1], ls='-', alpha=.8, zorder=0)
+
+    sns.despine(top=True, right=True)
+
+    plt.ylim((-0.1, 1.1))
+
+    plt.xlabel('Drug has a significant\nCRISPR-Cas9 association')
+    plt.ylabel('Selectivity[$CATDS_{most\ potent}$]')
 
 
 if __name__ == '__main__':
@@ -387,8 +416,14 @@ if __name__ == '__main__':
     plt.savefig('reports/drug_associations_aurc.pdf', bbox_inches='tight')
     plt.close('all')
 
-    # -
+    # - Drug target and PPI annotation AURCs
     drug_aurc(lmm_drug)
     plt.gcf().set_size_inches(3, 3)
     plt.savefig('reports/drug_associations_aurc.pdf', bbox_inches='tight')
+    plt.close('all')
+
+    # - Drug kinobeads boxplot
+    boxplot_kinobead(lmm_drug)
+    plt.gcf().set_size_inches(1, 2)
+    plt.savefig('reports/drug_associations_kinobeads.pdf', bbox_inches='tight')
     plt.close('all')
