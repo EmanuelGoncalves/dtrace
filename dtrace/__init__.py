@@ -71,6 +71,8 @@ def get_mobem(drop_factors=True):
     if drop_factors:
         mobem = mobem.drop(['TISSUE_FACTOR', 'MSI_FACTOR', 'MEDIA_FACTOR'])
 
+    mobem = mobem.astype(int)
+
     return mobem
 
 

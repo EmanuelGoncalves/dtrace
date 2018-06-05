@@ -10,7 +10,7 @@ from statsmodels.stats.multitest import multipletests
 DRUG_INFO_COLUMNS = ['DRUG_ID_lib', 'DRUG_NAME', 'VERSION']
 
 
-def multipletests_per_drug(lr_associations, method='bonferroni', field='lr_pval'):
+def multipletests_per_drug(lr_associations, method='bonferroni', field='pval', fdr_field='fdr'):
     d_unique = {(d_id, d_name, d_version) for d_id, d_name, d_version in lr_associations[DRUG_INFO_COLUMNS].values}
 
     df = lr_associations.set_index(DRUG_INFO_COLUMNS)
@@ -18,7 +18,7 @@ def multipletests_per_drug(lr_associations, method='bonferroni', field='lr_pval'
     df = pd.concat([
         df.loc[(d_id, d_name, d_version)].assign(
             fdr=multipletests(df.loc[(d_id, d_name, d_version), field], method=method)[1]
-        ) for d_id, d_name, d_version in d_unique
+        ).rename(columns={'fdr': fdr_field}) for d_id, d_name, d_version in d_unique
     ]).reset_index()
 
     return df

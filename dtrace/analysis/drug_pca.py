@@ -2,14 +2,11 @@
 # Copyright (C) 2018 Emanuel Goncalves
 
 import dtrace
-import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
-from matplotlib import colors
 from sklearn.decomposition import PCA
 from dtrace.analysis import PAL_DTRACE
-from sklearn.feature_selection import f_regression
 
 
 def histogram_drug(drespo):
