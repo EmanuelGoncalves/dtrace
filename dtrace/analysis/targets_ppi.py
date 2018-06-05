@@ -5,74 +5,93 @@ import pydot
 import dtrace
 import numpy as np
 import pandas as pd
+import seaborn as sns
 from dtrace import get_drugtargets
-from dtrace.assemble.assemble_ppi import build_biogrid_ppi, build_string_ppi
-from dtrace.associations import LR_DRUG_CRISPR, multipletests_per_drug, ppi_corr
+from dtrace.analysis import PAL_DTRACE
+from dtrace.assemble.assemble_ppi import build_string_ppi
+from dtrace.associations import ppi_annotation, corr_drugtarget_gene, ppi_corr
 
 
-if __name__ == '__main__':
-    exp_type, int_type = {'Affinity Capture-MS', 'Affinity Capture-Western'}, {'physical'}
+def get_edges(ppi, nodes, corr_thres):
+    # Nodes incident edges
+    incident_edges = {v for e in nodes for v in ppi.incident(e)}
 
-    # Linear regressions
-    lr = pd.read_csv(LR_DRUG_CRISPR)
-    lr = multipletests_per_drug(lr)
+    # Filter by correlation
+    incident_edges = [e for e in incident_edges if abs(ppi.es[e]['corr']) >= corr_thres]
 
-    # CIRSPR CN corrected logFC
-    crispr = dtrace.get_crispr(dtype='logFC')
-    crispr_scaled = dtrace.scale_crispr(crispr)
+    # Build subgraph
+    subgraph = ppi.subgraph_edges(incident_edges)
 
-    # PPI annotation
-    # ppi = build_biogrid_ppi(int_type=int_type, exp_type=exp_type)
-    ppi = build_string_ppi()
+    # Build data-frame
+    nodes_df = pd.DataFrame([{
+        'source': subgraph.vs[e.source]['name'],
+        'target': subgraph.vs[e.target]['name'],
+        'r': e['corr']
+    } for e in subgraph.es]).sort_values('r')
 
-    # PPI correlation
-    ppi = ppi_corr(ppi, crispr_scaled)
+    return nodes_df
 
-    # Drug target
-    d_targets = get_drugtargets()
 
-    # -
-    drug_id = 1549
-
-    drug_signif = lr[lr['DRUG_ID_lib'] == drug_id].query('lr_fdr < 0.05')
-
-    drug_ppi = pd.DataFrame([{
-        'source': ppi.vs[i.source]['name'],
-        'target': ppi.vs[i.target]['name'],
-        'r': i['corr']
-    } for i in ppi.es if bool(set(drug_signif['GeneSymbol']) & set(ppi.vs[[i.source, i.target]]['name']))]).sort_values('r')
-
-    #
-    thres_corr = .3
-    palette = pd.Series(
-        [dtrace.PAL_BIN[1]] + sns.light_palette(dtrace.PAL_BIN[0], n_colors=3, reverse=True).as_hex()
-    , index=range(4))
-
+def plot_ppi(d_ppi_df):
     graph = pydot.Dot(graph_type='graph', pagedir='TR')
 
-    kws_nodes = dict(style='"rounded,filled"', shape='rect', color=palette[1], penwidth=2, fontcolor='white')
-    kws_edges = dict()
+    kws_nodes = dict(style='"rounded,filled"', shape='rect', color=PAL_DTRACE[1], penwidth=2, fontcolor='white')
+    kws_edges = dict(fontsize=9, fontcolor=PAL_DTRACE[2], color=PAL_DTRACE[2])
 
-    for s, t in drug_ppi[drug_ppi['r'].abs() > thres_corr][['source', 'target']].values:
+    for s, t, r in d_ppi_df[['source', 'target', 'r']].values:
 
         source = pydot.Node(
             s,
-            fillcolor=palette[int(s not in d_targets[drug_id])],
-            fontsize=15 if s in drug_signif['GeneSymbol'].values else 9,
+            fillcolor=PAL_DTRACE[int(s not in d_targets[d_id])],
+            fontsize=15 if s in d_signif['GeneSymbol'].values else 9,
             **kws_nodes
         )
 
         target = pydot.Node(
             t,
-            fillcolor=palette[int(t not in d_targets[drug_id])],
-            fontsize=15 if t in drug_signif['GeneSymbol'].values else 9,
+            fillcolor=PAL_DTRACE[int(t not in d_targets[d_id])],
+            fontsize=15 if t in d_signif['GeneSymbol'].values else 9,
             **kws_nodes
         )
 
         graph.add_node(source)
         graph.add_node(target)
 
-        edge = pydot.Edge(source, target)
+        edge = pydot.Edge(source, target, label='{:.2f}'.format(r), **kws_edges)
         graph.add_edge(edge)
 
+    return graph
+
+
+if __name__ == '__main__':
+    # - Data-sets
+    mobems = dtrace.get_mobem()
+    drespo = dtrace.get_drugresponse()
+
+    crispr = dtrace.get_crispr(dtype='both')
+    crispr_logfc = dtrace.get_crispr(dtype='logFC', scale=True)
+
+    samples = list(set(mobems).intersection(drespo).intersection(crispr))
+    print('#(Samples) = {}'.format(len(samples)))
+
+    # - Linear regressions
+    lmm_drug = pd.read_csv(dtrace.DRUG_LMM)
+    lmm_drug = ppi_annotation(lmm_drug, ppi_type=build_string_ppi, ppi_kws=dict(score_thres=900), target_thres=3)
+    lmm_drug = corr_drugtarget_gene(lmm_drug)
+
+    # - Drug target
+    d_targets = get_drugtargets()
+
+    # - PPI
+    ppi = build_string_ppi()
+    ppi = ppi_corr(ppi, crispr_logfc)
+
+    # -
+    d_id = 1549
+    d_signif = lmm_drug.query('DRUG_ID_lib == {} & fdr < 0.05'.format(d_id))
+
+    d_ppi_df = get_edges(ppi, list(d_signif['GeneSymbol']), 0.2)
+
+    # - Plot network
+    graph = plot_ppi(d_ppi_df)
     graph.write_pdf('reports/drug_target_ppi.pdf')
