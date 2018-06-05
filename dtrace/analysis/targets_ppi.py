@@ -32,31 +32,33 @@ def get_edges(ppi, nodes, corr_thres):
     return nodes_df
 
 
-def plot_ppi(d_ppi_df):
+def plot_ppi(d_id, lmm_drug):
+    # Build data-set
+    d_signif = lmm_drug.query('DRUG_ID_lib == {} & fdr < 0.05'.format(d_id))
+    d_ppi_df = get_edges(ppi, list(d_signif['GeneSymbol']), 0.2)
+
+    # Build graph
     graph = pydot.Dot(graph_type='graph', pagedir='TR')
 
     kws_nodes = dict(style='"rounded,filled"', shape='rect', color=PAL_DTRACE[1], penwidth=2, fontcolor='white')
     kws_edges = dict(fontsize=9, fontcolor=PAL_DTRACE[2], color=PAL_DTRACE[2])
 
     for s, t, r in d_ppi_df[['source', 'target', 'r']].values:
+        # Add source node
+        fs = 15 if s in d_signif['GeneSymbol'].values else 9
+        fc = PAL_DTRACE[0 if s in d_targets[d_id] else 2]
 
-        source = pydot.Node(
-            s,
-            fillcolor=PAL_DTRACE[int(s not in d_targets[d_id])],
-            fontsize=15 if s in d_signif['GeneSymbol'].values else 9,
-            **kws_nodes
-        )
-
-        target = pydot.Node(
-            t,
-            fillcolor=PAL_DTRACE[int(t not in d_targets[d_id])],
-            fontsize=15 if t in d_signif['GeneSymbol'].values else 9,
-            **kws_nodes
-        )
-
+        source = pydot.Node(s, fillcolor=fc, fontsize=fs, **kws_nodes)
         graph.add_node(source)
+
+        # Add target node
+        fc = PAL_DTRACE[0 if t in d_targets[d_id] else 2]
+        fs = 15 if t in d_signif['GeneSymbol'].values else 9
+
+        target = pydot.Node(t, fillcolor=fc, fontsize=fs, **kws_nodes)
         graph.add_node(target)
 
+        # Add edge
         edge = pydot.Edge(source, target, label='{:.2f}'.format(r), **kws_edges)
         graph.add_edge(edge)
 
@@ -86,12 +88,7 @@ if __name__ == '__main__':
     ppi = build_string_ppi()
     ppi = ppi_corr(ppi, crispr_logfc)
 
-    # -
-    d_id = 1549
-    d_signif = lmm_drug.query('DRUG_ID_lib == {} & fdr < 0.05'.format(d_id))
-
-    d_ppi_df = get_edges(ppi, list(d_signif['GeneSymbol']), 0.2)
-
     # - Plot network
-    graph = plot_ppi(d_ppi_df)
+    d_id = 1549
+    graph = plot_ppi(d_id, lmm_drug)
     graph.write_pdf('reports/drug_target_ppi.pdf')
