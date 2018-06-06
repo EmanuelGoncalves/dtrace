@@ -54,6 +54,9 @@ LMM_ASSOCIATIONS_ROBUST = 'data/drug_lmm_regressions_robust.csv'
 
 DRUG_BETAS_CORR = 'data/drug_beta_correlation.csv'
 
+# - tSNE components
+DRUG_BETAS_TSNE = 'data/drug_beta_tsne.csv'
+
 
 # - GETS
 def get_drugsheet():

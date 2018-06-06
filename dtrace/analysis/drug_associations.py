@@ -18,29 +18,44 @@ from dtrace.assemble.assemble_ppi import build_string_ppi
 from dtrace.associations import ppi_annotation, corr_drugtarget_gene, DRUG_INFO_COLUMNS
 
 
-def manhattan_plot(lmm_drug, fdr_line=.05):
+def manhattan_plot(lmm_drug, fdr_line=.05, n_genes=13):
+    # Import gene genomic coordinates from CRISPR-Cas9 library
     crispr_lib = pd.read_csv(dtrace.CRISPR_LIB).groupby('GENES').agg({'STARTpos': 'min', 'CHRM': 'first'})
 
+    # Plot data-frame
     df = lmm_drug.copy()
-
-    # df = df[df['DRUG_NAME'] == 'GSK2276186C']
     df = df.assign(pos=crispr_lib.loc[df['GeneSymbol'], 'STARTpos'].values)
     df = df.assign(chr=crispr_lib.loc[df['GeneSymbol'], 'CHRM'].values)
     df = df.sort_values(['chr', 'pos'])
 
+    # Most frequently associated genes
+    top_genes = df.query('fdr < 0.05')['GeneSymbol'].value_counts().head(n_genes)
+    top_genes_pal = dict(zip(*(top_genes.index, sns.color_palette('tab20', n_colors=n_genes).as_hex())))
+
+    # Plot
     chrms = set(df['chr'])
+    label_fdr = 'Significant'.format(fdr_line*100)
 
     f, axs = plt.subplots(1, len(chrms), sharex=False, sharey=True, gridspec_kw=dict(wspace=.05))
-
     for i, name in enumerate(natsorted(chrms)):
         df_group = df[df['chr'] == name]
 
-        axs[i].scatter(df_group['pos'], -np.log10(df_group['pval']), c=PAL_DTRACE[(i % 2) + 1], s=2)
+        # Plot all associations
+        df_nonsignif = df_group.query('fdr >= {}'.format(fdr_line))
+        axs[i].scatter(df_nonsignif['pos'], -np.log10(df_nonsignif['pval']), c=PAL_DTRACE[(i % 2) + 1], s=2)
 
-        axs[i].scatter(
-            df_group.query('fdr < {}'.format(fdr_line))['pos'], -np.log10(df_group.query('fdr < {}'.format(fdr_line))['pval']), c=PAL_DTRACE[0], s=2, zorder=3
-        )
+        # Plot significant associations
+        df_signif = df_group.query('fdr < {}'.format(fdr_line))
+        df_signif = df_signif[~df_signif['GeneSymbol'].isin(top_genes.index)]
+        axs[i].scatter(df_signif['pos'], -np.log10(df_signif['pval']), c=PAL_DTRACE[0], s=2, zorder=3, label=label_fdr)
 
+        # Plot significant associations of top frequent genes
+        df_genes = df_group.query('fdr < {}'.format(fdr_line))
+        df_genes = df_genes[df_genes['GeneSymbol'].isin(top_genes.index)]
+        for pos, pval, gene in df_genes[['pos', 'pval', 'GeneSymbol']].values:
+            axs[i].scatter(pos, -np.log10(pval), c=top_genes_pal[gene], s=6, zorder=4, label=gene, marker='2', lw=.75)
+
+        # Misc
         axs[i].axes.get_xaxis().set_ticks([])
         axs[i].set_xlabel(name)
         axs[i].set_ylim(0)
@@ -51,12 +66,22 @@ def manhattan_plot(lmm_drug, fdr_line=.05):
 
         else:
             sns.despine(ax=axs[i], right=True, top=True)
-            axs[i].set_ylabel('Drug-gene association (-log10 p-value)')
+            axs[i].set_ylabel('Drug-gene association\n(-log10 p-value)')
 
     f.add_subplot(111, frameon=False)
     plt.tick_params(labelcolor='none', top='off', bottom='off', left='off', right='off')
     plt.grid(False)
     plt.xlabel('Chromosome')
+
+    # Legend
+    order_legend = [label_fdr] + list(top_genes.index)
+    by_label = {l: p for ax in axs for p, l in zip(*(ax.get_legend_handles_labels()))}
+    by_label = [(l, by_label[l]) for l in order_legend]
+    plt.legend(list(zip(*(by_label)))[1], list(zip(*(by_label)))[0], loc='center left', bbox_to_anchor=(1.01, 0.5), prop={'size': 5})
+
+    plt.gcf().set_size_inches(5, 2)
+    plt.savefig('reports/drug_associations_manhattan.png', bbox_inches='tight', dpi=600)
+    plt.close('all')
 
 
 def top_associations_barplot(lmm_drug, fdr_line=0.05, ntop=40):
@@ -131,6 +156,7 @@ def plot_count_associations(lmm_drug, fdr_line=0.05, min_events=2):
 
 
 def recapitulated_drug_targets_barplot(lmm_drug, fdr=0.05):
+    # Count number of drugs
     df_genes = set(lmm_drug['GeneSymbol'])
 
     d_targets = dtrace.get_drugtargets()
@@ -141,13 +167,22 @@ def recapitulated_drug_targets_barplot(lmm_drug, fdr=0.05):
     d_tested_signif = {tuple(i) for i in lmm_drug.query('fdr < {}'.format(fdr))[DRUG_INFO_COLUMNS].values if tuple(i) in d_tested}
     d_tested_correct = {tuple(i) for i in lmm_drug.query("fdr < {} & target == 'T'".format(fdr))[DRUG_INFO_COLUMNS].values if tuple(i) in d_tested_signif}
 
+    # Build dataframe
     plot_df = pd.DataFrame(dict(
         names=['All', 'w/Target', 'w/Tested target', 'w/Signif tested target', 'w/Correct target'],
         count=list(map(len, [d_all, d_annot, d_tested, d_tested_signif, d_tested_correct]))
-    ))
+    )).sort_values('count', ascending=True)
+    plot_df = plot_df.assign(y=range(plot_df.shape[0]))
 
-    sns.barplot('count', 'names', data=plot_df, color=PAL_DTRACE[2], orient='h')
+    # Plot
+    plt.barh(plot_df['y'], plot_df['count'], color=PAL_DTRACE[2])
+
     sns.despine(right=True, top=True)
+
+    for c, y in plot_df[['count', 'y']].values:
+        plt.text(c + 3, y, str(c), va='center', fontsize=5, zorder=10, color=PAL_DTRACE[2])
+
+    plt.yticks(plot_df['y'], plot_df['names'])
     plt.xlabel('Number of drugs')
     plt.ylabel('')
 
@@ -272,6 +307,8 @@ def drug_beta_tsne(lmm_drug, fdr=0.05, perplexity=15, learning_rate=200, n_iter=
     g.map(plt.scatter, 'P1', 'P2', alpha=.7, lw=.3, edgecolor='white')
     g.set_titles('{col_name}')
     g.add_legend()
+
+    return tsnes
 
 
 def drug_aurc(lmm_drug, fdr=0.05, corr=0.25, label='target', rank_label='pval', legend_size=6, title='', legend_title=''):
@@ -408,7 +445,7 @@ if __name__ == '__main__':
     plt.close('all')
 
     # - Drug betas TSNE
-    drug_beta_tsne(lmm_drug)
+    tsnes = drug_beta_tsne(lmm_drug, fdr=.25)
     plt.savefig('reports/drug_associations_beta_tsne.pdf', bbox_inches='tight')
     plt.close('all')
 
@@ -431,4 +468,5 @@ if __name__ == '__main__':
     plt.close('all')
 
     # - Export tables
+    tsnes.to_csv(dtrace.DRUG_BETAS_TSNE, index=False)
     betas_corr.sort_values('r').to_csv(dtrace.DRUG_BETAS_CORR, index=False)
