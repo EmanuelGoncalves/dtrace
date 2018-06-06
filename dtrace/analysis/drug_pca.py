@@ -22,10 +22,6 @@ def histogram_drug(drespo):
     plt.ylabel('Number of drugs')
     plt.legend()
 
-    plt.gcf().set_size_inches(3, 2)
-    plt.savefig('reports/histogram_drug.pdf', bbox_inches='tight')
-    plt.close('all')
-
 
 def histogram_sample(drespo):
     df = drespo.count(0).rename('count').reset_index()
@@ -164,7 +160,7 @@ if __name__ == '__main__':
     # - Histogram IC50s per Drug
     histogram_drug(drespo)
     plt.gcf().set_size_inches(3, 2)
-    plt.savefig('reports/drug_histogram.pdf', bbox_inches='tight')
+    plt.savefig('reports/histogram_drug.pdf', bbox_inches='tight')
     plt.close('all')
 
     # - Histogram IC50s per Cell line

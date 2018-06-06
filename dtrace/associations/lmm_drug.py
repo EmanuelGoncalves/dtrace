@@ -61,4 +61,4 @@ if __name__ == '__main__':
     print(lmm_res.sort_values('pval').head(60))
 
     # - Export
-    lmm_res.to_csv('data/drug_lmm_regressions.csv', index=False)
+    lmm_res.to_csv(dtrace.LMM_ASSOCIATIONS, index=False)

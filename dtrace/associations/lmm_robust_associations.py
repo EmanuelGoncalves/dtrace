@@ -43,6 +43,7 @@ def lmm_association(association, y1, y2, x, min_events):
     df = df.assign(DRUG_ID_lib=association[0])
     df = df.assign(DRUG_NAME=association[1])
     df = df.assign(VERSION=association[2])
+    df = df.assign(GeneSymbol=association[3])
     df = df.assign(n_samples=Y1.shape[0])
 
     return df
@@ -60,7 +61,7 @@ if __name__ == '__main__':
     print('#(Samples) = {}'.format(len(samples)))
 
     # - Import significant linear regressions
-    lmm_drug = pd.read_csv(dtrace.DRUG_LMM).query('fdr < 0.05')
+    lmm_drug = pd.read_csv(dtrace.LMM_ASSOCIATIONS).query('fdr < 0.05')
 
     # - Robust pharmacological regressions
     y1, y2, x = drespo[samples], crispr_logfc[samples], mobems[samples]
@@ -74,5 +75,5 @@ if __name__ == '__main__':
     lmm_robust = multipletests_per_drug(lmm_robust, field='pval_crispr', fdr_field='fdr_crispr')
 
     # - Export
-    lmm_robust.to_csv('data/drug_lmm_regressions_robust.csv', index=False)
+    lmm_robust.to_csv(dtrace.LMM_ASSOCIATIONS_ROBUST, index=False)
 

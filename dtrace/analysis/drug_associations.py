@@ -231,6 +231,8 @@ def beta_corr_boxplot(lmm_drug):
     plt.xlabel('Pearson\'s R')
     plt.ylabel('')
 
+    return betas_corr
+
 
 def drug_beta_tsne(lmm_drug, fdr=0.05, perplexity=15, learning_rate=200, n_iter=2000):
     d_targets = dtrace.get_drugtargets()
@@ -361,7 +363,7 @@ def boxplot_kinobead(lmm_drug):
 
 if __name__ == '__main__':
     # - Linear regressions
-    lmm_drug = pd.read_csv(dtrace.DRUG_LMM)
+    lmm_drug = pd.read_csv(dtrace.LMM_ASSOCIATIONS)
 
     lmm_drug = ppi_annotation(
         lmm_drug, ppi_type=build_string_ppi, ppi_kws=dict(score_thres=900), target_thres=3,
@@ -400,7 +402,7 @@ if __name__ == '__main__':
     plt.close('all')
 
     # - Drug betas correlation
-    beta_corr_boxplot(lmm_drug)
+    betas_corr = beta_corr_boxplot(lmm_drug)
     plt.gcf().set_size_inches(3, 1)
     plt.savefig('reports/drug_associations_beta_corr_boxplot.pdf', bbox_inches='tight')
     plt.close('all')
@@ -427,3 +429,6 @@ if __name__ == '__main__':
     plt.gcf().set_size_inches(1, 2)
     plt.savefig('reports/drug_associations_kinobeads.pdf', bbox_inches='tight')
     plt.close('all')
+
+    # - Export tables
+    betas_corr.sort_values('r').to_csv(dtrace.DRUG_BETAS_CORR, index=False)
