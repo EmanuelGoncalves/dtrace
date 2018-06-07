@@ -85,7 +85,7 @@ if __name__ == '__main__':
     d_targets = get_drugtargets()
 
     # - PPI
-    ppi = build_string_ppi()
+    ppi = build_string_ppi(score_thres=900)
     ppi = ppi_corr(ppi, crispr_logfc)
 
     # - Plot network

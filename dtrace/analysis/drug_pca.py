@@ -33,19 +33,21 @@ def histogram_sample(drespo):
     plt.ylabel('Number of cell lines')
 
 
-def perform_pca(drespo):
+def perform_pca(drespo, n_components=10):
     df = drespo.fillna(drespo.mean())
 
     pca = dict()
-    for by in ['drug', 'sample']:
+    for by in ['row', 'column']:
         pca[by] = dict()
 
-        if by == 'sample':
+        if by == 'column':
             df = df.T
 
-        pca[by]['pca'] = PCA(n_components=10).fit(df)
-        pca[by]['vex'] = pd.Series(pca[by]['pca'].explained_variance_ratio_, index=map(lambda v: 'PC{}'.format(v + 1), range(10)))
-        pca[by]['pcs'] = pd.DataFrame(pca[by]['pca'].transform(df), index=df.index, columns=map(lambda v: 'PC{}'.format(v + 1), range(10)))
+        pcs_labels = list(map(lambda v: 'PC{}'.format(v + 1), range(n_components)))
+
+        pca[by]['pca'] = PCA(n_components=n_components).fit(df)
+        pca[by]['vex'] = pd.Series(pca[by]['pca'].explained_variance_ratio_, index=pcs_labels)
+        pca[by]['pcs'] = pd.DataFrame(pca[by]['pca'].transform(df), index=df.index, columns=pcs_labels)
 
     return pca
 
@@ -60,21 +62,21 @@ def _pairplot_fix_labels(g, pca, by):
         ax.set_xlabel('PC{} ({:.1f}%)'.format(i + 1, vexp * 100))
 
 
-def pairplot_pca_drug(pca):
-    df = pca['drug']['pcs'].reset_index()
+def pairplot_pca_drug(pca, hue='VERSION'):
+    df = pca['row']['pcs'].reset_index()
 
     pal = dict(v17=PAL_DTRACE[2], RS=PAL_DTRACE[0])
 
-    g = sns.PairGrid(df, vars=['PC1', 'PC2', 'PC3'], despine=False, size=1, hue='VERSION', palette=pal)
-    g = g.map_diag(plt.hist)
-    g = g.map_offdiag(plt.scatter, s=3, edgecolor='white', lw=.1)
+    g = sns.PairGrid(df, vars=['PC1', 'PC2', 'PC3'], despine=False, size=1, hue=hue, palette=None if hue is None else pal)
+    g = g.map_diag(plt.hist, color=PAL_DTRACE[2] if hue is None else None)
+    g = g.map_offdiag(plt.scatter, s=3, edgecolor='white', lw=.1, alpha=.5, color=PAL_DTRACE[2] if hue is None else None)
     g = g.add_legend()
 
-    _pairplot_fix_labels(g, pca, by='drug')
+    _pairplot_fix_labels(g, pca, by='row')
 
 
 def pairplot_pca_samples(pca, growth):
-    df = pd.concat([pca['sample']['pcs'], growth], axis=1).dropna().sort_values('growth_rate_median')
+    df = pd.concat([pca['column']['pcs'], growth], axis=1).dropna().sort_values('growth_rate_median')
 
     cmap = sns.light_palette(PAL_DTRACE[2], as_cmap=True)
 
@@ -82,14 +84,40 @@ def pairplot_pca_samples(pca, growth):
     g = g.map_diag(plt.hist, color=PAL_DTRACE[2])
 
     g = g.map_offdiag(plt.scatter, s=3, edgecolor='white', lw=.1, color=df['growth_rate_median'], cmap=cmap, alpha=.5)
-    cax = g.fig.add_axes([.98, .4, .01, .2])
-    plt.colorbar(cax=cax)
 
-    _pairplot_fix_labels(g, pca, by='sample')
+    cax = g.fig.add_axes([.98, .4, .01, .2])
+    cbar = plt.colorbar(cax=cax)
+
+    cbar.ax.tick_params(axis='y', which='major', pad=1)
+    cbar.ax.set_ylabel('Growth rate', rotation=270, labelpad=10)
+
+    _pairplot_fix_labels(g, pca, by='column')
+
+
+def pairplot_pca_samples_cancertype(pca, min_cell_lines=20):
+    # Build data-frame
+    ss = dtrace.get_samplesheet()
+    df = pd.concat([pca['column']['pcs'], ss['Cancer Type']], axis=1).dropna()
+
+    # Order
+    order = df['Cancer Type'].value_counts()
+    df = df.replace({'Cancer Type': {i: 'Other' for i in order[order < min_cell_lines].index}})
+
+    order = ['Other'] + list(order[order >= min_cell_lines].index)
+    pal = [PAL_DTRACE[1]] + sns.color_palette('tab20', n_colors=len(order) - 1).as_hex()
+    pal = dict(zip(*(order, pal)))
+
+    # Plot
+    g = sns.PairGrid(df, vars=['PC1', 'PC2', 'PC3'], despine=False, size=1, hue='Cancer Type', palette=pal, hue_order=order)
+    g = g.map_diag(plt.hist)
+    g = g.map_offdiag(plt.scatter, s=4, edgecolor='white', lw=.1, alpha=.8)
+    g = g.add_legend()
+
+    _pairplot_fix_labels(g, pca, by='column')
 
 
 def corrplot_pcs_growth(pca, growth, pc):
-    df = pd.concat([pca['sample']['pcs'], growth], axis=1).dropna().sort_values('growth_rate_median')
+    df = pd.concat([pca['column']['pcs'], growth], axis=1).dropna().sort_values('growth_rate_median')
 
     marginal_kws, annot_kws = dict(kde=False), dict(stat='R')
 
@@ -103,7 +131,7 @@ def corrplot_pcs_growth(pca, growth, pc):
 
     g.ax_joint.axvline(0, ls='-', lw=0.1, c=PAL_DTRACE[1], zorder=0)
 
-    vexp = pca['sample']['vex'][pc]
+    vexp = pca['column']['vex'][pc]
     g.set_axis_labels('{} ({:.1f}%)'.format(pc, vexp * 100), 'Growth rate\n(median day 1 / day 4)')
 
 
@@ -171,12 +199,20 @@ if __name__ == '__main__':
 
     # - PCA pairplot drug
     pairplot_pca_drug(pca)
+    plt.suptitle('PCA drug response (Drugs)', y=1.05, fontsize=9)
     plt.savefig('reports/pca_pairplot_drug.pdf', bbox_inches='tight')
     plt.close('all')
 
     # - PCA pairplot cell lines
     pairplot_pca_samples(pca, growth)
+    plt.suptitle('PCA drug response (Cell lines)', y=1.05, fontsize=9)
     plt.savefig('reports/pca_pairplot_cell_lines.pdf', bbox_inches='tight')
+    plt.close('all')
+
+    # - PCA pairplot cell lines - hue by cancer type
+    pairplot_pca_samples_cancertype(pca)
+    plt.suptitle('PCA drug response (Cell lines)', y=1.05, fontsize=9)
+    plt.savefig('reports/pca_pairplot_cell_lines_cancertype.pdf', bbox_inches='tight')
     plt.close('all')
 
     # - Growth ~ PC1 corrplot
