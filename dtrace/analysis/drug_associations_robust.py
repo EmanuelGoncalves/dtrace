@@ -64,21 +64,24 @@ if __name__ == '__main__':
     associations = associations.sort_values('fdr_crispr').groupby(DRUG_INFO_COLUMNS).head(1)
 
     # - Plot robust association
-    idx = 75293
+    indices = [75293, 29689, 11943, 70709, 22504, 481, 68343]
 
-    columns = ['DRUG_ID_lib', 'DRUG_NAME', 'VERSION', 'GeneSymbol', 'Genetic']
-    association = lmm_drug_robust.loc[idx, columns]
+    for idx in indices:
+        columns = ['DRUG_ID_lib', 'DRUG_NAME', 'VERSION', 'GeneSymbol', 'Genetic']
+        association = lmm_drug_robust.loc[idx, columns]
 
-    plot_df = pd.concat([
-        crispr.loc[association[3]],
-        drespo.loc[tuple(association[:3])].rename('{} [{}]'.format(association[1], association[2])),
-        mobems.loc[association[4]]
-    ], axis=1).dropna()
+        name = 'Drug={}, Gene={}, Genetic={} [{}, {}]'.format(association[1], association[3], association[4], association[0], association[2])
 
-    g = plot_corrplot_discrete(association[3], '{} [{}]'.format(association[1], association[2]), association[4], plot_df)
+        plot_df = pd.concat([
+            crispr.loc[association[3]],
+            drespo.loc[tuple(association[:3])].rename('{} [{}]'.format(association[1], association[2])),
+            mobems.loc[association[4]]
+        ], axis=1).dropna()
 
-    g.ax_joint.axhline(np.log(d_maxc.loc[tuple(association[:3]), 'max_conc_micromolar']), lw=.1, color=PAL_DTRACE[2], ls='--')
+        g = plot_corrplot_discrete(association[3], '{} [{}]'.format(association[1], association[2]), association[4], plot_df)
 
-    plt.gcf().set_size_inches(2, 2)
-    plt.savefig('reports/corrplot_drug_crispr_genetic.pdf', bbox_inches='tight')
-    plt.close('all')
+        g.ax_joint.axhline(np.log(d_maxc.loc[tuple(association[:3]), 'max_conc_micromolar']), lw=.1, color=PAL_DTRACE[2], ls='--')
+
+        plt.gcf().set_size_inches(2, 2)
+        plt.savefig('reports/lmm_robust_{}.pdf'.format(name), bbox_inches='tight')
+        plt.close('all')

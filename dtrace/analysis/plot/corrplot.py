@@ -57,10 +57,10 @@ def _marginal_boxplot(a, xs=None, ys=None, zs=None, vertical=False, **kws):
 def plot_corrplot_discrete(x, y, z, plot_df, scatter_kws=None, line_kws=None):
     # Defaults
     if scatter_kws is None:
-        scatter_kws = dict(s=20, edgecolor='w', linewidth=.3, alpha=.8)
+        scatter_kws = dict(edgecolor='w', lw=.3, s=12)
 
     if line_kws is None:
-        line_kws = dict(linewidth=.5)
+        line_kws = dict(lw=1., color=PAL_DTRACE[0])
 
     pal = {0: PAL_DTRACE[2], 1: PAL_DTRACE[0]}
 
