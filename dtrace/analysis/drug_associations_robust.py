@@ -37,11 +37,6 @@ def count_signif_associations(lmm_drug_robust, fdr=0.05):
     plt.xlabel('Number of signifcant associations')
     plt.ylabel('')
 
-    plt.title('Robust pharmacological associations')
-    plt.gcf().set_size_inches(2, 1)
-    plt.savefig('reports/robust_count_signif.pdf', bbox_inches='tight')
-    plt.close('all')
-
 
 if __name__ == '__main__':
     # - Import
@@ -50,10 +45,10 @@ if __name__ == '__main__':
     drespo = dtrace.get_drugresponse()
     crispr = dtrace.get_crispr(dtype='logFC', scale=True)
 
-    d_maxc = pd.read_csv(dtrace.DRUG_RESPONSE_MAXC, index_col=[0, 1, 2])
+    samples = list(set(mobems).intersection(drespo).intersection(crispr))
     print('#(Samples) = {}'.format(len(samples)))
 
-    samples = list(set(mobems).intersection(drespo).intersection(crispr))
+    d_maxc = pd.read_csv(dtrace.DRUG_RESPONSE_MAXC, index_col=[0, 1, 2])
 
     # Robust associations
     lmm_drug_robust = pd.read_csv(dtrace.LMM_ASSOCIATIONS_ROBUST)
@@ -63,7 +58,6 @@ if __name__ == '__main__':
     plt.gcf().set_size_inches(2, 1)
     plt.savefig('reports/robust_count_signif.pdf', bbox_inches='tight')
     plt.close('all')
-
 
     # - Strongest significant association per drug
     associations = lmm_drug_robust.query('fdr_crispr < 0.05 & fdr_drug < 0.05')

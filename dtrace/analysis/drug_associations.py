@@ -398,6 +398,46 @@ def boxplot_kinobead(lmm_drug):
     plt.ylabel('Selectivity[$CATDS_{most\ potent}$]')
 
 
+def drug_targets_count(lmm_drug, min_events=5, fdr=0.05):
+    d_targets = dtrace.get_drugtargets()
+
+    df = pd.DataFrame([
+        {'drug': i, 'target': t} for i in set(lmm_drug[DRUG_INFO_COLUMNS[0]]) if i in d_targets for t in d_targets[i]
+    ])
+
+    df_signif = pd.DataFrame([
+        {'drug': i, 'target': t} for i in set(lmm_drug.query('fdr < {}'.format(fdr))[DRUG_INFO_COLUMNS[0]]) if i in d_targets for t in d_targets[i]
+    ])
+
+    # Build data-frame
+    plot_df = pd.concat([
+        df['target'].value_counts().rename('all'),
+        df_signif['target'].value_counts().rename('signif')
+    ], axis=1).replace(np.nan, 0).sort_values('all', ascending=True).astype(int).reset_index()
+
+    plot_df = plot_df.query('all >= {}'.format(min_events))
+
+    plot_df = plot_df.assign(y=range(plot_df.shape[0]))
+
+    # Plot
+    plt.barh(plot_df['y'], plot_df['all'], color=PAL_DTRACE[2], label='All')
+    plt.barh(plot_df['y'], plot_df['signif'], color=PAL_DTRACE[0], label='Significant')
+
+    sns.despine(right=True, top=True)
+
+    for c, y in plot_df[['all', 'y']].values:
+        plt.text(c + .25, y, str(c), va='center', ha='left', fontsize=5, zorder=10, color=PAL_DTRACE[2])
+
+    for c, y in plot_df[['signif', 'y']].values:
+        plt.text(c - 0.25, y, str(c), va='center', ha='right', fontsize=5, zorder=10, color='white')
+
+    plt.yticks(plot_df['y'], plot_df['index'])
+    plt.xlabel('Number of drugs')
+    plt.ylabel('')
+
+    plt.legend()
+
+
 if __name__ == '__main__':
     # - Linear regressions
     lmm_drug = pd.read_csv(dtrace.LMM_ASSOCIATIONS)
@@ -407,6 +447,13 @@ if __name__ == '__main__':
     )
 
     lmm_drug = corr_drugtarget_gene(lmm_drug)
+
+    # - Drug targets countplot
+    drug_targets_count(lmm_drug, min_events=5, fdr=0.05)
+    plt.title('Drug targets histogram')
+    plt.gcf().set_size_inches(2, 6)
+    plt.savefig('reports/drug_targets_count.pdf', bbox_inches='tight')
+    plt.close('all')
 
     # - Drug associations manhattan plot
     manhattan_plot(lmm_drug)
