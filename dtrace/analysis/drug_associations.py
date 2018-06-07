@@ -405,9 +405,8 @@ def drug_targets_count(lmm_drug, min_events=5, fdr=0.05):
         {'drug': i, 'target': t} for i in set(lmm_drug[DRUG_INFO_COLUMNS[0]]) if i in d_targets for t in d_targets[i]
     ])
 
-    df_signif = pd.DataFrame([
-        {'drug': i, 'target': t} for i in set(lmm_drug.query('fdr < {}'.format(fdr))[DRUG_INFO_COLUMNS[0]]) if i in d_targets for t in d_targets[i]
-    ])
+    df_signif = set(lmm_drug.query("(fdr < {}) & (target == 'T')".format(fdr))[DRUG_INFO_COLUMNS[0]])
+    df_signif = pd.DataFrame([{'drug': i, 'target': t} for i in df_signif if i in d_targets for t in d_targets[i]])
 
     # Build data-frame
     plot_df = pd.concat([
@@ -420,8 +419,8 @@ def drug_targets_count(lmm_drug, min_events=5, fdr=0.05):
     plot_df = plot_df.assign(y=range(plot_df.shape[0]))
 
     # Plot
-    plt.barh(plot_df['y'], plot_df['all'], color=PAL_DTRACE[2], label='All')
-    plt.barh(plot_df['y'], plot_df['signif'], color=PAL_DTRACE[0], label='Significant')
+    plt.barh(plot_df['y'], plot_df['all'], color=PAL_DTRACE[2], label='Drugs targeting')
+    plt.barh(plot_df['y'], plot_df['signif'], color=PAL_DTRACE[0], label='Drugs targeting - significant')
 
     sns.despine(right=True, top=True)
 
@@ -435,7 +434,7 @@ def drug_targets_count(lmm_drug, min_events=5, fdr=0.05):
     plt.xlabel('Number of drugs')
     plt.ylabel('')
 
-    plt.legend()
+    plt.legend(prop={'size': 5})
 
 
 if __name__ == '__main__':

@@ -6,13 +6,20 @@ import dtrace
 import numpy as np
 import pandas as pd
 import seaborn as sns
+import matplotlib.pyplot as plt
 from dtrace import get_drugtargets
 from dtrace.analysis import PAL_DTRACE
+from analysis.plot.corrplot import plot_corrplot
 from dtrace.assemble.assemble_ppi import build_string_ppi
 from dtrace.associations import ppi_annotation, corr_drugtarget_gene, ppi_corr
 
 
 def get_edges(ppi, nodes, corr_thres):
+    # Nodes that are contained in the network
+    nodes = {v for v in nodes if v in ppi.vs['name']}
+
+    assert len(nodes) > 0, 'None of the nodes is contained in the PPI'
+
     # Nodes incident edges
     incident_edges = {v for e in nodes for v in ppi.incident(e)}
 
@@ -32,10 +39,10 @@ def get_edges(ppi, nodes, corr_thres):
     return nodes_df
 
 
-def plot_ppi(d_id, lmm_drug):
+def plot_ppi(d_id, lmm_drug, corr_thres=0.2, fdr_thres=0.05):
     # Build data-set
-    d_signif = lmm_drug.query('DRUG_ID_lib == {} & fdr < 0.05'.format(d_id))
-    d_ppi_df = get_edges(ppi, list(d_signif['GeneSymbol']), 0.2)
+    d_signif = lmm_drug.query('DRUG_ID_lib == {} & fdr < {}'.format(d_id, fdr_thres))
+    d_ppi_df = get_edges(ppi, list(d_signif['GeneSymbol']), corr_thres)
 
     # Build graph
     graph = pydot.Dot(graph_type='graph', pagedir='TR')
@@ -66,7 +73,8 @@ def plot_ppi(d_id, lmm_drug):
 
 
 if __name__ == '__main__':
-    # - Data-sets
+    # - Imports
+    # Data-sets
     mobems = dtrace.get_mobem()
     drespo = dtrace.get_drugresponse()
 
@@ -76,19 +84,47 @@ if __name__ == '__main__':
     samples = list(set(mobems).intersection(drespo).intersection(crispr))
     print('#(Samples) = {}'.format(len(samples)))
 
-    # - Linear regressions
-    lmm_drug = pd.read_csv(dtrace.DRUG_LMM)
+    # Drug max screened concentration
+    d_maxc = pd.read_csv(dtrace.DRUG_RESPONSE_MAXC, index_col=[0, 1, 2])
+
+    # Linear regressions
+    lmm_drug = pd.read_csv(dtrace.LMM_ASSOCIATIONS)
     lmm_drug = ppi_annotation(lmm_drug, ppi_type=build_string_ppi, ppi_kws=dict(score_thres=900), target_thres=3)
     lmm_drug = corr_drugtarget_gene(lmm_drug)
 
-    # - Drug target
+    # Drug target
     d_targets = get_drugtargets()
 
-    # - PPI
+    # PPI
     ppi = build_string_ppi(score_thres=900)
     ppi = ppi_corr(ppi, crispr_logfc)
 
-    # - Plot network
-    d_id = 1549
-    graph = plot_ppi(d_id, lmm_drug)
-    graph.write_pdf('reports/drug_target_ppi.pdf')
+    # - Top associations
+    lmm_drug.sort_values('fdr')
+
+    lmm_drug[lmm_drug['DRUG_NAME'] == 'Taselisib'].sort_values('fdr')
+
+    # - Top correlation examples
+    indices = [(934059, 0.2), (1048516, 0.2), (134251, 0.2), (232252, 0.2), (1020056, 0.4), (1502618, .2), (21812, 0.3)]
+
+    for idx, cor_thres in indices:
+        d_id, d_name, d_screen, d_gene = lmm_drug.loc[idx, ['DRUG_ID_lib', 'DRUG_NAME', 'VERSION', 'GeneSymbol']].values
+        name = 'Drug={}, Gene={} [{}, {}]'.format(d_name, d_gene, d_id, d_screen)
+
+        # Drug ~ CRISPR correlation
+        x, y = '{}'.format(d_gene), '{}'.format(d_name)
+
+        plot_df = pd.concat([
+            crispr_logfc.loc[d_gene].rename(x), drespo.loc[(d_id, d_name, d_screen)].rename(y)
+        ], axis=1).dropna().sort_values(x)
+
+        plot_corrplot(x, y, plot_df, add_hline=True, lowess=False)
+        plt.axhline(np.log(d_maxc.loc[(d_id, d_name, d_screen), 'max_conc_micromolar']), lw=.3, color=PAL_DTRACE[2], ls='--')
+
+        plt.gcf().set_size_inches(2., 2.)
+        plt.savefig('reports/lmm_association_corrplot_{}.pdf'.format(name), bbox_inches='tight')
+        plt.close('all')
+
+        # Drug network
+        graph = plot_ppi(d_id, lmm_drug, corr_thres=cor_thres)
+        graph.write_pdf('reports/lmm_association_ppi_{}.pdf'.format(name))
