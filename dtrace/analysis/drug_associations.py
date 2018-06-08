@@ -8,6 +8,7 @@ import pandas as pd
 import seaborn as sns
 import scipy.stats as st
 import matplotlib.pyplot as plt
+import matplotlib.ticker as plticker
 from scipy.stats import ttest_ind
 from natsort import natsorted
 from sklearn.metrics import auc
@@ -44,7 +45,7 @@ def manhattan_plot(lmm_drug, fdr_line=.05, n_genes=13):
         df_nonsignif = df_group.query('fdr >= {}'.format(fdr_line))
         axs[i].scatter(df_nonsignif['pos'], -np.log10(df_nonsignif['pval']), c=PAL_DTRACE[(i % 2) + 1], s=2)
 
-        # Plot significant associations
+        # Plot significant associationsdrug_associations_count.pdf
         df_signif = df_group.query('fdr < {}'.format(fdr_line))
         df_signif = df_signif[~df_signif['GeneSymbol'].isin(top_genes.index)]
         axs[i].scatter(df_signif['pos'], -np.log10(df_signif['pval']), c=PAL_DTRACE[0], s=2, zorder=3, label=label_fdr)
@@ -147,11 +148,16 @@ def plot_count_associations(lmm_drug, fdr_line=0.05, min_events=2):
     df = df.assign(name=['{} ({}, {})'.format(n, i, v) for i, n, v in df[DRUG_INFO_COLUMNS].values])
     df = df.query('count >= {}'.format(min_events))
 
-    sns.barplot('count', 'name', data=df, color=PAL_DTRACE[2], linewidth=.8, orient='h')
+    g = sns.barplot('name', 'count', data=df, color=PAL_DTRACE[2], linewidth=.8)
     sns.despine(right=True, top=True)
 
-    plt.ylabel('')
-    plt.xlabel('Count')
+    for item in g.get_xticklabels():
+        item.set_rotation(90)
+
+    g.yaxis.set_major_locator(plticker.MultipleLocator(base=1))
+
+    plt.xlabel('')
+    plt.ylabel('Count')
     plt.title('Significant associations FDR<{}%'.format(fdr_line * 100))
 
 
@@ -237,17 +243,18 @@ def beta_corr_boxplot(betas_corr):
     order = ['Different', 'Same Drug', 'Same Drug & Screen']
     pal = dict(zip(*(order, sns.light_palette(PAL_DTRACE[2], len(order) + 1).as_hex()[1:])))
 
-    sns.boxplot('r', 'dtype', data=betas_corr, orient='h', order=order, palette=pal, fliersize=1, notch=True, linewidth=.3)
+    ax = sns.boxplot('dtype', 'r', data=betas_corr, order=order, palette=pal, fliersize=1, notch=True, linewidth=.3)
+    ax.set_xticklabels(ax.get_xticklabels(), rotation=90)
 
     sns.despine(top=True, right=True)
 
-    plt.axvline(0, lw=0.3, c=PAL_DTRACE[1], zorder=0)
+    plt.axhline(0, lw=0.3, c=PAL_DTRACE[1], zorder=0)
 
-    plt.xlabel('Pearson\'s R')
-    plt.ylabel('')
+    plt.ylabel('Pearson\'s R')
+    plt.xlabel('')
 
 
-def drug_aurc(lmm_drug, fdr=0.05, corr=0.25, label='target', rank_label='pval', legend_size=6, title='', legend_title=''):
+def drug_aurc(lmm_drug, fdr=0.05, corr=0.25, label='target', rank_label='pval', legend_size=4, title='', legend_title=''):
     # Subset to entries that have a target
     df = lmm_drug.query("{} != '-'".format(label))
     df = df[(df['target'] == 'T') | (df['corr'].abs() > corr)]
@@ -283,7 +290,7 @@ def drug_aurc(lmm_drug, fdr=0.05, corr=0.25, label='target', rank_label='pval', 
         f_auc = auc(x, y)
 
         # Plot
-        auc_label = 'Target' if t == 'T' else 'Distance {}'.format(t)
+        auc_label = 'Target' if t == 'T' else 'PPI distance {}'.format(t)
         ax.plot(x, y, label='{} (AURC={:.2f})'.format(auc_label, f_auc), lw=1., c=pal[t])
 
     # Random
@@ -294,7 +301,7 @@ def drug_aurc(lmm_drug, fdr=0.05, corr=0.25, label='target', rank_label='pval', 
     ax.set_ylim(0, 1)
 
     # Labels
-    ax.set_xlabel('Ranked')
+    ax.set_xlabel('Association ranked by p-value')
     ax.set_ylabel('Recall')
 
     ax.legend(loc=4)
@@ -602,19 +609,13 @@ if __name__ == '__main__':
 
     # - Drug betas correlation
     beta_corr_boxplot(betas_corr)
-    plt.gcf().set_size_inches(3, 1)
+    plt.gcf().set_size_inches(1, 3)
     plt.savefig('reports/drug_associations_beta_corr_boxplot.pdf', bbox_inches='tight')
     plt.close('all')
 
-    # - Drug target/ppi enrichment curves
-    drug_aurc(lmm_drug)
-    plt.gcf().set_size_inches(3, 3)
-    plt.savefig('reports/drug_associations_aurc.pdf', bbox_inches='tight')
-    plt.close('all')
-
     # - Drug target and PPI annotation AURCs
-    drug_aurc(lmm_drug)
-    plt.gcf().set_size_inches(3, 3)
+    drug_aurc(lmm_drug, title = 'Drug ~ Gene associations\nnetwork interactions enrichment')
+    plt.gcf().set_size_inches(2, 2)
     plt.savefig('reports/drug_associations_aurc.pdf', bbox_inches='tight')
     plt.close('all')
 
