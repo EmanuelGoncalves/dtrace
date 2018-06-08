@@ -187,6 +187,32 @@ def recapitulated_drug_targets_barplot(lmm_drug, fdr=0.05):
     plt.ylabel('')
 
 
+def recapitulated_drug_targets_barplot_per_screen(lmm_drug, fdr=0.05):
+    # Count number of drugs
+    df_genes = set(lmm_drug['GeneSymbol'])
+
+    d_targets = dtrace.get_drugtargets()
+
+    d_all = {tuple(i) for i in lmm_drug[DRUG_INFO_COLUMNS].values}
+    d_annot = {tuple(i) for i in d_all if i[0] in d_targets}
+    d_tested = {tuple(i) for i in d_annot if len(d_targets[i[0]].intersection(df_genes)) > 0}
+    d_tested_signif = {tuple(i) for i in lmm_drug.query('fdr < {}'.format(fdr))[DRUG_INFO_COLUMNS].values if tuple(i) in d_tested}
+    d_tested_correct = {tuple(i) for i in lmm_drug.query("fdr < {} & target == 'T'".format(fdr))[DRUG_INFO_COLUMNS].values if tuple(i) in d_tested_signif}
+
+    d_labels = ['All', 'w/Target', 'w/Tested target', 'w/Signif tested target', 'w/Correct target']
+    d_lists = list(zip(*(d_labels, [d_all, d_annot, d_tested, d_tested_signif, d_tested_correct])))
+
+    # Build dataframe
+    screens = ['RS', 'v17']
+    plot_df = pd.DataFrame([
+        {'count': len([i for i in d_list if i[2] == s]), 'screen': s, 'names': d_label}
+    for d_label, d_list in d_lists for s in screens])
+
+    pal = dict(RS=PAL_DTRACE[0], v17=PAL_DTRACE[2])
+
+    sns.barplot('count', 'names', 'screen', data=plot_df, palette=pal, orient='h')
+
+
 def beta_histogram(lmm_drug):
     kde_kws = dict(cut=0, lw=1, zorder=1, alpha=.8)
     hist_kws = dict(alpha=.4, zorder=1)
@@ -560,6 +586,12 @@ if __name__ == '__main__':
     recapitulated_drug_targets_barplot(lmm_drug)
     plt.gcf().set_size_inches(2, 1)
     plt.savefig('reports/drug_associations_count_signif.pdf', bbox_inches='tight')
+    plt.close('all')
+
+    # - Count number of significant associations overall
+    recapitulated_drug_targets_barplot_per_screen(lmm_drug)
+    plt.gcf().set_size_inches(2, 1)
+    plt.savefig('reports/drug_associations_count_signif_per_screen.pdf', bbox_inches='tight')
     plt.close('all')
 
     # - Associations beta histogram
