@@ -430,7 +430,7 @@ def drug_betas_corr(lmm_drug):
     return betas_corr
 
 
-def drug_betas_tsne(lmm_drug, perplexity=15, learning_rate=200, n_iter=2000):
+def drug_betas_tsne(lmm_drug, perplexity, learning_rate, n_iter):
     d_targets = dtrace.get_drugtargets()
 
     # Drugs into
@@ -477,7 +477,7 @@ def drug_beta_tsne(tsnes, hueby):
             tsnes, col='VERSION', hue='target', palette=pal, hue_order=['Yes', 'No'], sharey=False, sharex=False, legend_out=True, despine=False, size=2, aspect=1
         )
 
-        g.map(plt.scatter, 'P1', 'P2', alpha=.7, lw=.3, edgecolor='white', s=10)
+        g.map(plt.scatter, 'P1', 'P2', alpha=1., lw=.3, edgecolor='white', s=10)
         g.map(plt.axhline, y=0, ls='-', lw=0.3, c=PAL_DTRACE[1], alpha=.2, zorder=0)
         g.map(plt.axvline, x=0, ls='-', lw=0.3, c=PAL_DTRACE[1], alpha=.2, zorder=0)
 
@@ -499,30 +499,37 @@ def drug_beta_tsne(tsnes, hueby):
             tsnes, col='VERSION', hue='rep', palette=pal, sharey=False, sharex=False, legend_out=True, despine=False, size=2, aspect=1
         )
 
-        g.map(plt.scatter, 'P1', 'P2', alpha=.7, lw=.3, edgecolor='white', s=10)
+        g.map(plt.scatter, 'P1', 'P2', alpha=1., lw=.3, edgecolor='white', s=10)
         g.map(plt.axhline, y=0, ls='-', lw=0.3, c=PAL_DTRACE[1], alpha=.2, zorder=0)
         g.map(plt.axvline, x=0, ls='-', lw=0.3, c=PAL_DTRACE[1], alpha=.2, zorder=0)
 
         g.add_legend(title='', prop=dict(size=4))
 
     elif type(hueby) == list:
-        labels = list(map(';'.join, hueby))
+        sets = [i for l in hueby for i in l[1]]
+        labels = [';'.join(i) for l in hueby for i in l[1]]
+        colors = [i for l in hueby for i in l[0]]
 
-        pal = dict(zip(*(labels, sns.color_palette('Set2', n_colors=len(labels)).as_hex())))
+        pal = dict(zip(*(labels, colors)))
         pal['NA'] = PAL_DTRACE[1]
 
-        df = tsnes.assign(hue=[[i for i, g in enumerate(hueby) if g.intersection(t.split(';'))] for t in tsnes['targets']])
+        df = tsnes.assign(hue=[[i for i, g in enumerate(sets) if g.intersection(t.split(';'))] for t in tsnes['targets']])
         df = tsnes.assign(hue=[labels[i[0]] if len(i) > 0 else 'NA' for i in df['hue']])
 
         g = sns.FacetGrid(
-            df, col='VERSION', hue='hue', palette=pal, sharey=False, sharex=False, legend_out=True, despine=False, size=2, aspect=1
+            df.query("target == 'Yes'"), col='VERSION', hue='hue', palette=pal, sharey=False, sharex=False, legend_out=True, despine=False, size=2, aspect=1
         )
 
-        g.map(plt.scatter, 'P1', 'P2', alpha=.7, lw=.3, edgecolor='white', s=10)
+        for i, s in enumerate(['v17', 'RS']):
+            ax = g.axes.ravel()[i]
+            df_plot = df.query("(target == 'No') & (VERSION == '{}')".format(s))
+            ax.scatter(df_plot['P1'], df_plot['P2'], color=PAL_DTRACE[1], marker='x', lw=0.3, s=5, alpha=0.7, label='No target info')
+
+        g.map(plt.scatter, 'P1', 'P2', alpha=1., lw=.3, edgecolor='white', s=10)
         g.map(plt.axhline, y=0, ls='-', lw=0.3, c=PAL_DTRACE[1], alpha=.2, zorder=0)
         g.map(plt.axvline, x=0, ls='-', lw=0.3, c=PAL_DTRACE[1], alpha=.2, zorder=0)
 
-        g.add_legend(title='', prop=dict(size=4), label_order=labels + ['NA'])
+        g.add_legend(title='', prop=dict(size=4), label_order=labels + ['NA'] + ['No info'])
 
     g.set_titles('Screen = {col_name}')
 
@@ -542,7 +549,7 @@ if __name__ == '__main__':
     betas_corr.sort_values('r').to_csv(dtrace.DRUG_BETAS_CORR, index=False)
 
     # - Drug betas tSNE
-    tsnes = drug_betas_tsne(lmm_drug)
+    tsnes = drug_betas_tsne(lmm_drug, perplexity=15, learning_rate=250, n_iter=2000)
     tsnes.to_csv(dtrace.DRUG_BETAS_TSNE, index=False)
 
     # - Drug betas TSNE
@@ -559,7 +566,23 @@ if __name__ == '__main__':
     plt.close('all')
 
     # Drug targets
-    hueby = [{'AKT1', 'AKT2', 'AKT3'}, {'EGFR', 'ERBB2', 'IGF1R'}, {'PIK3CA', 'PIK3CB'}, {'MAPK1', 'MAPK3'}, {'BCL2'}, {'KIT'}, {'MCL1'}]
+    hueby = [
+        ('#3182bd', [{'RAF1', 'BRAF'}, {'MAPK1', 'MAPK3'}, {'MAP2K1', 'MAP2K2'}]),
+        ('#e6550d', [{'PIK3CA', 'PIK3CB'}, {'AKT1', 'AKT2', 'AKT3'}, {'MTOR'}]),
+        ('#31a354', [{'EGFR'}, {'IGF1R'}]),
+        ('#756bb1', [{'CHEK1', 'CHEK2'}, {'ATR'}, {'WEE1', 'TERT'}]),
+        ('#e78ac3', [{'BTK'}, {'SYK'}]),
+        ('#66c2a5', [{'PARP1'}]),
+        ('#fdd10f', [{'BCL2', 'BCL2L1'}]),
+        ('#636363', [{'GLS'}]),
+        ('#92d2df', [{'MCL1'}]),
+        ('#dd9a00', [{'AURKA', 'AURKB'}]),
+        ('#bc80bd', [{'BRD2', 'BRD4', 'BRD3'}]),
+        ('#983539', [{'JAK1', 'JAK2', 'JAK3'}]),
+    ]
+
+    hueby = [(sns.light_palette(c, n_colors=len(s) + 1, reverse=True).as_hex()[:-1], s) for c, s in hueby]
+
     drug_beta_tsne(tsnes, hueby=hueby)
     plt.suptitle('tSNE analysis of drug associations', y=1.05)
     plt.savefig('reports/drug_associations_beta_tsne_targets.pdf', bbox_inches='tight')
