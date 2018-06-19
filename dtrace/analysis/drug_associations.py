@@ -239,19 +239,32 @@ def beta_histogram(lmm_drug):
 
 
 def beta_corr_boxplot(betas_corr):
-    # Plot
-    order = ['Different', 'Same Drug', 'Same Drug & Screen']
-    pal = dict(zip(*(order, sns.light_palette(PAL_DTRACE[2], len(order) + 1).as_hex()[1:])))
+    # Dataframe
+    df = betas_corr.copy()
 
-    ax = sns.boxplot('dtype', 'r', data=betas_corr, order=order, palette=pal, fliersize=1, notch=True, linewidth=.3)
-    ax.set_xticklabels(ax.get_xticklabels(), rotation=90)
+    df = df.assign(drug1_screen=[i.split(' ; ')[2] for i in df['drug_1']])
+    df = df.assign(drug2_screen=[i.split(' ; ')[2] for i in df['drug_2']])
+
+    df = df[df['drug1_screen'] == df['drug2_screen']]
+
+    df = df.replace({'dtype': {'Same Drug & Screen': 'Same Drug'}})
+
+    # Plot
+    order = ['Different', 'Same Target', 'Same Drug']
+    pal = dict(v17=PAL_DTRACE[2], RS=PAL_DTRACE[0])
+
+    sns.violinplot(
+        'r', 'dtype', 'drug1_screen', data=df, order=order, palette=pal, orient='h',
+        linewidth=.75, split=True, cut=0, inner='quartile', saturation=1
+    )
 
     sns.despine(top=True, right=True)
+    plt.axvline(0, lw=0.3, c=PAL_DTRACE[1], zorder=0)
 
-    plt.axhline(0, lw=0.3, c=PAL_DTRACE[1], zorder=0)
-
-    plt.ylabel('Pearson\'s R')
-    plt.xlabel('')
+    plt.legend(loc='center left', bbox_to_anchor=(1.01, 0.5), prop={'size': 5})
+    plt.xlabel('Correlation of drug pairs association profiles')
+    plt.ylabel('Drug pairs')
+    plt.title('Drug association profiles')
 
 
 def drug_aurc(lmm_drug, fdr=0.05, corr=0.25, label='target', rank_label='pval', legend_size=4, title='', legend_title=''):
@@ -387,6 +400,9 @@ def drug_betas_corr(lmm_drug):
     # Drug information
     drugsheet = dtrace.get_drugsheet()
 
+    # Drug targets
+    drugtargets = dtrace.get_drugtargets()
+
     # Drug annotation
     def classify_drug_pairs(d1, d2):
         d1_id, d1_name, d1_screen = d1.split(' ; ')
@@ -401,11 +417,17 @@ def drug_betas_corr(lmm_drug):
         else:
             dsame = d1_name == d2_name
 
+        # Check drug targets
+        d1_targets = drugtargets[d1_id] if d1_id in drugtargets else set()
+        d2_targets = drugtargets[d2_id] if d2_id in drugtargets else set()
+
         # Check if Drugs were screened with same panel
         if dsame & (d1_screen == d2_screen):
             return 'Same Drug & Screen'
         elif dsame:
             return 'Same Drug'
+        elif len(d1_targets.intersection(d2_targets)) > 0:
+            return 'Same Target'
         else:
             return 'Different'
 
@@ -633,7 +655,7 @@ if __name__ == '__main__':
 
     # - Drug betas correlation
     beta_corr_boxplot(betas_corr)
-    plt.gcf().set_size_inches(1, 3)
+    plt.gcf().set_size_inches(2, 1)
     plt.savefig('reports/drug_associations_beta_corr_boxplot.pdf', bbox_inches='tight')
     plt.close('all')
 

@@ -83,6 +83,8 @@ if __name__ == '__main__':
     samples = list(set(mobems).intersection(drespo).intersection(crispr))
     print('#(Samples) = {}'.format(len(samples)))
 
+    ss = dtrace.get_samplesheet()
+
     # Drug max screened concentration
     d_maxc = pd.read_csv(dtrace.DRUG_RESPONSE_MAXC, index_col=[0, 1, 2])
 
@@ -101,9 +103,9 @@ if __name__ == '__main__':
     # - Top associations
     lmm_drug.sort_values('fdr')
 
-    lmm_drug[lmm_drug['DRUG_NAME'] == 'Rigosertib'].sort_values('fdr')
+    lmm_drug[lmm_drug['DRUG_NAME'] == 'Dabrafenib'].sort_values(['fdr', 'pval']).head(60)
 
-    idx, cor_thres, norder = 82920, 0.3, 2
+    idx, cor_thres, norder = 606238, 0.3, 3
 
     # - Top correlation examples
     indices = [
@@ -117,7 +119,9 @@ if __name__ == '__main__':
         (1406940, 0.3, 2),
         (1334186, 0.3, 2),
         (289994, 0.3, 2),
-        (850144, 0.3, 2)
+        (850144, 0.3, 2),
+        (777907, 0.3, 2),
+        (229423, 0.3, 2)
     ]
 
     for idx, cor_thres, norder in indices:

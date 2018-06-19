@@ -4,6 +4,8 @@
 import dtrace
 import numpy as np
 import pandas as pd
+from limix.qtl import scan
+from sklearn.preprocessing import StandardScaler
 from statsmodels.stats.multitest import multipletests
 
 
