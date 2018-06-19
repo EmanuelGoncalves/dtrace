@@ -614,7 +614,7 @@ if __name__ == '__main__':
     plt.close('all')
 
     # - Count number of significant associations overall
-    recapitulated_drug_targets_barplot(lmm_drug)
+    recapitulated_drug_targets_barplot(lmm_drug, 0.05)
     plt.gcf().set_size_inches(2, 1)
     plt.savefig('reports/drug_associations_count_signif.pdf', bbox_inches='tight')
     plt.close('all')
@@ -638,7 +638,7 @@ if __name__ == '__main__':
     plt.close('all')
 
     # - Drug target and PPI annotation AURCs
-    drug_aurc(lmm_drug, title = 'Drug ~ Gene associations\nnetwork interactions enrichment')
+    drug_aurc(lmm_drug, title='Drug ~ Gene associations\nnetwork interactions enrichment')
     plt.gcf().set_size_inches(2, 2)
     plt.savefig('reports/drug_associations_aurc.pdf', bbox_inches='tight')
     plt.close('all')

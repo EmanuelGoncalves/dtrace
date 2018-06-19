@@ -14,20 +14,19 @@ from dtrace.assemble.assemble_ppi import build_string_ppi
 from dtrace.associations import ppi_annotation, corr_drugtarget_gene, ppi_corr
 
 
-def get_edges(ppi, nodes, corr_thres):
-    # Nodes that are contained in the network
-    nodes = {v for v in nodes if v in ppi.vs['name']}
+def get_edges(ppi, nodes, corr_thres, norder):
+    # Subset network
+    ppi_sub = ppi.copy().subgraph_edges([e for e in ppi.es if abs(e['corr']) >= corr_thres])
 
+    # Nodes that are contained in the network
+    nodes = {v for v in nodes if v in ppi_sub.vs['name']}
     assert len(nodes) > 0, 'None of the nodes is contained in the PPI'
 
-    # Nodes incident edges
-    incident_edges = {v for e in nodes for v in ppi.incident(e)}
-
-    # Filter by correlation
-    incident_edges = [e for e in incident_edges if abs(ppi.es[e]['corr']) >= corr_thres]
+    # Nodes neighborhood
+    neighbor_nodes = {v for n in nodes for v in ppi_sub.neighborhood(n, order=norder)}
 
     # Build subgraph
-    subgraph = ppi.subgraph_edges(incident_edges)
+    subgraph = ppi_sub.subgraph(neighbor_nodes)
 
     # Build data-frame
     nodes_df = pd.DataFrame([{
@@ -39,10 +38,10 @@ def get_edges(ppi, nodes, corr_thres):
     return nodes_df
 
 
-def plot_ppi(d_id, lmm_drug, corr_thres=0.2, fdr_thres=0.05):
+def plot_ppi(d_id, lmm_drug, corr_thres=0.2, fdr_thres=0.05, norder=1):
     # Build data-set
     d_signif = lmm_drug.query('DRUG_ID_lib == {} & fdr < {}'.format(d_id, fdr_thres))
-    d_ppi_df = get_edges(ppi, list(d_signif['GeneSymbol']), corr_thres)
+    d_ppi_df = get_edges(ppi, list(d_signif['GeneSymbol']), corr_thres, norder)
 
     # Build graph
     graph = pydot.Dot(graph_type='graph', pagedir='TR')
@@ -53,13 +52,13 @@ def plot_ppi(d_id, lmm_drug, corr_thres=0.2, fdr_thres=0.05):
     for s, t, r in d_ppi_df[['source', 'target', 'r']].values:
         # Add source node
         fs = 15 if s in d_signif['GeneSymbol'].values else 9
-        fc = PAL_DTRACE[0 if s in d_targets[d_id] else 2]
+        fc = PAL_DTRACE[0 if d_id in d_targets and s in d_targets[d_id] else 2]
 
         source = pydot.Node(s, fillcolor=fc, fontsize=fs, **kws_nodes)
         graph.add_node(source)
 
         # Add target node
-        fc = PAL_DTRACE[0 if t in d_targets[d_id] else 2]
+        fc = PAL_DTRACE[0 if d_id in d_targets and t in d_targets[d_id] else 2]
         fs = 15 if t in d_signif['GeneSymbol'].values else 9
 
         target = pydot.Node(t, fillcolor=fc, fontsize=fs, **kws_nodes)
@@ -102,12 +101,26 @@ if __name__ == '__main__':
     # - Top associations
     lmm_drug.sort_values('fdr')
 
-    lmm_drug[lmm_drug['DRUG_NAME'] == 'Taselisib'].sort_values('fdr')
+    lmm_drug[lmm_drug['DRUG_NAME'] == 'Rigosertib'].sort_values('fdr')
+
+    idx, cor_thres, norder = 82920, 0.3, 2
 
     # - Top correlation examples
-    indices = [(934059, 0.2), (1048516, 0.2), (134251, 0.2), (232252, 0.2), (1020056, 0.4), (1502618, .2), (21812, 0.3)]
+    indices = [
+        (934059, 0.2, 1),
+        (1048516, 0.3, 2),
+        (134251, 0.3, 2),
+        (232252, 0.3, 2),
+        (1020056, 0.4, 2),
+        (1502618, .4, 2),
+        (21812, 0.3, 2),
+        (1406940, 0.3, 2),
+        (1334186, 0.3, 2),
+        (289994, 0.3, 2),
+        (850144, 0.3, 2)
+    ]
 
-    for idx, cor_thres in indices:
+    for idx, cor_thres, norder in indices:
         d_id, d_name, d_screen, d_gene = lmm_drug.loc[idx, ['DRUG_ID_lib', 'DRUG_NAME', 'VERSION', 'GeneSymbol']].values
         name = 'Drug={}, Gene={} [{}, {}]'.format(d_name, d_gene, d_id, d_screen)
 
@@ -126,5 +139,5 @@ if __name__ == '__main__':
         plt.close('all')
 
         # Drug network
-        graph = plot_ppi(d_id, lmm_drug, corr_thres=cor_thres)
+        graph = plot_ppi(d_id, lmm_drug, corr_thres=cor_thres, norder=norder)
         graph.write_pdf('reports/lmm_association_ppi_{}.pdf'.format(name))
