@@ -11,7 +11,8 @@ from dtrace import get_drugtargets
 from dtrace.analysis import PAL_DTRACE
 from analysis.plot.corrplot import plot_corrplot
 from dtrace.assemble.assemble_ppi import build_string_ppi
-from dtrace.associations import ppi_annotation, corr_drugtarget_gene, ppi_corr
+from statsmodels.distributions.empirical_distribution import ECDF
+from dtrace.associations import ppi_annotation, corr_drugtarget_gene, ppi_corr, DRUG_INFO_COLUMNS
 
 
 def get_edges(ppi, nodes, corr_thres, norder):
@@ -103,9 +104,65 @@ if __name__ == '__main__':
     # - Top associations
     lmm_drug.sort_values('fdr')
 
-    lmm_drug[lmm_drug['DRUG_NAME'] == 'Dabrafenib'].sort_values(['fdr', 'pval']).head(60)
+    lmm_drug[lmm_drug['DRUG_NAME'] == 'MCL1_1284'].sort_values(['fdr', 'pval']).head(60)
 
-    idx, cor_thres, norder = 606238, 0.3, 3
+    idx, cor_thres, norder = 934059, 0.3, 3
+
+    # -
+    d = 'MCL1_1284'
+
+    plot_df = pd.concat([
+        crispr_logfc.loc['MCL1', samples],
+        crispr_logfc.loc['MARCH5', samples],
+        drespo.loc[(d_id, d_name, d_screen), samples].rename('drug')
+    ], axis=1).dropna()
+    plot_df = plot_df.assign(s=(1 - ECDF(plot_df['drug'])(plot_df['drug'])) * 10)
+
+    plt.scatter(plot_df['MCL1'], plot_df['MARCH5'], s=plot_df['s'], color=PAL_DTRACE[2])
+    plt.gcf().set_size_inches(2., 2.)
+    plt.savefig('reports/mcl_scatter.pdf', bbox_inches='tight')
+    plt.close('all')
+
+    #
+    d_gene = 'MARCH5'
+    d_id, d_name, d_screen = 2125, 'Mcl1_7350', 'RS'
+
+    for d_id, d_name, d_screen in lmm_drug[lmm_drug['GeneSymbol'] == 'MCL1'].sort_values('fdr').head(5)[DRUG_INFO_COLUMNS].values:
+        name = '{} [{}, {}]'.format(d_name, d_id, d_screen)
+
+        plot_df = pd.concat([
+            crispr_logfc.loc[d_gene].rename('crispr'), drespo.loc[(d_id, d_name, d_screen)].rename('drug')
+        ], axis=1).dropna().sort_values('drug')
+
+        plot_corrplot('crispr', 'drug', plot_df, add_hline=True, lowess=False)
+        plt.axhline(np.log(d_maxc.loc[(d_id, d_name, d_screen), 'max_conc_micromolar']), lw=.3, color=PAL_DTRACE[2], ls='--')
+
+        plt.xlabel(d_gene)
+        plt.ylabel(name)
+
+        plt.gcf().set_size_inches(2., 2.)
+        plt.savefig('reports/{}_corrplot_{}.pdf'.format(d_gene, name), bbox_inches='tight')
+        plt.close('all')
+
+    #
+    plot_df = pd.concat([
+        crispr_logfc.loc['MCL1'], crispr_logfc.loc['MARCH5']
+    ], axis=1).dropna()
+
+    plot_corrplot('MCL1', 'DBR1', plot_df, add_hline=True, lowess=False)
+
+    plt.gcf().set_size_inches(2., 2.)
+    plt.savefig('reports/corrplot_MCL1_MARCH5.pdf'.format(d_gene, name), bbox_inches='tight')
+    plt.close('all')
+
+    #
+    plot_df = crispr_logfc.T.corrwith(crispr_logfc.loc['MCL1']).sort_values(ascending=False)
+    plot_df = plot_df.head(10).rename('r').reset_index()
+
+    sns.barplot('r', 'GeneSymbol', data=plot_df, color=PAL_DTRACE[2])
+    plt.gcf().set_size_inches(1, 2)
+    plt.savefig('reports/MCL1_barplot.pdf'.format(d_gene, name), bbox_inches='tight')
+    plt.close('all')
 
     # - Top correlation examples
     indices = [

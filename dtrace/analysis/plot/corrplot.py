@@ -54,7 +54,7 @@ def _marginal_boxplot(a, xs=None, ys=None, zs=None, vertical=False, **kws):
     ax.set_xlabel('')
 
 
-def plot_corrplot_discrete(x, y, z, plot_df, scatter_kws=None, line_kws=None):
+def plot_corrplot_discrete(x, y, z, plot_df, scatter_kws=None, line_kws=None, legend_title=''):
     # Defaults
     if scatter_kws is None:
         scatter_kws = dict(edgecolor='w', lw=.3, s=12)
@@ -87,7 +87,7 @@ def plot_corrplot_discrete(x, y, z, plot_df, scatter_kws=None, line_kws=None):
     g.set_axis_labels('{} (log2 FC)'.format(x), '{} (ln IC50)'.format(y))
 
     handles = [mpatches.Circle([.0, .0], .25, facecolor=c, label='Yes' if t else 'No') for t, c in pal.items()]
-    g.ax_marg_y.legend(handles=handles, title='', loc='center left', bbox_to_anchor=(1, 0.5))
+    g.ax_marg_y.legend(handles=handles, title=legend_title, loc='center left', bbox_to_anchor=(1, 0.5))
 
     plt.suptitle(z, y=1.05, fontsize=8)
 

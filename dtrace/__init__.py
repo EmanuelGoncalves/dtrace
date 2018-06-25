@@ -48,6 +48,9 @@ MOBEM = 'data/PANCAN_mobem.csv'
 # GENE-EXPRESSION
 RNASEQ_VOOM = 'data/gdsc/gene_expression/merged_voom_preprocessed.csv'
 
+# PLOIDY
+PLOIDY = 'data/gdsc/ploidy.csv'
+
 # - ASSOCIATIONS
 LMM_ASSOCIATIONS = 'data/drug_lmm_regressions.csv'
 LMM_ASSOCIATIONS_ROBUST = 'data/drug_lmm_regressions_robust.csv'
@@ -59,6 +62,10 @@ DRUG_BETAS_TSNE = 'data/drug_beta_tsne.csv'
 
 
 # - GETS
+def get_ploidy():
+    return pd.read_csv(PLOIDY, index_col=0)['PLOIDY']
+
+
 def get_drugsheet():
     return pd.read_csv(DRUGSHEET_FILE, sep='\t', index_col=0)
 

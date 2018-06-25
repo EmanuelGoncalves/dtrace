@@ -560,9 +560,7 @@ if __name__ == '__main__':
     # - Linear regressions
     lmm_drug = pd.read_csv(dtrace.LMM_ASSOCIATIONS)
 
-    lmm_drug = ppi_annotation(
-        lmm_drug, ppi_type=build_string_ppi, ppi_kws=dict(score_thres=900), target_thres=3,
-    )
+    lmm_drug = ppi_annotation(lmm_drug, ppi_type=build_string_ppi, ppi_kws=dict(score_thres=900), target_thres=3)
 
     lmm_drug = corr_drugtarget_gene(lmm_drug)
 
@@ -572,6 +570,7 @@ if __name__ == '__main__':
 
     # - Drug betas tSNE
     tsnes = drug_betas_tsne(lmm_drug, perplexity=15, learning_rate=250, n_iter=2000)
+    tsnes = tsnes.assign(targets=tsnes['targets'].fillna(''))
     tsnes.to_csv(dtrace.DRUG_BETAS_TSNE, index=False)
 
     # - Drug betas TSNE

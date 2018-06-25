@@ -64,7 +64,7 @@ if __name__ == '__main__':
     associations = associations.sort_values('fdr_crispr').groupby(DRUG_INFO_COLUMNS).head(1)
 
     # - Plot robust association
-    indices = [75293, 29689, 11943, 70709, 22504, 481, 68343]
+    indices = [75293, 29689, 11943, 70709, 22504, 481, 68343, 69599]
 
     for idx in indices:
         columns = ['DRUG_ID_lib', 'DRUG_NAME', 'VERSION', 'GeneSymbol', 'Genetic']
