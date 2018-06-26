@@ -49,7 +49,10 @@ MOBEM = 'data/PANCAN_mobem.csv'
 RNASEQ_VOOM = 'data/gdsc/gene_expression/merged_voom_preprocessed.csv'
 
 # PLOIDY
-PLOIDY = 'data/gdsc/ploidy.csv'
+PLOIDY = 'data/ploidy.csv'
+
+# MUTATION BURDEN
+MUTATION_BURDERN = 'data/mutation_burden.csv'
 
 # - ASSOCIATIONS
 LMM_ASSOCIATIONS = 'data/drug_lmm_regressions.csv'

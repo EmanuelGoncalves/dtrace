@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
+import matplotlib.ticker as plticker
 from sklearn.linear_model import ElasticNetCV
 from sklearn.model_selection import ShuffleSplit
 from dtrace.associations import DRUG_INFO_COLUMNS
@@ -28,87 +29,94 @@ def growht_by_cancer_type(growth, ctype):
     plt.ylabel('Cancer type')
 
 
-def r2_scatter(drug_r2):
+def pred_scatter(pred):
+    plot_df = pd.pivot_table(pred, index=DRUG_INFO_COLUMNS, columns='covariate', values='r2')
+
+    order = list(plot_df.median().sort_values(ascending=False).index)
+
     cmap = sns.light_palette(PAL_DTRACE[2], as_cmap=True, reverse=True)
 
-    ax = plt.gca()
+    g = sns.PairGrid(plot_df[order], despine=False)
 
-    ax.scatter(drug_r2['r2_ctype'], drug_r2['r2_growth'], c=PAL_DTRACE[2], s=3, lw=0., zorder=2, alpha=.9)
-    sns.kdeplot(drug_r2['r2_ctype'], drug_r2['r2_growth'], n_levels=30, cmap=cmap, linewidths=.5, zorder=3, alpha=.2, ax=ax)
+    g = g.map_diag(plt.hist, color=PAL_DTRACE[2])
+    g = g.map_upper(plt.scatter, color=PAL_DTRACE[2], s=3, lw=0., zorder=2, alpha=.9)
+    g = g.map_lower(sns.kdeplot, color=PAL_DTRACE[2], n_levels=30, cmap=cmap, linewidths=.3, zorder=3)
 
-    x_lim, y_lim = ax.get_xlim(), ax.get_ylim()
-    ax.plot(x_lim, y_lim, 'k--', lw=.3)
-
-    ax.set_xlim(x_lim)
-    ax.set_ylim(y_lim)
-
-    ax.set_xlabel('Cancer type covariate (R2)')
-    ax.set_ylabel('Growth covariate (R2)')
-    ax.set_title('Drug response prediction')
+    plt.suptitle('Drug response prediction - R2 score', y=1.05)
 
 
-def predict_drug_response(drespo, growth, ctype, n_splits=10, test_size=.2):
-    drug_r2 = []
-    for d in drespo.index:
-        print(d)
+def top_predicted_drugs(pred, ntop=20, xoffset=0.02):
+    plot_df = pd.pivot_table(pred, index=DRUG_INFO_COLUMNS, columns='covariate', values='r2')
+    order = list(plot_df.median().sort_values(ascending=False).index)
 
-        y = drespo.loc[d, samples].dropna()
-
-        x_growth = growth.loc[y.index].to_frame()
-        x_ctype = pd.get_dummies(ctype.loc[y.index])
-
-        #
-        cv = ShuffleSplit(n_splits=n_splits, test_size=test_size)
-
-        #
-        for train_idx, test_idx in cv.split(x_ctype):
-            # Growth
-            lm_growth = ElasticNetCV().fit(x_growth.iloc[train_idx], y.iloc[train_idx])
-            r2_growth = lm_growth.score(x_growth.iloc[test_idx], y.iloc[test_idx])
-
-            # Cancer type
-            lm_ctype = ElasticNetCV().fit(x_ctype.iloc[train_idx], y.iloc[train_idx])
-            r2_ctype = lm_ctype.score(x_ctype.iloc[test_idx], y.iloc[test_idx])
-
-            #
-            drug_r2.append(dict(
-                r2_growth=r2_growth, r2_ctype=r2_ctype,
-                DRUG_ID_lib=d[0], DRUG_NAME=d[1], VERSION=d[2]
-            ))
-    drug_r2 = pd.DataFrame(drug_r2).groupby(DRUG_INFO_COLUMNS).median()
-
-    return drug_r2
-
-
-def top_predicted_drugs(drug_r2, ntop=20, xoffset=0.01):
-    f, axs = plt.subplots(1, drug_r2.shape[1], sharex=True, sharey=False)
-
+    # Plot
     cmap = sns.light_palette(PAL_DTRACE[2], as_cmap=True)
 
-    for i, ax in enumerate(axs.ravel()):
-        c = drug_r2.columns[i]
+    f, axs = plt.subplots(1, plot_df.shape[1], sharex=True, sharey=False)
+    for i, covariate in enumerate(order):
+        ax = axs[i]
 
         # Dataframe
-        plot_df = drug_r2.loc[drug_r2[c].sort_values(ascending=False).head(ntop).index, c]
-        plot_df = plot_df.sort_values().reset_index()
-        plot_df = plot_df.assign(y=range(plot_df.shape[0]))
+        df = plot_df.loc[plot_df[covariate].sort_values(ascending=False).head(ntop).index, covariate]
+        df = df.sort_values().reset_index()
+        df = df.assign(y=range(df.shape[0]))
 
         # Plot
-        ax.scatter(plot_df[c], plot_df['y'], c=plot_df[c], cmap=cmap)
+        ax.scatter(df[covariate], df['y'], c=df[covariate], cmap=cmap)
 
-        for fc, y, n in plot_df[[c, 'y', 'DRUG_NAME']].values:
+        for fc, y, n in df[[covariate, 'y', 'DRUG_NAME']].values:
             ax.text(fc - xoffset, y, n, va='center', fontsize=5, zorder=10, color='gray', ha='right')
 
         ax.set_xlabel('Drug R2 (median)')
         ax.set_ylabel('')
-        ax.set_title('Growth rate' if c == 'r2_growth' else 'Cancer Type')
+        ax.set_title(covariate)
         ax.axes.get_yaxis().set_ticks([])
+
+        sns.despine(left=True, ax=ax)
 
     plt.gcf().set_size_inches(2. * axs.shape[0], 20 * .1)
 
     plt.suptitle('ElasticNet prediction of drug response', y=1.05, fontsize=10)
-    plt.savefig('reports/covariates_elasticnet_top_predicted.pdf', bbox_inches='tight', dpi=600)
-    plt.close('all')
+
+
+def predict_drug_response(drespo, covariates, discrete_covariates=['Type'], n_splits=3, test_size=.2):
+    pred = []
+
+    for drug in drespo.index:
+        # Drug response data
+        y = drespo.loc[drug, samples].dropna()
+
+        # Cross-validation
+        cv = ShuffleSplit(n_splits=n_splits, test_size=test_size)
+
+        for i, (train_idx, test_idx) in enumerate(cv.split(y)):
+
+            for covariate in covariates:
+                print('Drug: {}; Split: {}; Covariate: {}'.format(','.join(map(str, drug)), i + 1, covariate))
+
+                x = covariates.loc[y.index, [covariate]]
+
+                # Covariate
+                if covariate in discrete_covariates:
+                    x = pd.get_dummies(x)
+
+                # Build + train model
+                lm = ElasticNetCV().fit(x.iloc[train_idx], y.iloc[train_idx])
+
+                # Evalutate model
+                r2 = lm.score(x.iloc[test_idx], y.iloc[test_idx])
+
+                #
+                pred.append(dict(
+                    r2=r2, covariate=covariate,
+                    DRUG_ID_lib=drug[0], DRUG_NAME=drug[1], VERSION=drug[2]
+                ))
+
+    pred = pd.DataFrame(pred).groupby(DRUG_INFO_COLUMNS + ['covariate']).median()
+
+    pred = pred.reset_index()
+
+    return pred
 
 
 if __name__ == '__main__':
@@ -123,18 +131,32 @@ if __name__ == '__main__':
     growth = pd.read_csv(dtrace.GROWTHRATE_FILE, index_col=0)
     growth = growth['growth_rate_median'].dropna()
 
+    # Mutation burden
+    mburden = pd.read_csv(dtrace.MUTATION_BURDERN, index_col=0)['burden']
+
+    # Ploidy
+    ploidy = pd.read_csv(dtrace.PLOIDY, index_col=0)['ploidy']
+
     # Samplesheet
     ss = dtrace.get_samplesheet().dropna(subset=['Cancer Type'])
+    ctype = ss['Cancer Type']
 
-    samples = list(set(drespo).intersection(crispr).intersection(growth.index).intersection(ss.index))
+    samples = list(set.intersection(set(drespo), set(crispr), set(growth.index), set(ss.index), set(ploidy.index), set(mburden.index)))
     print('Samples={}'.format(len(samples)))
 
     # - Filter drug response
     drespo = dtrace.filter_drugresponse(drespo[samples])
 
     # - ElasticNet prediction of drug-response
-    drug_r2 = predict_drug_response(drespo[samples], growth[samples], ss.loc[samples, 'Cancer Type'])
-    drug_r2.to_csv('data/drug_covariates_r2_score.csv')
+    covariates = pd.concat([
+        growth[samples].rename('Growth'),
+        ctype[samples].rename('Type'),
+        ploidy[samples].rename('Ploidy'),
+        mburden[samples].rename('Burden')
+    ], axis=1)
+
+    pred = predict_drug_response(drespo[samples], covariates)
+    pred.to_csv('data/drug_covariates_r2_score.csv')
 
     # - Plot
     # Relation between growth rate and cancer type
@@ -144,12 +166,12 @@ if __name__ == '__main__':
     plt.close('all')
 
     # Performance R2 scatter
-    r2_scatter(drug_r2)
-    plt.gcf().set_size_inches(2, 2)
-    plt.savefig('reports/covariates_elasticnet_scatter.pdf', bbox_inches='tight', dpi=600)
+    pred_scatter(pred)
+    plt.gcf().set_size_inches(3, 3)
+    plt.savefig('reports/covariates_elasticnet_scatter.pdf', bbox_inches='tight')
     plt.close('all')
 
     # Top predicted drugs per covariate
-    top_predicted_drugs(drug_r2)
-    plt.savefig('reports/covariates_elasticnet_top_predicted.pdf', bbox_inches='tight', dpi=600)
+    top_predicted_drugs(pred)
+    plt.savefig('reports/covariates_elasticnet_top_predicted.pdf', bbox_inches='tight')
     plt.close('all')
