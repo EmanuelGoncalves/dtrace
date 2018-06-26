@@ -492,11 +492,57 @@ def drug_betas_tsne(lmm_drug, perplexity, learning_rate, n_iter):
 
 
 def drug_beta_tsne(tsnes, hueby):
-    if hueby == 'target':
+    if hueby == 'pathway':
+        ds = dtrace.get_drugsheet().dropna(subset=['Pathway'])
+
+        df = tsnes.assign(pathway=ds.reindex(tsnes['DRUG_ID_lib'])['Pathway'].fillna('Other').values)
+
+        path_count = df['pathway'].value_counts()
+        df.loc[df['pathway'].isin(list(path_count[path_count <= 3].index) + ['Other, kinases']), 'pathway'] = 'Other'
+
+        order = natsorted(set(df['pathway']).difference(['Other']))
+        pal = pd.Series(sns.color_palette('tab20c', n_colors=len(order)).as_hex(), index=order).to_dict()
+
+        g = sns.FacetGrid(
+            df, col='VERSION', hue='pathway', palette=pal, hue_order=order, sharey=False, sharex=False, legend_out=True, despine=False, size=2, aspect=1
+        )
+
+        g.map(plt.scatter, 'P1', 'P2', alpha=1., lw=.3, edgecolor='white', s=10)
+        g.map(plt.axhline, y=0, ls='-', lw=0.3, c=PAL_DTRACE[1], alpha=.2, zorder=0)
+        g.map(plt.axvline, x=0, ls='-', lw=0.3, c=PAL_DTRACE[1], alpha=.2, zorder=0)
+
+        g.add_legend(title='Drug type', prop=dict(size=6), fontsize=6)
+
+    elif hueby == 'type':
+        ds = dtrace.get_drugsheet().dropna(subset=['Drug Type'])
+
+        df = tsnes.assign(type=ds.reindex(tsnes['DRUG_ID_lib'])['Drug Type'].fillna('ND').values)
+
+        order = ['cytotoxic', 'targetted']
+        pal = pd.Series([PAL_DTRACE[0], PAL_DTRACE[2]], index=order).to_dict()
+
+        g = sns.FacetGrid(
+            df.query("type != 'ND'"), col='VERSION', hue='type', palette=pal, hue_order=order, sharey=False,
+            sharex=False, legend_out=True, despine=False, size=2, aspect=1
+        )
+
+        for i, s in enumerate(['v17', 'RS']):
+            ax = g.axes.ravel()[i]
+            df_plot = df.query("(type == 'ND') & (VERSION == '{}')".format(s))
+            ax.scatter(df_plot['P1'], df_plot['P2'], color=PAL_DTRACE[1], marker='x', lw=0.3, s=5, alpha=0.7, label='No drug info')
+
+        g.map(plt.scatter, 'P1', 'P2', alpha=1., lw=.3, edgecolor='white', s=10)
+        g.map(plt.axhline, y=0, ls='-', lw=0.3, c=PAL_DTRACE[1], alpha=.2, zorder=0)
+        g.map(plt.axvline, x=0, ls='-', lw=0.3, c=PAL_DTRACE[1], alpha=.2, zorder=0)
+
+        g.add_legend(title='Drug type', prop=dict(size=6), fontsize=6)
+
+    elif hueby == 'target':
         pal = {'No': PAL_DTRACE[2], 'Yes': PAL_DTRACE[0]}
 
         g = sns.FacetGrid(
-            tsnes, col='VERSION', hue='target', palette=pal, hue_order=['Yes', 'No'], sharey=False, sharex=False, legend_out=True, despine=False, size=2, aspect=1
+            tsnes, col='VERSION', hue='target', palette=pal, hue_order=['Yes', 'No'], sharey=False,
+            sharex=False, legend_out=True, despine=False, size=2, aspect=1
         )
 
         g.map(plt.scatter, 'P1', 'P2', alpha=1., lw=.3, edgecolor='white', s=10)
@@ -518,7 +564,8 @@ def drug_beta_tsne(tsnes, hueby):
         pal['NA'] = PAL_DTRACE[1]
 
         g = sns.FacetGrid(
-            tsnes, col='VERSION', hue='rep', palette=pal, sharey=False, sharex=False, legend_out=True, despine=False, size=2, aspect=1
+            tsnes, col='VERSION', hue='rep', palette=pal, sharey=False, sharex=False, legend_out=True,
+            despine=False, size=2, aspect=1
         )
 
         g.map(plt.scatter, 'P1', 'P2', alpha=1., lw=.3, edgecolor='white', s=10)
@@ -570,14 +617,27 @@ if __name__ == '__main__':
 
     # - Drug betas tSNE
     tsnes = drug_betas_tsne(lmm_drug, perplexity=15, learning_rate=250, n_iter=2000)
-    tsnes = tsnes.assign(targets=tsnes['targets'].fillna(''))
     tsnes.to_csv(dtrace.DRUG_BETAS_TSNE, index=False)
+    # tsnes = pd.read_csv(dtrace.DRUG_BETAS_TSNE)
+    # tsnes = tsnes.assign(targets=tsnes['targets'].fillna(''))
 
     # - Drug betas TSNE
     # Has drug targets annotation
     drug_beta_tsne(tsnes, hueby='target')
     plt.suptitle('tSNE analysis of drug associations', y=1.05)
     plt.savefig('reports/drug_associations_beta_tsne.pdf', bbox_inches='tight')
+    plt.close('all')
+
+    # Drug type
+    drug_beta_tsne(tsnes, hueby='type')
+    plt.suptitle('tSNE analysis of drug associations', y=1.05)
+    plt.savefig('reports/drug_associations_beta_tsne_type.pdf', bbox_inches='tight')
+    plt.close('all')
+
+    # Drug pathway
+    drug_beta_tsne(tsnes, hueby='pathway')
+    plt.suptitle('tSNE analysis of drug associations', y=1.05)
+    plt.savefig('reports/drug_associations_beta_tsne_pathway.pdf', bbox_inches='tight')
     plt.close('all')
 
     # Drug replicates within screen
