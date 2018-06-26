@@ -6,8 +6,8 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
-from dtrace.analysis import PAL_DTRACE
 from dtrace.associations import DRUG_INFO_COLUMNS
+from dtrace.analysis import PAL_DTRACE, MidpointNormalize
 from dtrace.analysis.plot.corrplot import plot_corrplot_discrete
 
 
@@ -38,6 +38,80 @@ def count_signif_associations(lmm_drug_robust, fdr=0.05):
     plt.ylabel('')
 
 
+def genomic_histogram(mobems, ntop=40):
+    # Build dataframe
+    plot_df = mobems[samples].sum(1).rename('count').reset_index()
+    plot_df = plot_df[[len(dtrace.mobem_feature_to_gene(i)) != 0 for i in plot_df['index']]]
+
+    plot_df = plot_df.assign(genes=['; '.join(dtrace.mobem_feature_to_gene(i)) for i in plot_df['index']])
+    plot_df = plot_df.assign(type=[dtrace.mobem_feature_type(i) for i in plot_df['index']])
+
+    plot_df = plot_df.assign(name=['{} - {}'.format(t, g) for t, g in plot_df[['type', 'genes']].values])
+
+    plot_df = plot_df.sort_values('count', ascending=False).head(ntop)
+
+    # Plot
+    order = ['Mutation', 'CN loss', 'CN gain']
+    pal = pd.Series(PAL_DTRACE, index=order).to_dict()
+
+    sns.barplot('count', 'name', 'type', data=plot_df, palette=pal, hue_order=order, dodge=False, saturation=1)
+
+    plt.xlabel('Number of occurrences')
+    plt.ylabel('')
+
+    plt.legend()
+    sns.despine()
+
+    plt.gcf().set_size_inches(2, .15 * ntop)
+
+
+def top_robust_features(lmm_drug_robust, ntop=40):
+    f, axs = plt.subplots(1, 2, sharex=False, sharey=False, gridspec_kw=dict(wspace=.75))
+
+    order = ['Mutation', 'CN loss', 'CN gain']
+    pal = pd.Series(PAL_DTRACE, index=order).to_dict()
+
+    for i, d in enumerate(['drug', 'crispr']):
+        ax = axs[i]
+        beta, pval, fdr = 'beta_{}'.format(d), 'pval_{}'.format(d), 'fdr_{}'.format(d)
+
+        feature = 'DRUG_NAME' if d == 'drug' else 'GeneSymbol'
+
+        # Dataframe
+        plot_df = lmm_drug_robust.groupby([feature, 'Genetic'])[beta, pval, fdr].first().reset_index()
+        plot_df = plot_df[[len(dtrace.mobem_feature_to_gene(i)) != 0 for i in plot_df['Genetic']]]
+        plot_df = plot_df.sort_values([fdr, pval]).head(ntop)
+        plot_df = plot_df.assign(type=[dtrace.mobem_feature_type(i) for i in plot_df['Genetic']])
+        plot_df = plot_df.sort_values(beta, ascending=False)
+        plot_df = plot_df.assign(y=range(plot_df.shape[0]))
+
+        # Plot
+        for t in order:
+            df = plot_df.query("type == '{}'".format(t))
+            ax.scatter(df[beta], df['y'], c=pal[t], label=t)
+
+        for fc, y, drug, genetic in plot_df[[beta, 'y', feature, 'Genetic']].values:
+            g_genes = '; '.join(dtrace.mobem_feature_to_gene(genetic))
+
+            xoffset = 0.075 if d == 'crispr' else 0.3
+
+            ax.text(fc - xoffset, y, drug, va='center', fontsize=4, zorder=10, color='gray', ha='right')
+            ax.text(fc + xoffset, y, g_genes, va='center', fontsize=3, zorder=10, color='gray', ha='left')
+
+        ax.axvline(0, lw=.1, c=PAL_DTRACE[1])
+
+        ax.set_xlabel('Effect size (beta)')
+        ax.set_ylabel('')
+        ax.set_title('{} associations'.format(d.capitalize() if d == 'drug' else d.upper()))
+        ax.axes.get_yaxis().set_ticks([])
+
+        sns.despine(left=True, ax=ax)
+
+    plt.gcf().set_size_inches(2. * axs.shape[0], ntop * .12)
+
+    plt.legend(title='Genetic event', loc='center left', bbox_to_anchor=(1, 0.5))
+
+
 if __name__ == '__main__':
     # - Import
     # Data-sets
@@ -53,10 +127,20 @@ if __name__ == '__main__':
     # Robust associations
     lmm_drug_robust = pd.read_csv(dtrace.LMM_ASSOCIATIONS_ROBUST)
 
+    # - Distribution of genomic events
+    genomic_histogram(mobems, ntop=40)
+    plt.savefig('reports/lmm_robust_mobems_countplot.pdf', bbox_inches='tight')
+    plt.close('all')
+
     # - Count number of significant associations overall
     count_signif_associations(lmm_drug_robust)
     plt.gcf().set_size_inches(2, 1)
     plt.savefig('reports/robust_count_signif.pdf', bbox_inches='tight')
+    plt.close('all')
+
+    # - Top associatios
+    top_robust_features(lmm_drug_robust)
+    plt.savefig('reports/lmm_robust_top_associations.pdf', bbox_inches='tight', dpi=600)
     plt.close('all')
 
     # - Strongest significant association per drug

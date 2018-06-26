@@ -255,6 +255,22 @@ def mobem_feature_to_gene(f):
     return genes
 
 
+def mobem_feature_type(f):
+    if f.endswith('_mut'):
+        return 'Mutation'
+
+    elif f.startswith('gain.'):
+        return 'CN gain'
+
+    elif f.startswith('loss.'):
+        return 'CN loss'
+
+    else:
+        raise ValueError('{} is not a valid MOBEM feature.'.format(f))
+
+    return genes
+
+
 def build_covariates(variables=None, add_growth=True, samples=None):
     variables = ['Cancer Type'] if variables is None else variables
 
