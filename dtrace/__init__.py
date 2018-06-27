@@ -8,7 +8,7 @@ import pandas as pd
 
 # - META DATA
 SAMPLESHEET_FILE = 'data/meta/samplesheet.csv'
-DRUGSHEET_FILE = 'data/meta/drug_samplesheet_updated.txt'
+DRUGSHEET_FILE = 'data/meta/drug_samplesheet_june_2018.txt'
 
 # - GENE LISTS
 HART_ESSENTIAL = 'data/gene_sets/curated_BAGEL_essential.csv'

@@ -155,7 +155,7 @@ if __name__ == '__main__':
         mburden[samples].rename('Burden')
     ], axis=1)
 
-    pred = predict_drug_response(drespo[samples], covariates)
+    pred = predict_drug_response(drespo[samples], covariates, n_splits=30, test_size=.2)
     pred.to_csv('data/drug_covariates_r2_score.csv')
 
     # - Plot
