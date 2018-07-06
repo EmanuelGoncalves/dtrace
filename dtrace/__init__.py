@@ -37,7 +37,7 @@ DRUG_RESPONSE_VRS = 'data/drug/rapid_screen_1536_all_owners_fitted_data_20180308
 DRUG_RESPONSE_MAXC = 'data/drug_max_concentration.csv'
 
 # NUMBER OF MUTATIONS
-WES_COUNT = 'data/gdsc/WES_variants.csv'
+WES_COUNT = 'data/WES_variants.csv'
 
 # METHYLATION
 METHYLATION_GENE_PROMOTER = 'data/gdsc/methylation/methy_beta_gene_promoter.csv'
@@ -54,6 +54,9 @@ PLOIDY = 'data/ploidy.csv'
 # MUTATION BURDEN
 MUTATION_BURDERN = 'data/mutation_burden.csv'
 
+# COPY-NUMBER
+COPYNUMBER = 'data/crispy_copy_number_gene_snp.csv'
+
 # - ASSOCIATIONS
 LMM_ASSOCIATIONS = 'data/drug_lmm_regressions.csv'
 LMM_ASSOCIATIONS_ROBUST = 'data/drug_lmm_regressions_robust.csv'
@@ -65,6 +68,20 @@ DRUG_BETAS_TSNE = 'data/drug_beta_tsne.csv'
 
 
 # - GETS
+def get_wes():
+    df = pd.read_csv(WES_COUNT)
+
+    return df
+
+def get_copynumber(round=True):
+    df = pd.read_csv(COPYNUMBER, index_col=0)
+
+    if round:
+        df = df.dropna()
+        df = df.astype(int)
+
+    return df
+
 def get_ploidy():
     return pd.read_csv(PLOIDY, index_col=0)['PLOIDY']
 

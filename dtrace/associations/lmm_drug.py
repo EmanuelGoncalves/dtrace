@@ -8,7 +8,7 @@ from sklearn.preprocessing import StandardScaler
 from dtrace.associations import multipletests_per_drug
 
 
-def lmm_association(drug, y, x):
+def lmm_association(drug, y, x, M=None):
     # Build matrices
     Y = y.loc[[drug]].T.dropna()
 
@@ -20,8 +20,12 @@ def lmm_association(drug, y, x):
     K = K.dot(K.T)
     K /= (K.values.diagonal().mean())
 
+    # Covariates
+    if M is not None:
+        M = M.loc[Y.index]
+
     # Linear Mixed Model
-    lmm = scan(X, Y, K=K, lik='normal', verbose=False)
+    lmm = scan(X, Y, K=K, M=M, lik='normal', verbose=False)
 
     # Assemble output
     df = pd.DataFrame(dict(beta=lmm.variant_effsizes.ravel(), pval=lmm.variant_pvalues.ravel(), GeneSymbol=X.columns))

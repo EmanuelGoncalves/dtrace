@@ -148,17 +148,17 @@ def plot_count_associations(lmm_drug, fdr_line=0.05, min_events=2):
     df = df.assign(name=['{} ({}, {})'.format(n, i, v) for i, n, v in df[DRUG_INFO_COLUMNS].values])
     df = df.query('count >= {}'.format(min_events))
 
-    g = sns.barplot('name', 'count', data=df, color=PAL_DTRACE[2], linewidth=.8)
+    g = sns.barplot('count', 'name', data=df, color=PAL_DTRACE[2], linewidth=.8)
     sns.despine(right=True, top=True)
 
-    for item in g.get_xticklabels():
-        item.set_rotation(90)
+    # for item in g.get_xticklabels():
+    #     item.set_rotation(90)
 
-    g.yaxis.set_major_locator(plticker.MultipleLocator(base=1))
+    # g.yaxis.set_major_locator(plticker.MultipleLocator(base=1))
 
-    plt.xlabel('')
-    plt.ylabel('Count')
-    plt.title('Significant associations FDR<{}%'.format(fdr_line * 100))
+    plt.ylabel('')
+    plt.xlabel('Count')
+    plt.title('Significant associations (adj p-value < {}%)'.format(fdr_line * 100))
 
 
 def recapitulated_drug_targets_barplot(lmm_drug, fdr=0.05):
@@ -267,7 +267,7 @@ def beta_corr_boxplot(betas_corr):
     plt.title('Drug association profiles')
 
 
-def drug_aurc(lmm_drug, fdr=0.05, corr=0.25, label='target', rank_label='pval', legend_size=4, title='', legend_title=''):
+def drug_aurc(lmm_drug, fdr=0.05, corr=0.25, label='target', rank_label='pval', legend_size=4, title='', legend_title='', ax=None):
     # Subset to entries that have a target
     df = lmm_drug.query("{} != '-'".format(label))
     df = df[(df['target'] == 'T') | (df['corr'].abs() > corr)]
@@ -283,7 +283,8 @@ def drug_aurc(lmm_drug, fdr=0.05, corr=0.25, label='target', rank_label='pval', 
     pal = pd.Series(pal, index=order)
 
     # Initial plot
-    ax = plt.gca()
+    if ax is None:
+        ax = plt.gca()
 
     # Build curve for each group
     for t in pal.index:
@@ -324,7 +325,11 @@ def drug_aurc(lmm_drug, fdr=0.05, corr=0.25, label='target', rank_label='pval', 
     legend.get_title().set_fontsize('{}'.format(legend_size))
 
 
-def boxplot_kinobead(lmm_drug):
+def boxplot_kinobead(lmm_drug, ax=None):
+    if ax is None:
+        ax = plt.gca()
+
+    # Build data-frame
     drug_id_fdr = lmm_drug.groupby('DRUG_ID_lib')['fdr'].min()
 
     def from_ids_to_minfdr(ids):
@@ -339,19 +344,20 @@ def boxplot_kinobead(lmm_drug):
 
     t, p = ttest_ind(catds[catds['signif'] == 'No']['CATDS_most_potent'], catds[catds['signif'] == 'NA']['CATDS_most_potent'], equal_var=False)
 
+    # Plot
     order = ['No', 'Yes', 'NA']
     pal = {'No': PAL_DTRACE[2], 'Yes': PAL_DTRACE[0], 'NA': PAL_DTRACE[1]}
 
-    sns.boxplot(catds['signif'], catds['CATDS_most_potent'], notch=True, palette=pal, linewidth=.3, fliersize=1.5, order=order)
-    sns.swarmplot(catds['signif'], catds['CATDS_most_potent'], palette=pal, linewidth=.3, size=2, order=order)
-    plt.axhline(0.5, lw=.3, c=PAL_DTRACE[1], ls='-', alpha=.8, zorder=0)
+    sns.boxplot(catds['signif'], catds['CATDS_most_potent'], notch=True, palette=pal, linewidth=.3, fliersize=1.5, order=order, ax=ax)
+    sns.swarmplot(catds['signif'], catds['CATDS_most_potent'], palette=pal, linewidth=.3, size=2, order=order, ax=ax)
+    ax.axhline(0.5, lw=.3, c=PAL_DTRACE[1], ls='-', alpha=.8, zorder=0)
 
-    sns.despine(top=True, right=True)
+    sns.despine(top=True, right=True, ax=ax)
 
-    plt.ylim((-0.1, 1.1))
+    ax.set_ylim((-0.1, 1.1))
 
-    plt.xlabel('Drug has a significant\nCRISPR-Cas9 association')
-    plt.ylabel('Selectivity[$CATDS_{most\ potent}$]')
+    ax.set_xlabel('Drug has a significant\nCRISPR-Cas9 association')
+    ax.set_ylabel('Selectivity[$CATDS_{most\ potent}$]')
 
 
 def drug_targets_count(lmm_drug, min_events=5, fdr=0.05):
@@ -452,7 +458,7 @@ def drug_betas_corr(lmm_drug):
     return betas_corr
 
 
-def drug_betas_tsne(lmm_drug, perplexity, learning_rate, n_iter):
+def drug_betas_tsne(lmm_drug, perplexity, learning_rate, n_iter, fdr=.05):
     d_targets = dtrace.get_drugtargets()
 
     # Drugs into
@@ -488,11 +494,29 @@ def drug_betas_tsne(lmm_drug, perplexity, learning_rate, n_iter):
     # Annotate targets
     tsnes = tsnes.assign(targets=[';'.join(d_targets[i]) if i in d_targets else '' for i in tsnes[DRUG_INFO_COLUMNS[0]]])
 
+    # Annotate significant
+    d_signif = {tuple(i) for i in lmm_drug.query('fdr < {}'.format(fdr))[DRUG_INFO_COLUMNS].values}
+    tsnes = tsnes.assign(has_signif=['Yes' if tuple(i) in d_signif else 'No' for i in tsnes[DRUG_INFO_COLUMNS].values])
+
     return tsnes
 
 
 def drug_beta_tsne(tsnes, hueby):
-    if hueby == 'pathway':
+    if hueby == 'signif':
+        pal = {'No': PAL_DTRACE[2], 'Yes': PAL_DTRACE[0]}
+
+        g = sns.FacetGrid(
+            tsnes, col='VERSION', hue='has_signif', palette=pal, hue_order=['No', 'Yes'], sharey=False,
+            sharex=False, legend_out=True, despine=False, size=2, aspect=1
+        )
+
+        g.map(plt.scatter, 'P1', 'P2', alpha=1., lw=.3, edgecolor='white', s=10)
+        g.map(plt.axhline, y=0, ls='-', lw=0.3, c=PAL_DTRACE[1], alpha=.2, zorder=0)
+        g.map(plt.axvline, x=0, ls='-', lw=0.3, c=PAL_DTRACE[1], alpha=.2, zorder=0)
+
+        g.add_legend(title='Significant', prop=dict(size=4))
+
+    elif hueby == 'pathway':
         ds = dtrace.get_drugsheet().dropna(subset=['Pathway'])
 
         df = tsnes.assign(pathway=ds.reindex(tsnes['DRUG_ID_lib'])['Pathway'].fillna('Other').values)
@@ -622,6 +646,12 @@ if __name__ == '__main__':
     # tsnes = tsnes.assign(targets=tsnes['targets'].fillna(''))
 
     # - Drug betas TSNE
+    # Has drug significant association
+    drug_beta_tsne(tsnes, hueby='signif')
+    plt.suptitle('tSNE analysis of drug associations', y=1.05)
+    plt.savefig('reports/drug_associations_beta_tsne_signif.pdf', bbox_inches='tight')
+    plt.close('all')
+
     # Has drug targets annotation
     drug_beta_tsne(tsnes, hueby='target')
     plt.suptitle('tSNE analysis of drug associations', y=1.05)
@@ -689,8 +719,8 @@ if __name__ == '__main__':
     plt.close('all')
 
     # - Count number of significant associations per drug
-    plot_count_associations(lmm_drug)
-    plt.gcf().set_size_inches(2, 8)
+    plot_count_associations(lmm_drug, min_events=3)
+    plt.gcf().set_size_inches(2, 4)
     plt.savefig('reports/drug_associations_count.pdf', bbox_inches='tight')
     plt.close('all')
 
