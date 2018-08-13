@@ -8,10 +8,9 @@ import pandas as pd
 import seaborn as sns
 import scipy.stats as st
 import matplotlib.pyplot as plt
-import matplotlib.ticker as plticker
-from scipy.stats import ttest_ind
 from natsort import natsorted
 from sklearn.metrics import auc
+from scipy.stats import ttest_ind
 from sklearn.manifold import TSNE
 from dtrace.analysis import PAL_DTRACE
 from sklearn.preprocessing import StandardScaler
@@ -78,11 +77,7 @@ def manhattan_plot(lmm_drug, fdr_line=.05, n_genes=13):
     order_legend = [label_fdr] + list(top_genes.index)
     by_label = {l: p for ax in axs for p, l in zip(*(ax.get_legend_handles_labels()))}
     by_label = [(l, by_label[l]) for l in order_legend]
-    plt.legend(list(zip(*(by_label)))[1], list(zip(*(by_label)))[0], loc='center left', bbox_to_anchor=(1.01, 0.5), prop={'size': 5})
-
-    plt.gcf().set_size_inches(5, 2)
-    plt.savefig('reports/drug_associations_manhattan.png', bbox_inches='tight', dpi=600)
-    plt.close('all')
+    plt.legend(list(zip(*(by_label)))[1], list(zip(*(by_label)))[0], loc='center left', bbox_to_anchor=(1.01, 0.5), prop={'size': 5}, frameon=False)
 
 
 def top_associations_barplot(lmm_drug, fdr_line=0.05, ntop=40):
@@ -123,10 +118,10 @@ def top_associations_barplot(lmm_drug, fdr_line=0.05, ntop=40):
         df_irow = df[df['irow'] == irow]
 
         df_irow_ = df_irow.query("target != 'T'")
-        axs[irow].bar(df_irow_['xpos'], df_irow_['logpval'], .8, color=PAL_DTRACE[2], align='center', zorder=5)
+        axs[irow].bar(df_irow_['xpos'], df_irow_['logpval'], .8, color=PAL_DTRACE[2], align='center', zorder=5, linewidth=0)
 
         df_irow_ = df_irow.query("target == 'T'")
-        axs[irow].bar(df_irow_['xpos'], df_irow_['logpval'], .8, color=PAL_DTRACE[0], align='center', zorder=5)
+        axs[irow].bar(df_irow_['xpos'], df_irow_['logpval'], .8, color=PAL_DTRACE[0], align='center', zorder=5, linewidth=0)
 
         for k, v in df_irow.groupby('DRUG_NAME')['xpos'].min().sort_values().to_dict().items():
             axs[irow].text(v - 1.2, 0.1, textwrap.fill(k, 15), va='bottom', fontsize=7, zorder=10, rotation='vertical', color=PAL_DTRACE[2])
@@ -181,7 +176,7 @@ def recapitulated_drug_targets_barplot(lmm_drug, fdr=0.05):
     plot_df = plot_df.assign(y=range(plot_df.shape[0]))
 
     # Plot
-    plt.barh(plot_df['y'], plot_df['count'], color=PAL_DTRACE[2])
+    plt.barh(plot_df['y'], plot_df['count'], color=PAL_DTRACE[2], linewidth=0)
 
     sns.despine(right=True, top=True)
 
@@ -216,12 +211,12 @@ def recapitulated_drug_targets_barplot_per_screen(lmm_drug, fdr=0.05):
 
     pal = dict(RS=PAL_DTRACE[0], v17=PAL_DTRACE[2])
 
-    sns.barplot('count', 'names', 'screen', data=plot_df, palette=pal, orient='h')
+    sns.barplot('count', 'names', 'screen', data=plot_df, palette=pal, orient='h', linewidth=0)
 
 
 def beta_histogram(lmm_drug):
     kde_kws = dict(cut=0, lw=1, zorder=1, alpha=.8)
-    hist_kws = dict(alpha=.4, zorder=1)
+    hist_kws = dict(alpha=.4, zorder=1, linewidth=0)
 
     label_order = ['All', 'Target', 'Target + Significant']
 
@@ -235,7 +230,7 @@ def beta_histogram(lmm_drug):
     plt.xlabel('Association beta')
     plt.ylabel('Density')
 
-    plt.legend(prop={'size': 6}, loc=2)
+    plt.legend(prop={'size': 6}, loc=2, frameon=False)
 
 
 def beta_corr_boxplot(betas_corr):
@@ -261,7 +256,7 @@ def beta_corr_boxplot(betas_corr):
     sns.despine(top=True, right=True)
     plt.axvline(0, lw=0.3, c=PAL_DTRACE[1], zorder=0)
 
-    plt.legend(loc='center left', bbox_to_anchor=(1.01, 0.5), prop={'size': 5})
+    plt.legend(loc='center left', bbox_to_anchor=(1.01, 0.5), prop={'size': 5}, frameon=False)
     plt.xlabel('Correlation of drug pairs association profiles')
     plt.ylabel('Drug pairs')
     plt.title('Drug association profiles')
@@ -318,10 +313,10 @@ def drug_aurc(lmm_drug, fdr=0.05, corr=0.25, label='target', rank_label='pval', 
     ax.set_xlabel('Association ranked by p-value')
     ax.set_ylabel('Recall')
 
-    ax.legend(loc=4)
+    ax.legend(loc=4, frameon=False)
 
     ax.set_title(title)
-    legend = ax.legend(loc=4, title=legend_title, prop={'size': legend_size})
+    legend = ax.legend(loc=4, title=legend_title, prop={'size': legend_size}, frameon=False)
     legend.get_title().set_fontsize('{}'.format(legend_size))
 
 
@@ -396,7 +391,7 @@ def drug_targets_count(lmm_drug, min_events=5, fdr=0.05):
     plt.xlabel('Number of drugs')
     plt.ylabel('')
 
-    plt.legend(prop={'size': 5})
+    plt.legend(prop={'size': 5}, frameon=False)
 
 
 def drug_betas_corr(lmm_drug):
@@ -514,7 +509,7 @@ def drug_beta_tsne(tsnes, hueby):
         g.map(plt.axhline, y=0, ls='-', lw=0.3, c=PAL_DTRACE[1], alpha=.2, zorder=0)
         g.map(plt.axvline, x=0, ls='-', lw=0.3, c=PAL_DTRACE[1], alpha=.2, zorder=0)
 
-        g.add_legend(title='Significant', prop=dict(size=4))
+        g.add_legend(title='Significant', prop=dict(size=4), frameon=False)
 
     elif hueby == 'pathway':
         ds = dtrace.get_drugsheet().dropna(subset=['Pathway'])
@@ -535,7 +530,7 @@ def drug_beta_tsne(tsnes, hueby):
         g.map(plt.axhline, y=0, ls='-', lw=0.3, c=PAL_DTRACE[1], alpha=.2, zorder=0)
         g.map(plt.axvline, x=0, ls='-', lw=0.3, c=PAL_DTRACE[1], alpha=.2, zorder=0)
 
-        g.add_legend(title='Drug type', prop=dict(size=6), fontsize=6)
+        g.add_legend(title='Drug type', prop=dict(size=6), fontsize=6, frameon=False)
 
     elif hueby == 'type':
         ds = dtrace.get_drugsheet().dropna(subset=['Drug Type'])
@@ -559,7 +554,7 @@ def drug_beta_tsne(tsnes, hueby):
         g.map(plt.axhline, y=0, ls='-', lw=0.3, c=PAL_DTRACE[1], alpha=.2, zorder=0)
         g.map(plt.axvline, x=0, ls='-', lw=0.3, c=PAL_DTRACE[1], alpha=.2, zorder=0)
 
-        g.add_legend(title='Drug type', prop=dict(size=6), fontsize=6)
+        g.add_legend(title='Drug type', prop=dict(size=6), fontsize=6, frameon=False)
 
     elif hueby == 'target':
         pal = {'No': PAL_DTRACE[2], 'Yes': PAL_DTRACE[0]}
@@ -573,7 +568,7 @@ def drug_beta_tsne(tsnes, hueby):
         g.map(plt.axhline, y=0, ls='-', lw=0.3, c=PAL_DTRACE[1], alpha=.2, zorder=0)
         g.map(plt.axvline, x=0, ls='-', lw=0.3, c=PAL_DTRACE[1], alpha=.2, zorder=0)
 
-        g.add_legend(title='Known target?', prop=dict(size=4))
+        g.add_legend(title='Known target?', prop=dict(size=4), frameon=False)
 
     elif hueby == 'replicates':
         rep_names = set(tsnes['rep'])
@@ -596,7 +591,7 @@ def drug_beta_tsne(tsnes, hueby):
         g.map(plt.axhline, y=0, ls='-', lw=0.3, c=PAL_DTRACE[1], alpha=.2, zorder=0)
         g.map(plt.axvline, x=0, ls='-', lw=0.3, c=PAL_DTRACE[1], alpha=.2, zorder=0)
 
-        g.add_legend(title='', prop=dict(size=4))
+        g.add_legend(title='', prop=dict(size=4), frameon=False)
 
     elif type(hueby) == list:
         sets = [i for l in hueby for i in l[1]]
@@ -622,7 +617,7 @@ def drug_beta_tsne(tsnes, hueby):
         g.map(plt.axhline, y=0, ls='-', lw=0.3, c=PAL_DTRACE[1], alpha=.2, zorder=0)
         g.map(plt.axvline, x=0, ls='-', lw=0.3, c=PAL_DTRACE[1], alpha=.2, zorder=0)
 
-        g.add_legend(title='', prop=dict(size=4), label_order=labels + ['NA'] + ['No info'])
+        g.add_legend(title='', prop=dict(size=4), label_order=labels + ['NA'] + ['No info'], frameon=False)
 
     g.set_titles('Screen = {col_name}')
 
@@ -732,6 +727,7 @@ if __name__ == '__main__':
 
     # - Count number of significant associations overall
     recapitulated_drug_targets_barplot_per_screen(lmm_drug)
+    plt.legend(frameon=False)
     plt.gcf().set_size_inches(2, 1)
     plt.savefig('reports/drug_associations_count_signif_per_screen.pdf', bbox_inches='tight')
     plt.close('all')

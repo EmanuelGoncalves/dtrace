@@ -8,7 +8,7 @@ import pandas as pd
 
 # - META DATA
 SAMPLESHEET_FILE = 'data/meta/samplesheet.csv'
-DRUGSHEET_FILE = 'data/meta/drug_samplesheet_june_2018.txt'
+DRUGSHEET_FILE = 'data/meta/drug_samplesheet_august_2018.txt'
 
 # - GENE LISTS
 HART_ESSENTIAL = 'data/gene_sets/curated_BAGEL_essential.csv'
@@ -20,6 +20,7 @@ CRISPR_LIB = 'data/meta/KY_Library_v1.0.csv'
 # - DATA
 # GROWTH RATE
 GROWTHRATE_FILE = 'data/gdsc/growth/growth_rate.csv'
+GROWTHRATE_FILE_RAW = 'data/gdsc/growth/growth_rates_screening_set_1536_180119.csv'
 
 # CRISPR
 CRISPR_GENE_FC_CORRECTED = 'data/crispr/CRISPRcleaned_logFCs.tsv'
@@ -57,6 +58,9 @@ MUTATION_BURDERN = 'data/mutation_burden.csv'
 # COPY-NUMBER
 COPYNUMBER = 'data/crispy_copy_number_gene_snp.csv'
 
+# - DRUG OWNERS
+DRUG_OWNERS = ['AZ', 'GDSC', 'MGH', 'NCI.Pommier', 'Nathaneal.Gray']
+
 # - ASSOCIATIONS
 LMM_ASSOCIATIONS = 'data/drug_lmm_regressions.csv'
 LMM_ASSOCIATIONS_ROBUST = 'data/drug_lmm_regressions_robust.csv'
@@ -73,6 +77,7 @@ def get_wes():
 
     return df
 
+
 def get_copynumber(round=True):
     df = pd.read_csv(COPYNUMBER, index_col=0)
 
@@ -81,6 +86,7 @@ def get_copynumber(round=True):
         df = df.astype(int)
 
     return df
+
 
 def get_ploidy():
     return pd.read_csv(PLOIDY, index_col=0)['PLOIDY']
@@ -177,7 +183,7 @@ def get_nonessential_genes():
 
 
 # - DATA-SETS FILTER FUNCTIONS
-def filter_drugresponse(d_response, min_events=3, min_meas=0.85, max_c=0.5):
+def filter_drugresponse(df, min_events=3, min_meas=0.85, max_c=0.5):
     """
     Filter Drug-response (ln IC50) data-set to consider only drugs with measurements across
     at least min_meas (deafult=0.85 (85%)) of the total cell lines measured and drugs have an IC50
@@ -189,11 +195,20 @@ def filter_drugresponse(d_response, min_events=3, min_meas=0.85, max_c=0.5):
     :param min_meas:
     :return:
     """
+    # Drug max screened concentration
     d_maxc = np.log(pd.read_csv(DRUG_RESPONSE_MAXC, index_col=[0, 1, 2]) * max_c)
 
-    df = d_response[d_response.count(1) > (d_response.shape[1] * min_meas)]
+    # Filter by mininum number of observations
+    df = df[df.count(1) > (df.shape[1] * min_meas)]
 
+    # Filter by max screened concentration
     df = df[[sum(df.loc[i] < d_maxc.loc[i, 'max_conc_micromolar']) >= min_events for i in df.index]]
+
+    # Drug samplesheet
+    ds = get_drugsheet()
+    ds = ds[ds['Owner'].isin(DRUG_OWNERS)]
+
+    df = df[[i[0] in ds.index for i in df.index]]
 
     return df
 

@@ -26,7 +26,7 @@ def count_signif_associations(lmm_drug_robust, fdr=0.05):
     plot_df = plot_df.assign(y=range(plot_df.shape[0]))
 
     # Plot
-    plt.barh(plot_df['y'], plot_df['count'], color=PAL_DTRACE[2])
+    plt.barh(plot_df['y'], plot_df['count'], color=PAL_DTRACE[2], linewidth=0)
 
     sns.despine(right=True, top=True)
 
@@ -59,7 +59,7 @@ def genomic_histogram(mobems, ntop=40):
     plt.xlabel('Number of occurrences')
     plt.ylabel('')
 
-    plt.legend()
+    plt.legend(frameon=False)
     sns.despine()
 
     plt.gcf().set_size_inches(2, .15 * ntop)
@@ -109,7 +109,7 @@ def top_robust_features(lmm_drug_robust, ntop=40):
 
     plt.gcf().set_size_inches(2. * axs.shape[0], ntop * .12)
 
-    plt.legend(title='Genetic event', loc='center left', bbox_to_anchor=(1, 0.5))
+    plt.legend(title='Genetic event', loc='center left', bbox_to_anchor=(1, 0.5), frameon=False)
 
 
 if __name__ == '__main__':

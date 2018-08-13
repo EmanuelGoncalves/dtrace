@@ -7,7 +7,7 @@ import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 import matplotlib.ticker as plticker
-from sklearn.linear_model import ElasticNetCV
+from sklearn.linear_model import LinearRegression
 from sklearn.model_selection import ShuffleSplit
 from dtrace.associations import DRUG_INFO_COLUMNS
 from dtrace.analysis import PAL_DTRACE, MidpointNormalize
@@ -38,21 +38,21 @@ def pred_scatter(pred):
 
     g = sns.PairGrid(plot_df[order], despine=False)
 
-    g = g.map_diag(plt.hist, color=PAL_DTRACE[2])
+    g = g.map_diag(plt.hist, color=PAL_DTRACE[2], linewidth=0)
     g = g.map_upper(plt.scatter, color=PAL_DTRACE[2], s=3, lw=0., zorder=2, alpha=.9)
     g = g.map_lower(sns.kdeplot, color=PAL_DTRACE[2], n_levels=30, cmap=cmap, linewidths=.3, zorder=3)
 
     plt.suptitle('Drug response prediction - R2 score', y=1.05)
 
 
-def top_predicted_drugs(pred, ntop=20, xoffset=0.02):
+def top_predicted_drugs(pred, ntop=20, xoffset=0.01):
     plot_df = pd.pivot_table(pred, index=DRUG_INFO_COLUMNS, columns='covariate', values='r2')
-    order = list(plot_df.median().sort_values(ascending=False).index)
+    order = ['Growth', 'Type', 'Ploidy', 'Burden']
 
     # Plot
     cmap = sns.light_palette(PAL_DTRACE[2], as_cmap=True)
 
-    f, axs = plt.subplots(1, plot_df.shape[1], sharex=True, sharey=False)
+    f, axs = plt.subplots(1, plot_df.shape[1], sharex=True, sharey=False, gridspec_kw=dict(wspace=.1))
     for i, covariate in enumerate(order):
         ax = axs[i]
 
@@ -65,7 +65,7 @@ def top_predicted_drugs(pred, ntop=20, xoffset=0.02):
         ax.scatter(df[covariate], df['y'], c=df[covariate], cmap=cmap)
 
         for fc, y, n in df[[covariate, 'y', 'DRUG_NAME']].values:
-            ax.text(fc - xoffset, y, n, va='center', fontsize=5, zorder=10, color='gray', ha='right')
+            ax.text(fc - xoffset, y, n, va='center', fontsize=4, zorder=10, color='gray', ha='right')
 
         ax.set_xlabel('Drug R2 (median)')
         ax.set_ylabel('')
@@ -74,9 +74,9 @@ def top_predicted_drugs(pred, ntop=20, xoffset=0.02):
 
         sns.despine(left=True, ax=ax)
 
-    plt.gcf().set_size_inches(2. * axs.shape[0], 20 * .1)
+    plt.gcf().set_size_inches(2.5 * axs.shape[0], 20 * .1)
 
-    plt.suptitle('ElasticNet prediction of drug response', y=1.05, fontsize=10)
+    plt.suptitle('Linear regression of drug response', y=1.05, fontsize=10)
 
 
 def predict_drug_response(drespo, covariates, discrete_covariates=['Type'], n_splits=3, test_size=.2):
@@ -101,7 +101,7 @@ def predict_drug_response(drespo, covariates, discrete_covariates=['Type'], n_sp
                     x = pd.get_dummies(x)
 
                 # Build + train model
-                lm = ElasticNetCV().fit(x.iloc[train_idx], y.iloc[train_idx])
+                lm = LinearRegression().fit(x.iloc[train_idx], y.iloc[train_idx])
 
                 # Evalutate model
                 r2 = lm.score(x.iloc[test_idx], y.iloc[test_idx])

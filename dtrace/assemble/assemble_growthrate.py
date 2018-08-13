@@ -25,7 +25,7 @@ def assemble_growth_rates(seed_intensities_file):
 
 if __name__ == '__main__':
     # Import/assemble growth rates
-    grate = assemble_growth_rates('data/gdsc/growth/growth_rates_screening_set_1536_180119.csv')
+    grate = assemble_growth_rates(dtrace.GROWTHRATE_FILE_RAW)
 
     # Export
     grate.to_csv(dtrace.GROWTHRATE_FILE)

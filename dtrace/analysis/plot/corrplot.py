@@ -23,7 +23,7 @@ def plot_corrplot(
         annot_kws = dict(stat='R')
 
     if marginal_kws is None:
-        marginal_kws = dict(kde=False)
+        marginal_kws = dict(kde=False, hist_kws=dict(linewidth=0))
 
     # - Joint and Marginal plot
     g = sns.jointplot(
@@ -79,7 +79,7 @@ def plot_corrplot_discrete(x, y, z, plot_df, scatter_kws=None, line_kws=None, le
         x=x, y=y, data=plot_df[plot_df[z] == 1], color=pal[1], truncate=True, fit_reg=False, scatter_kws=scatter_kws, ax=g.ax_joint
     )
 
-    g.annotate(pearsonr, template='R={val:.2g}, p={p:.1e}', loc=4)
+    g.annotate(pearsonr, template='R={val:.2g}, p={p:.1e}', loc=4, frameon=False)
 
     g.ax_joint.axhline(0, ls='-', lw=0.3, c=pal[0], alpha=.2)
     g.ax_joint.axvline(0, ls='-', lw=0.3, c=pal[0], alpha=.2)
@@ -87,7 +87,7 @@ def plot_corrplot_discrete(x, y, z, plot_df, scatter_kws=None, line_kws=None, le
     g.set_axis_labels('{} (log2 FC)'.format(x), '{} (ln IC50)'.format(y))
 
     handles = [mpatches.Circle([.0, .0], .25, facecolor=c, label='Yes' if t else 'No') for t, c in pal.items()]
-    g.ax_marg_y.legend(handles=handles, title=legend_title, loc='center left', bbox_to_anchor=(1, 0.5))
+    g.ax_marg_y.legend(handles=handles, title=legend_title, loc='center left', bbox_to_anchor=(1, 0.5), frameon=False)
 
     plt.suptitle(z, y=1.05, fontsize=8)
 

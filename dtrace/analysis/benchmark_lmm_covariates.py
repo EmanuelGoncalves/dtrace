@@ -5,7 +5,6 @@ import dtrace
 import numpy as np
 import pandas as pd
 import seaborn as sns
-from scipy.stats import pearsonr
 import matplotlib.pyplot as plt
 from dtrace.analysis import PAL_DTRACE
 from dtrace.associations.lmm_drug import lmm_association

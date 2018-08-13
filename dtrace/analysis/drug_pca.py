@@ -5,6 +5,7 @@ import dtrace
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
+from scipy.stats import pearsonr
 from sklearn.decomposition import PCA
 from dtrace.analysis import PAL_DTRACE
 
@@ -14,19 +15,23 @@ def histogram_drug(drespo):
 
     pal = dict(v17=PAL_DTRACE[2], RS=PAL_DTRACE[0])
 
+    hist_kws = dict(alpha=1., linewidth=0)
+
     for s in pal:
-        sns.distplot(df[df['VERSION'] == s]['count'], color=pal[s], kde=False, bins=15, label=s, hist_kws={'alpha': 1.})
+        sns.distplot(df[df['VERSION'] == s]['count'], color=pal[s], kde=False, bins=15, label=s, hist_kws=hist_kws)
         sns.despine(top=True, right=True)
 
     plt.xlabel('Number of IC50s measurements')
     plt.ylabel('Number of drugs')
-    plt.legend()
+    plt.legend(frameon=False)
 
 
 def histogram_sample(drespo):
     df = drespo.count(0).rename('count').reset_index()
 
-    sns.distplot(df['count'], color=PAL_DTRACE[2], kde=False, bins=20, hist_kws={'alpha': 1.})
+    hist_kws = dict(alpha=1., linewidth=0)
+
+    sns.distplot(df['count'], color=PAL_DTRACE[2], kde=False, bins=20, hist_kws=hist_kws)
     sns.despine(top=True, right=True)
 
     plt.xlabel('Number of IC50s')
@@ -68,7 +73,7 @@ def pairplot_pca_drug(pca, hue='VERSION'):
     pal = dict(v17=PAL_DTRACE[2], RS=PAL_DTRACE[0])
 
     g = sns.PairGrid(df, vars=['PC1', 'PC2', 'PC3'], despine=False, size=1, hue=hue, palette=None if hue is None else pal)
-    g = g.map_diag(plt.hist, color=PAL_DTRACE[2] if hue is None else None)
+    g = g.map_diag(plt.hist, color=PAL_DTRACE[2] if hue is None else None, linewidth=0, alpha=.5)
     g = g.map_offdiag(plt.scatter, s=3, edgecolor='white', lw=.1, alpha=.5, color=PAL_DTRACE[2] if hue is None else None)
     g = g.add_legend()
 
@@ -78,18 +83,10 @@ def pairplot_pca_drug(pca, hue='VERSION'):
 def pairplot_pca_samples(pca, growth):
     df = pd.concat([pca['column']['pcs'], growth], axis=1).dropna().sort_values('growth_rate_median')
 
-    cmap = sns.light_palette(PAL_DTRACE[2], as_cmap=True)
-
     g = sns.PairGrid(df, vars=['PC1', 'PC2', 'PC3'], despine=False, size=1)
-    g = g.map_diag(plt.hist, color=PAL_DTRACE[2])
+    g = g.map_diag(plt.hist, color=PAL_DTRACE[2], linewidth=0, alpha=.5)
 
-    g = g.map_offdiag(plt.scatter, s=3, edgecolor='white', lw=.1, color=df['growth_rate_median'], cmap=cmap, alpha=.5)
-
-    cax = g.fig.add_axes([.98, .4, .01, .2])
-    cbar = plt.colorbar(cax=cax)
-
-    cbar.ax.tick_params(axis='y', which='major', pad=1)
-    cbar.ax.set_ylabel('Growth rate', rotation=270, labelpad=10)
+    g = g.map_offdiag(plt.scatter, s=3, edgecolor='white', lw=.1, color=PAL_DTRACE[2])
 
     _pairplot_fix_labels(g, pca, by='column')
 
@@ -109,7 +106,7 @@ def pairplot_pca_samples_cancertype(pca, min_cell_lines=20):
 
     # Plot
     g = sns.PairGrid(df, vars=['PC1', 'PC2', 'PC3'], despine=False, size=1, hue='Cancer Type', palette=pal, hue_order=order)
-    g = g.map_diag(plt.hist)
+    g = g.map_diag(plt.hist, linewidth=0, alpha=.5)
     g = g.map_offdiag(plt.scatter, s=4, edgecolor='white', lw=.1, alpha=.8)
     g = g.add_legend()
 
@@ -119,7 +116,7 @@ def pairplot_pca_samples_cancertype(pca, min_cell_lines=20):
 def corrplot_pcs_growth(pca, growth, pc):
     df = pd.concat([pca['column']['pcs'], growth], axis=1).dropna().sort_values('growth_rate_median')
 
-    marginal_kws, annot_kws = dict(kde=False), dict(stat='R')
+    marginal_kws, annot_kws = dict(kde=False, hist_kws={'linewidth': 0}), dict(stat='R')
 
     scatter_kws, line_kws = dict(edgecolor='w', lw=.3, s=10, alpha=.6), dict(lw=1., color=PAL_DTRACE[0], alpha=1.)
     joint_kws = dict(lowess=True, scatter_kws=scatter_kws, line_kws=line_kws)
@@ -128,6 +125,8 @@ def corrplot_pcs_growth(pca, growth, pc):
         pc, 'growth_rate_median', data=df, kind='reg', space=0, color=PAL_DTRACE[2],
         marginal_kws=marginal_kws, annot_kws=annot_kws, joint_kws=joint_kws
     )
+
+    g.annotate(pearsonr, template='R={val:.2g}, p={p:.1e}', frameon=False)
 
     g.ax_joint.axvline(0, ls='-', lw=0.1, c=PAL_DTRACE[1], zorder=0)
 
@@ -139,7 +138,7 @@ def growth_correlation_histogram(g_corr):
     pal = dict(v17=PAL_DTRACE[2], RS=PAL_DTRACE[0])
 
     for i, s in enumerate(pal):
-        hist_kws = dict(alpha=.4, zorder=i+1)
+        hist_kws = dict(alpha=.4, zorder=i+1, linewidth=0)
         kde_kws = dict(cut=0, lw=1, zorder=i+1, alpha=.8)
 
         sns.distplot(g_corr[g_corr['VERSION'] == s]['corr'], color=pal[s], kde_kws=kde_kws, hist_kws=hist_kws, bins=15, label=s)
@@ -151,11 +150,11 @@ def growth_correlation_histogram(g_corr):
     plt.xlabel('Drug correlation with growth rate\n(Pearson\'s R)')
     plt.ylabel('Density')
 
-    plt.legend(prop={'size': 6})
+    plt.legend(prop={'size': 6}, frameon=False)
 
 
 def growth_correlation_top_drugs(g_corr):
-    sns.barplot('corr', 'DRUG_NAME', data=g_corr.head(20), color=PAL_DTRACE[2])
+    sns.barplot('corr', 'DRUG_NAME', data=g_corr.head(20), color=PAL_DTRACE[2], linewidth=0)
     sns.despine(top=True, right=True)
 
     plt.axvline(0, c=PAL_DTRACE[1], lw=.1, ls='-', zorder=0)

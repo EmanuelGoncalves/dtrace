@@ -2,7 +2,6 @@
 # Copyright (C) 2018 Emanuel Goncalves
 
 import dtrace
-import numpy as np
 import pandas as pd
 from dtrace.associations import DRUG_INFO_COLUMNS
 
@@ -23,7 +22,7 @@ if __name__ == '__main__':
     d_merged = pd.concat([d_v17_matrix, d_vrs_matrix], axis=0)
     d_merged.to_csv(dtrace.DRUG_RESPONSE_FILE)
 
-    # -
+    # - Export drug max concentration
     drug_maxconcentration = pd.concat([
         d_vrs.groupby(DRUG_INFO_COLUMNS)['max_conc_micromolar'].min(),
         d_v17.groupby(DRUG_INFO_COLUMNS)['max_conc_micromolar'].min()

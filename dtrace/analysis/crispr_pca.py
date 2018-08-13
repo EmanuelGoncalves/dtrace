@@ -11,7 +11,7 @@ import dtrace.analysis.drug_pca as f_pca
 
 
 def growth_correlation_histogram(c_corr):
-    hist_kws = dict(alpha=.4)
+    hist_kws = dict(linewidth=0, alpha=.5)
     kde_kws = dict(cut=0, lw=1, alpha=.8)
 
     sns.distplot(c_corr['corr'], color=PAL_DTRACE[2], kde_kws=kde_kws, hist_kws=hist_kws, bins=15)
