@@ -229,7 +229,7 @@ def recapitulated_drug_targets_barplot_per_screen(lmm_drug, fdr=0.05):
 
     pal = dict(RS=PAL_DTRACE[0], v17=PAL_DTRACE[2])
 
-    sns.barplot('count', 'names', 'screen', data=plot_df, palette=pal, orient='h', linewidth=0)
+    sns.barplot('count', 'names', 'screen', data=plot_df, palette=pal, orient='h', linewidth=0, saturation=1)
 
 
 def beta_histogram(lmm_drug):
@@ -655,51 +655,49 @@ if __name__ == '__main__':
     # - Drug betas tSNE
     tsnes = drug_betas_tsne(lmm_drug, perplexity=15, learning_rate=250, n_iter=2000)
     tsnes.to_csv(dtrace.DRUG_BETAS_TSNE, index=False)
-    # tsnes = pd.read_csv(dtrace.DRUG_BETAS_TSNE)
-    # tsnes = tsnes.assign(targets=tsnes['targets'].fillna(''))
 
     # - Drug betas TSNE
     # Has drug significant association
     drug_beta_tsne(tsnes, hueby='signif')
     plt.suptitle('tSNE analysis of drug associations', y=1.05)
-    plt.savefig('reports/drug_associations_beta_tsne_signif.pdf', bbox_inches='tight')
+    plt.savefig('reports/drug_associations_beta_tsne_signif.pdf', bbox_inches='tight', transparent=True)
     plt.close('all')
 
     # Has drug targets annotation
     drug_beta_tsne(tsnes, hueby='target')
     plt.suptitle('tSNE analysis of drug associations', y=1.05)
-    plt.savefig('reports/drug_associations_beta_tsne.pdf', bbox_inches='tight')
+    plt.savefig('reports/drug_associations_beta_tsne.pdf', bbox_inches='tight', transparent=True)
     plt.close('all')
 
     # Drug type
     drug_beta_tsne(tsnes, hueby='type')
     plt.suptitle('tSNE analysis of drug associations', y=1.05)
-    plt.savefig('reports/drug_associations_beta_tsne_type.pdf', bbox_inches='tight')
+    plt.savefig('reports/drug_associations_beta_tsne_type.pdf', bbox_inches='tight', transparent=True)
     plt.close('all')
 
     # Drug pathway
     drug_beta_tsne(tsnes, hueby='pathway')
     plt.suptitle('tSNE analysis of drug associations', y=1.05)
-    plt.savefig('reports/drug_associations_beta_tsne_pathway.pdf', bbox_inches='tight')
+    plt.savefig('reports/drug_associations_beta_tsne_pathway.pdf', bbox_inches='tight', transparent=True)
     plt.close('all')
 
     # Drug replicates within screen
     drug_beta_tsne(tsnes, hueby='replicates')
     plt.suptitle('tSNE analysis of drug associations', y=1.05)
-    plt.savefig('reports/drug_associations_beta_tsne_replicates.pdf', bbox_inches='tight')
+    plt.savefig('reports/drug_associations_beta_tsne_replicates.pdf', bbox_inches='tight', transparent=True)
     plt.close('all')
 
     # Drug targets
     drug_beta_tsne(tsnes, hueby=DRUG_TARGETS_HUE)
     plt.suptitle('tSNE analysis of drug associations', y=1.05)
-    plt.savefig('reports/drug_associations_beta_tsne_targets.pdf', bbox_inches='tight')
+    plt.savefig('reports/drug_associations_beta_tsne_targets.pdf', bbox_inches='tight', transparent=True)
     plt.close('all')
 
     # - Drug targets countplot
     drug_targets_count(lmm_drug, min_events=5, fdr=0.05)
     plt.title('Drug targets histogram')
     plt.gcf().set_size_inches(2, 6)
-    plt.savefig('reports/drug_targets_count.pdf', bbox_inches='tight')
+    plt.savefig('reports/drug_targets_count.pdf', bbox_inches='tight', transparent=True)
     plt.close('all')
 
     # - Drug associations manhattan plot
@@ -711,48 +709,48 @@ if __name__ == '__main__':
     # - Top drug associations
     top_associations_barplot(lmm_drug)
     plt.gcf().set_size_inches(8, 6)
-    plt.savefig('reports/drug_associations_barplot.pdf', bbox_inches='tight')
+    plt.savefig('reports/drug_associations_barplot.pdf', bbox_inches='tight', transparent=True)
     plt.close('all')
 
     # - Count number of significant associations per drug
     plot_count_associations(lmm_drug, min_events=3)
     plt.gcf().set_size_inches(2, 4)
-    plt.savefig('reports/drug_associations_count.pdf', bbox_inches='tight')
+    plt.savefig('reports/drug_associations_count.pdf', bbox_inches='tight', transparent=True)
     plt.close('all')
 
     # - Count number of significant associations overall
     recapitulated_drug_targets_barplot(lmm_drug, 0.05)
     plt.gcf().set_size_inches(2, 1)
-    plt.savefig('reports/drug_associations_count_signif.pdf', bbox_inches='tight')
+    plt.savefig('reports/drug_associations_count_signif.pdf', bbox_inches='tight', transparent=True)
     plt.close('all')
 
     # - Count number of significant associations overall
     recapitulated_drug_targets_barplot_per_screen(lmm_drug)
     plt.legend(frameon=False)
     plt.gcf().set_size_inches(2, 1)
-    plt.savefig('reports/drug_associations_count_signif_per_screen.pdf', bbox_inches='tight')
+    plt.savefig('reports/drug_associations_count_signif_per_screen.pdf', bbox_inches='tight', transparent=True)
     plt.close('all')
 
     # - Associations beta histogram
     beta_histogram(lmm_drug)
     plt.gcf().set_size_inches(2, 2)
-    plt.savefig('reports/drug_associations_beta_histogram.pdf', bbox_inches='tight')
+    plt.savefig('reports/drug_associations_beta_histogram.pdf', bbox_inches='tight', transparent=True)
     plt.close('all')
 
     # - Drug betas correlation
     beta_corr_boxplot(betas_corr)
     plt.gcf().set_size_inches(2, 1)
-    plt.savefig('reports/drug_associations_beta_corr_boxplot.pdf', bbox_inches='tight')
+    plt.savefig('reports/drug_associations_beta_corr_boxplot.pdf', bbox_inches='tight', transparent=True)
     plt.close('all')
 
     # - Drug target and PPI annotation AURCs
     drug_aurc(lmm_drug, title='Drug ~ Gene associations\nnetwork interactions enrichment')
     plt.gcf().set_size_inches(2, 2)
-    plt.savefig('reports/drug_associations_aurc.pdf', bbox_inches='tight')
+    plt.savefig('reports/drug_associations_aurc.pdf', bbox_inches='tight', transparent=True)
     plt.close('all')
 
     # - Drug kinobeads boxplot
     boxplot_kinobead(lmm_drug)
     plt.gcf().set_size_inches(1, 2)
-    plt.savefig('reports/drug_associations_kinobeads.pdf', bbox_inches='tight')
+    plt.savefig('reports/drug_associations_kinobeads.pdf', bbox_inches='tight', transparent=True)
     plt.close('all')

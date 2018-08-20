@@ -43,7 +43,7 @@ def histogram_sample(drespo):
 
 
 def perform_pca(drespo, n_components=10):
-    df = drespo.fillna(drespo.mean())
+    df = drespo.T.fillna(drespo.T.mean()).T
 
     pca = dict()
     for by in ['row', 'column']:
@@ -54,7 +54,7 @@ def perform_pca(drespo, n_components=10):
 
         df = df.subtract(df.mean())
 
-        pcs_labels = list(map(lambda v: 'PC{}'.format(v + 1), range(n_components)))
+        pcs_labels = list(map(lambda v: f'PC{v + 1}', range(n_components)))
 
         pca[by]['pca'] = PCA(n_components=n_components).fit(df)
         pca[by]['vex'] = pd.Series(pca[by]['pca'].explained_variance_ratio_, index=pcs_labels)
@@ -120,7 +120,7 @@ def pairplot_pca_samples_cancertype(pca, min_cell_lines=20):
 
 
 def corrplot_pcs_growth(pca, growth, pc):
-    df = pd.concat([pca['column']['pcs'], growth], axis=1).dropna().sort_values('growth_rate_median')
+    df = pd.concat([pca['column']['pcs'], growth], axis=1, sort=False).dropna().sort_values('growth_rate_median')
 
     marginal_kws, annot_kws = dict(kde=False, hist_kws={'linewidth': 0}), dict(stat='R')
 
@@ -178,7 +178,7 @@ def drug_tsne(drespo, perplexity=15, learning_rate=250, n_iter=2000):
     drugs_screen = {v: {d for d in drugs if d[2] == v} for v in ['v17', 'RS']}
 
     # Imput NaNs with mean
-    df = drespo.fillna(drespo.mean())
+    df = drespo.T.fillna(drespo.T.mean()).T
 
     # TSNE
     tsnes = []
@@ -208,7 +208,7 @@ def drug_tsne(drespo, perplexity=15, learning_rate=250, n_iter=2000):
 
 
 def drug_response_heatmap(drespo):
-    plot_df = drespo.fillna(drespo.mean())
+    plot_df = drespo.T.fillna(drespo.T.mean()).T
 
     row_colors = pd.Series({i: PAL_DTRACE[0] if i[2] == 'RS' else PAL_DTRACE[1] for i in plot_df.index}).rename('Screen')
 
@@ -242,7 +242,7 @@ if __name__ == '__main__':
     # - Growth ~ Drug-response correlation
     g_corr = drespo[growth.index].T.corrwith(growth).sort_values().rename('corr').reset_index()
 
-    # -
+    # - Drug responses IC50s heatmap
     drug_response_heatmap(drespo)
     plt.gcf().set_size_inches(4, 4)
     plt.savefig('reports/drug_response_heatmap.pdf', bbox_inches='tight', transparent=True)
@@ -285,7 +285,7 @@ if __name__ == '__main__':
     plt.close('all')
 
     # - Growth ~ PC1 corrplot
-    corrplot_pcs_growth(pca, growth, 'PC2')
+    corrplot_pcs_growth(pca, growth, 'PC1')
     plt.gcf().set_size_inches(2., 2.)
     plt.savefig('reports/pca_growth_corrplot.pdf', bbox_inches='tight', transparent=True)
     plt.close('all')

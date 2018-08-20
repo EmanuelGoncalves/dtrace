@@ -48,5 +48,5 @@ if __name__ == '__main__':
     sns.despine()
 
     plt.gcf().set_size_inches(1.5, 2.5)
-    plt.savefig('reports/drug_not_tested_barplot.pdf', bbox_inches='tight')
+    plt.savefig('reports/drug_not_tested_barplot.pdf', bbox_inches='tight', transparent=True)
     plt.close('all')

@@ -102,103 +102,38 @@ if __name__ == '__main__':
     ppi = ppi_corr(ppi, crispr_logfc)
 
     # - Top associations
-    lmm_drug.sort_values('fdr')
-
-    lmm_drug[lmm_drug['DRUG_NAME'] == 'MCL1_1284'].sort_values(['fdr', 'pval']).head(60)
-
-    idx, cor_thres, norder = 934059, 0.3, 3
-
-    # -
-    d = 'MCL1_1284'
-
-    plot_df = pd.concat([
-        crispr_logfc.loc['MCL1', samples],
-        crispr_logfc.loc['MARCH5', samples],
-        drespo.loc[(d_id, d_name, d_screen), samples].rename('drug')
-    ], axis=1).dropna()
-    plot_df = plot_df.assign(s=(1 - ECDF(plot_df['drug'])(plot_df['drug'])) * 10)
-
-    plt.scatter(plot_df['MCL1'], plot_df['MARCH5'], s=plot_df['s'], color=PAL_DTRACE[2])
-    plt.gcf().set_size_inches(2., 2.)
-    plt.savefig('reports/mcl_scatter.pdf', bbox_inches='tight')
-    plt.close('all')
-
-    #
-    d_gene = 'MARCH5'
-    d_id, d_name, d_screen = 2125, 'Mcl1_7350', 'RS'
-
-    for d_id, d_name, d_screen in lmm_drug[lmm_drug['GeneSymbol'] == 'MCL1'].sort_values('fdr').head(5)[DRUG_INFO_COLUMNS].values:
-        name = '{} [{}, {}]'.format(d_name, d_id, d_screen)
-
-        plot_df = pd.concat([
-            crispr_logfc.loc[d_gene].rename('crispr'), drespo.loc[(d_id, d_name, d_screen)].rename('drug')
-        ], axis=1).dropna().sort_values('drug')
-
-        plot_corrplot('crispr', 'drug', plot_df, add_hline=True, lowess=False)
-        plt.axhline(np.log(d_maxc.loc[(d_id, d_name, d_screen), 'max_conc_micromolar']), lw=.3, color=PAL_DTRACE[2], ls='--')
-
-        plt.xlabel(d_gene)
-        plt.ylabel(name)
-
-        plt.gcf().set_size_inches(2., 2.)
-        plt.savefig('reports/{}_corrplot_{}.pdf'.format(d_gene, name), bbox_inches='tight')
-        plt.close('all')
-
-    #
-    plot_df = pd.concat([
-        crispr_logfc.loc['MCL1'], crispr_logfc.loc['MARCH5']
-    ], axis=1).dropna()
-
-    plot_corrplot('MCL1', 'DBR1', plot_df, add_hline=True, lowess=False)
-
-    plt.gcf().set_size_inches(2., 2.)
-    plt.savefig('reports/corrplot_MCL1_MARCH5.pdf'.format(d_gene, name), bbox_inches='tight')
-    plt.close('all')
-
-    #
-    plot_df = crispr_logfc.T.corrwith(crispr_logfc.loc['MCL1']).sort_values(ascending=False)
-    plot_df = plot_df.head(10).rename('r').reset_index()
-
-    sns.barplot('r', 'GeneSymbol', data=plot_df, color=PAL_DTRACE[2])
-    plt.gcf().set_size_inches(1, 2)
-    plt.savefig('reports/MCL1_barplot.pdf'.format(d_gene, name), bbox_inches='tight')
-    plt.close('all')
-
     # - Top correlation examples
     indices = [
-        (934059, 0.2, 1),
-        (1048516, 0.3, 2),
-        (134251, 0.3, 2),
-        (232252, 0.3, 2),
-        (1020056, 0.4, 2),
-        (1502618, .4, 2),
-        (21812, 0.3, 2),
-        (1406940, 0.3, 2),
-        (1334186, 0.3, 2),
-        (289994, 0.3, 2),
-        (850144, 0.3, 2),
-        (777907, 0.3, 2),
-        (229423, 0.3, 2)
+        dict(d_name='MCL1_1284', g_name='MCL1', corr_thres=0.2, n_neighbors=1),
+        dict(d_name='Nutlin-3a (-)', g_name='MDM4', corr_thres=0.4, n_neighbors=2),
+        dict(d_name='Sapatinib', g_name='EGFR', corr_thres=0.3, n_neighbors=2),
+        dict(d_name='Rigosertib', g_name='BUB1B', corr_thres=0.3, n_neighbors=2),
+        dict(d_name='Volasertib', g_name='BUB1B', corr_thres=0.3, n_neighbors=2),
+        dict(d_name='Vinblastine', g_name='BUB1B', corr_thres=0.3, n_neighbors=2),
     ]
 
-    for idx, cor_thres, norder in indices:
-        d_id, d_name, d_screen, d_gene = lmm_drug.loc[idx, ['DRUG_ID_lib', 'DRUG_NAME', 'VERSION', 'GeneSymbol']].values
-        name = 'Drug={}, Gene={} [{}, {}]'.format(d_name, d_gene, d_id, d_screen)
+    for assoc in indices:
+        idx = lmm_drug.query(f"DRUG_NAME == '{assoc['d_name']}' & GeneSymbol == '{assoc['g_name']}'").index[0]
 
-        # Drug ~ CRISPR correlation
-        x, y = '{}'.format(d_gene), '{}'.format(d_name)
+        d_id, d_screen = lmm_drug.loc[idx, ['DRUG_ID_lib', 'VERSION']].values
+        name = f"Drug={assoc['d_name']}, Gene={assoc['g_name']} [{d_id}, {d_screen}]"
+
+        # Data-frame
+        x, y = f"{assoc['g_name']}", f"{assoc['d_name']}"
 
         plot_df = pd.concat([
-            crispr_logfc.loc[d_gene].rename(x), drespo.loc[(d_id, d_name, d_screen)].rename(y)
-        ], axis=1).dropna().sort_values(x)
+            crispr_logfc.loc[assoc['g_name']].rename(x), drespo.loc[(d_id, assoc['d_name'], d_screen)].rename(y)
+        ], axis=1, sort=False).dropna().sort_values(x)
 
+        # Plot
         plot_corrplot(x, y, plot_df, add_hline=True, lowess=False)
-        plt.axhline(np.log(d_maxc.loc[(d_id, d_name, d_screen), 'max_conc_micromolar']), lw=.3, color=PAL_DTRACE[2], ls='--')
+
+        plt.axhline(np.log(d_maxc.loc[(d_id, assoc['d_name'], d_screen), 'max_conc_micromolar']), lw=.3, color=PAL_DTRACE[2], ls=':', zorder=0)
 
         plt.gcf().set_size_inches(2., 2.)
-        plt.savefig('reports/lmm_association_corrplot_{}.pdf'.format(name), bbox_inches='tight')
+        plt.savefig(f'reports/lmm_association_corrplot_{name}.pdf', bbox_inches='tight', transparent=True)
         plt.close('all')
 
         # Drug network
-        graph = plot_ppi(d_id, lmm_drug, corr_thres=cor_thres, norder=norder)
-        graph.write_pdf('reports/lmm_association_ppi_{}.pdf'.format(name))
+        graph = plot_ppi(d_id, lmm_drug, corr_thres=assoc['corr_thres'], norder=assoc['n_neighbors'])
+        graph.write_pdf(f'reports/lmm_association_ppi_{name}.pdf')

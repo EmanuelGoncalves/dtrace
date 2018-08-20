@@ -129,18 +129,18 @@ if __name__ == '__main__':
 
     # - Distribution of genomic events
     genomic_histogram(mobems, ntop=40)
-    plt.savefig('reports/lmm_robust_mobems_countplot.pdf', bbox_inches='tight')
+    plt.savefig('reports/lmm_robust_mobems_countplot.pdf', bbox_inches='tight', transparent=True)
     plt.close('all')
 
     # - Count number of significant associations overall
     count_signif_associations(lmm_drug_robust)
     plt.gcf().set_size_inches(2, 1)
-    plt.savefig('reports/robust_count_signif.pdf', bbox_inches='tight')
+    plt.savefig('reports/lmm_robust_count_signif.pdf', bbox_inches='tight', transparent=True)
     plt.close('all')
 
     # - Top associatios
     top_robust_features(lmm_drug_robust)
-    plt.savefig('reports/lmm_robust_top_associations.pdf', bbox_inches='tight', dpi=600)
+    plt.savefig('reports/lmm_robust_top_associations.pdf', bbox_inches='tight', transparent=True)
     plt.close('all')
 
     # - Strongest significant association per drug
@@ -148,7 +148,7 @@ if __name__ == '__main__':
     associations = associations.sort_values('fdr_crispr').groupby(DRUG_INFO_COLUMNS).head(1)
 
     # - Plot robust association
-    indices = [75293, 29689, 11943, 70709, 22504, 481, 68343, 69599]
+    indices = [8792, 76203, 53191, 53663, 43469, 22022]
 
     for idx in indices:
         columns = ['DRUG_ID_lib', 'DRUG_NAME', 'VERSION', 'GeneSymbol', 'Genetic']
@@ -167,5 +167,5 @@ if __name__ == '__main__':
         g.ax_joint.axhline(np.log(d_maxc.loc[tuple(association[:3]), 'max_conc_micromolar']), lw=.1, color=PAL_DTRACE[2], ls='--')
 
         plt.gcf().set_size_inches(2, 2)
-        plt.savefig('reports/lmm_robust_{}.pdf'.format(name), bbox_inches='tight')
+        plt.savefig(f'reports/lmm_robust_{name}.pdf', bbox_inches='tight', transparent=True)
         plt.close('all')
