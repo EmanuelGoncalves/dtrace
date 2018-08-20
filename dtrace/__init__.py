@@ -183,7 +183,7 @@ def get_nonessential_genes():
 
 
 # - DATA-SETS FILTER FUNCTIONS
-def filter_drugresponse(df, min_events=3, min_meas=0.85, max_c=0.5):
+def filter_drugresponse(df, min_events=3, min_meas=0.85, max_c=0.5, filter_max_concentration=True, filter_owner=True):
     """
     Filter Drug-response (ln IC50) data-set to consider only drugs with measurements across
     at least min_meas (deafult=0.85 (85%)) of the total cell lines measured and drugs have an IC50
@@ -202,13 +202,15 @@ def filter_drugresponse(df, min_events=3, min_meas=0.85, max_c=0.5):
     df = df[df.count(1) > (df.shape[1] * min_meas)]
 
     # Filter by max screened concentration
-    df = df[[sum(df.loc[i] < d_maxc.loc[i, 'max_conc_micromolar']) >= min_events for i in df.index]]
+    if filter_max_concentration:
+        df = df[[sum(df.loc[i] < d_maxc.loc[i, 'max_conc_micromolar']) >= min_events for i in df.index]]
 
     # Drug samplesheet
-    ds = get_drugsheet()
-    ds = ds[ds['Owner'].isin(DRUG_OWNERS)]
+    if filter_owner:
+        ds = get_drugsheet()
+        ds = ds[ds['Owner'].isin(DRUG_OWNERS)]
 
-    df = df[[i[0] in ds.index for i in df.index]]
+        df = df[[i[0] in ds.index for i in df.index]]
 
     return df
 

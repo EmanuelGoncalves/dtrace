@@ -12,15 +12,15 @@ from statsmodels.stats.multitest import multipletests
 DRUG_INFO_COLUMNS = ['DRUG_ID_lib', 'DRUG_NAME', 'VERSION']
 
 
-def multipletests_per_drug(lr_associations, method='bonferroni', field='pval', fdr_field='fdr'):
-    d_unique = {(d_id, d_name, d_version) for d_id, d_name, d_version in lr_associations[DRUG_INFO_COLUMNS].values}
+def multipletests_per_drug(lr_associations, method='bonferroni', field='pval', fdr_field='fdr', index_cols=DRUG_INFO_COLUMNS):
+    d_unique = {tuple(i) for i in lr_associations[index_cols].values}
 
-    df = lr_associations.set_index(DRUG_INFO_COLUMNS)
+    df = lr_associations.set_index(index_cols)
 
     df = pd.concat([
-        df.loc[(d_id, d_name, d_version)].assign(
-            fdr=multipletests(df.loc[(d_id, d_name, d_version), field], method=method)[1]
-        ).rename(columns={'fdr': fdr_field}) for d_id, d_name, d_version in d_unique
+        df.loc[i].assign(
+            fdr=multipletests(df.loc[i, field], method=method)[1]
+        ).rename(columns={'fdr': fdr_field}) for i in d_unique
     ]).reset_index()
 
     return df

@@ -71,35 +71,35 @@ if __name__ == '__main__':
     # - PCA pairplot per gene
     f_pca.pairplot_pca_drug(pca, hue=None)
     plt.suptitle('PCA CRISPR-Cas9 (Genes)', y=1.05, fontsize=9)
-    plt.savefig('reports/pca_pairplot_crispr.pdf', bbox_inches='tight')
+    plt.savefig('reports/pca_pairplot_crispr.pdf', bbox_inches='tight', transparent=True)
     plt.close('all')
 
     # - PCA pairplot per cell line
     f_pca.pairplot_pca_samples(pca, growth)
     plt.suptitle('PCA CRISPR-Cas9 (Cell lines)', y=1.05, fontsize=9)
-    plt.savefig('reports/pca_pairplot_cell_lines_crispr.pdf', bbox_inches='tight')
+    plt.savefig('reports/pca_pairplot_cell_lines_crispr.pdf', bbox_inches='tight', transparent=True)
     plt.close('all')
 
     # - PCA pairplot cell lines - hue by cancer type
     f_pca.pairplot_pca_samples_cancertype(pca)
     plt.suptitle('PCA CRISPR-Cas9 (Cell lines)', y=1.05, fontsize=9)
-    plt.savefig('reports/pca_pairplot_cell_lines_cancertype_crispr.pdf', bbox_inches='tight')
+    plt.savefig('reports/pca_pairplot_cell_lines_cancertype_crispr.pdf', bbox_inches='tight', transparent=True)
     plt.close('all')
 
     # - Growth ~ PC1 corrplot
     f_pca.corrplot_pcs_growth(pca, growth, 'PC1')
     plt.gcf().set_size_inches(2, 2)
-    plt.savefig('reports/pca_growth_corrplot_crispr.pdf', bbox_inches='tight')
+    plt.savefig('reports/pca_growth_corrplot_crispr.pdf', bbox_inches='tight', transparent=True)
     plt.close('all')
 
     # - Correlations with growth histogram
     growth_correlation_histogram(c_corr)
     plt.gcf().set_size_inches(2, 2)
-    plt.savefig('reports/pca_growth_corr_histogram_crispr.pdf', bbox_inches='tight')
+    plt.savefig('reports/pca_growth_corr_histogram_crispr.pdf', bbox_inches='tight', transparent=True)
     plt.close('all')
 
     # - PC correlation with number of significantly essential events
     corrplot_pcs_essentiality(pca, crispr, 'PC1')
     plt.gcf().set_size_inches(2, 2)
-    plt.savefig('reports/pca_essentiality_corrplot_crispr.pdf', bbox_inches='tight')
+    plt.savefig('reports/pca_essentiality_corrplot_crispr.pdf', bbox_inches='tight', transparent=True)
     plt.close('all')

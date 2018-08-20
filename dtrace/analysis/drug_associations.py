@@ -18,6 +18,24 @@ from dtrace.assemble.assemble_ppi import build_string_ppi
 from dtrace.associations import ppi_annotation, corr_drugtarget_gene, DRUG_INFO_COLUMNS
 
 
+DRUG_TARGETS_HUE = [
+        ('#3182bd', [{'RAF1', 'BRAF'}, {'MAPK1', 'MAPK3'}, {'MAP2K1', 'MAP2K2'}]),
+        ('#e6550d', [{'PIK3CA', 'PIK3CB'}, {'AKT1', 'AKT2', 'AKT3'}, {'MTOR'}]),
+        ('#31a354', [{'EGFR'}, {'IGF1R'}]),
+        ('#756bb1', [{'CHEK1', 'CHEK2'}, {'ATR'}, {'WEE1', 'TERT'}]),
+        ('#e78ac3', [{'BTK'}, {'SYK'}]),
+        ('#66c2a5', [{'PARP1'}]),
+        ('#fdd10f', [{'BCL2', 'BCL2L1'}]),
+        ('#636363', [{'GLS'}]),
+        ('#92d2df', [{'MCL1'}]),
+        ('#dd9a00', [{'AURKA', 'AURKB'}]),
+        ('#bc80bd', [{'BRD2', 'BRD4', 'BRD3'}]),
+        ('#983539', [{'JAK1', 'JAK2', 'JAK3'}]),
+    ]
+
+DRUG_TARGETS_HUE = [(sns.light_palette(c, n_colors=len(s) + 1, reverse=True).as_hex()[:-1], s) for c, s in DRUG_TARGETS_HUE]
+
+
 def manhattan_plot(lmm_drug, fdr_line=.05, n_genes=13):
     # Import gene genomic coordinates from CRISPR-Cas9 library
     crispr_lib = pd.read_csv(dtrace.CRISPR_LIB).groupby('GENES').agg({'STARTpos': 'min', 'CHRM': 'first'})
@@ -672,24 +690,7 @@ if __name__ == '__main__':
     plt.close('all')
 
     # Drug targets
-    hueby = [
-        ('#3182bd', [{'RAF1', 'BRAF'}, {'MAPK1', 'MAPK3'}, {'MAP2K1', 'MAP2K2'}]),
-        ('#e6550d', [{'PIK3CA', 'PIK3CB'}, {'AKT1', 'AKT2', 'AKT3'}, {'MTOR'}]),
-        ('#31a354', [{'EGFR'}, {'IGF1R'}]),
-        ('#756bb1', [{'CHEK1', 'CHEK2'}, {'ATR'}, {'WEE1', 'TERT'}]),
-        ('#e78ac3', [{'BTK'}, {'SYK'}]),
-        ('#66c2a5', [{'PARP1'}]),
-        ('#fdd10f', [{'BCL2', 'BCL2L1'}]),
-        ('#636363', [{'GLS'}]),
-        ('#92d2df', [{'MCL1'}]),
-        ('#dd9a00', [{'AURKA', 'AURKB'}]),
-        ('#bc80bd', [{'BRD2', 'BRD4', 'BRD3'}]),
-        ('#983539', [{'JAK1', 'JAK2', 'JAK3'}]),
-    ]
-
-    hueby = [(sns.light_palette(c, n_colors=len(s) + 1, reverse=True).as_hex()[:-1], s) for c, s in hueby]
-
-    drug_beta_tsne(tsnes, hueby=hueby)
+    drug_beta_tsne(tsnes, hueby=DRUG_TARGETS_HUE)
     plt.suptitle('tSNE analysis of drug associations', y=1.05)
     plt.savefig('reports/drug_associations_beta_tsne_targets.pdf', bbox_inches='tight')
     plt.close('all')

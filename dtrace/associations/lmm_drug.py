@@ -8,7 +8,7 @@ from sklearn.preprocessing import StandardScaler
 from dtrace.associations import multipletests_per_drug
 
 
-def lmm_association(drug, y, x, M=None):
+def lmm_association(drug, y, x, M=None, expand_drug_id=True):
     # Build matrices
     Y = y.loc[[drug]].T.dropna()
 
@@ -30,9 +30,13 @@ def lmm_association(drug, y, x, M=None):
     # Assemble output
     df = pd.DataFrame(dict(beta=lmm.variant_effsizes.ravel(), pval=lmm.variant_pvalues.ravel(), GeneSymbol=X.columns))
 
-    df = df.assign(DRUG_ID_lib=drug[0])
-    df = df.assign(DRUG_NAME=drug[1])
-    df = df.assign(VERSION=drug[2])
+    if expand_drug_id:
+        df = df.assign(DRUG_ID_lib=drug[0])
+        df = df.assign(DRUG_NAME=drug[1])
+        df = df.assign(VERSION=drug[2])
+    else:
+        df = df.assign(DRUG_ID=drug)
+
     df = df.assign(n_samples=Y.shape[0])
 
     return df

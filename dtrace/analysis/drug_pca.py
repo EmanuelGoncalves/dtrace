@@ -6,8 +6,12 @@ import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 from scipy.stats import pearsonr
+from sklearn.manifold import TSNE
 from sklearn.decomposition import PCA
 from dtrace.analysis import PAL_DTRACE
+from sklearn.preprocessing import StandardScaler
+from dtrace.associations import DRUG_INFO_COLUMNS
+from analysis.drug_associations import drug_beta_tsne, DRUG_TARGETS_HUE
 
 
 def histogram_drug(drespo):
@@ -47,6 +51,8 @@ def perform_pca(drespo, n_components=10):
 
         if by == 'column':
             df = df.T
+
+        df = df.subtract(df.mean())
 
         pcs_labels = list(map(lambda v: 'PC{}'.format(v + 1), range(n_components)))
 
@@ -106,7 +112,7 @@ def pairplot_pca_samples_cancertype(pca, min_cell_lines=20):
 
     # Plot
     g = sns.PairGrid(df, vars=['PC1', 'PC2', 'PC3'], despine=False, size=1, hue='Cancer Type', palette=pal, hue_order=order)
-    g = g.map_diag(plt.hist, linewidth=0, alpha=.5)
+    g = g.map_diag(sns.distplot, hist=False)
     g = g.map_offdiag(plt.scatter, s=4, edgecolor='white', lw=.1, alpha=.8)
     g = g.add_legend()
 
@@ -163,6 +169,55 @@ def growth_correlation_top_drugs(g_corr):
     plt.ylabel('')
 
 
+def drug_tsne(drespo, perplexity=15, learning_rate=250, n_iter=2000):
+    d_targets = dtrace.get_drugtargets()
+
+    # Drugs into
+    drugs = {tuple(i) for i in drespo.index}
+    drugs_annot = {tuple(i) for i in drugs if i[0] in d_targets}
+    drugs_screen = {v: {d for d in drugs if d[2] == v} for v in ['v17', 'RS']}
+
+    # Imput NaNs with mean
+    df = drespo.fillna(drespo.mean())
+
+    # TSNE
+    tsnes = []
+    for s in drugs_screen:
+        tsne_df = df.loc[list(drugs_screen[s])]
+        tsne_df = pd.DataFrame(StandardScaler().fit_transform(tsne_df.T).T, index=tsne_df.index, columns=tsne_df.columns)
+
+        tsne = TSNE(perplexity=perplexity, learning_rate=learning_rate, n_iter=n_iter, init='pca').fit_transform(tsne_df)
+
+        tsne = pd.DataFrame(tsne, index=tsne_df.index, columns=['P1', 'P2']).reset_index()
+        tsne = tsne.assign(target=['Yes' if tuple(i) in drugs_annot else 'No' for i in tsne[DRUG_INFO_COLUMNS].values])
+
+        tsnes.append(tsne)
+
+    tsnes = pd.concat(tsnes)
+    tsnes = tsnes.assign(name=[';'.join(map(str, i[1:])) for i in tsnes[DRUG_INFO_COLUMNS].values])
+
+    # Annotate compound replicated
+    rep_names = tsnes['name'].value_counts()
+    rep_names = set(rep_names[rep_names > 1].index)
+    tsnes = tsnes.assign(rep=[i if i in rep_names else 'NA' for i in tsnes['name']])
+
+    # Annotate targets
+    tsnes = tsnes.assign(targets=[';'.join(d_targets[i]) if i in d_targets else '' for i in tsnes[DRUG_INFO_COLUMNS[0]]])
+
+    return tsnes
+
+
+def drug_response_heatmap(drespo):
+    plot_df = drespo.fillna(drespo.mean())
+
+    row_colors = pd.Series({i: PAL_DTRACE[0] if i[2] == 'RS' else PAL_DTRACE[1] for i in plot_df.index}).rename('Screen')
+
+    g = sns.clustermap(plot_df, mask=drespo.isna(), cmap='RdGy', center=0, yticklabels=False, xticklabels=False, row_colors=row_colors, cbar_kws={'label': 'ln IC50'})
+
+    g.ax_heatmap.set_xlabel('Cell lines')
+    g.ax_heatmap.set_ylabel('Drugs')
+
+
 if __name__ == '__main__':
     # - Imports
     # Drug response
@@ -181,53 +236,68 @@ if __name__ == '__main__':
     # - Perform PCA analysis on Drug Response (across Drug and Cell lines)
     pca = perform_pca(drespo)
 
+    # - Perform tSNE analysis
+    tsne = drug_tsne(drespo)
+
     # - Growth ~ Drug-response correlation
     g_corr = drespo[growth.index].T.corrwith(growth).sort_values().rename('corr').reset_index()
+
+    # -
+    drug_response_heatmap(drespo)
+    plt.gcf().set_size_inches(4, 4)
+    plt.savefig('reports/drug_response_heatmap.pdf', bbox_inches='tight', transparent=True)
+    plt.close('all')
+
+    # - tSNE plot of drug IC50s
+    drug_beta_tsne(tsne, hueby=DRUG_TARGETS_HUE)
+    plt.suptitle('tSNE analysis of drug IC50s', y=1.05)
+    plt.savefig('reports/drug_associations_ic50s_tsne_targets.pdf', bbox_inches='tight', transparent=True)
+    plt.close('all')
 
     # - Histogram IC50s per Drug
     histogram_drug(drespo)
     plt.gcf().set_size_inches(3, 2)
-    plt.savefig('reports/histogram_drug.pdf', bbox_inches='tight')
+    plt.savefig('reports/histogram_drug.pdf', bbox_inches='tight', transparent=True)
     plt.close('all')
 
     # - Histogram IC50s per Cell line
     histogram_sample(drespo)
     plt.gcf().set_size_inches(3, 2)
-    plt.savefig('reports/histogram_cell_lines.pdf', bbox_inches='tight')
+    plt.savefig('reports/histogram_cell_lines.pdf', bbox_inches='tight', transparent=True)
     plt.close('all')
 
     # - PCA pairplot drug
     pairplot_pca_drug(pca)
     plt.suptitle('PCA drug response (Drugs)', y=1.05, fontsize=9)
-    plt.savefig('reports/pca_pairplot_drug.pdf', bbox_inches='tight')
+    plt.savefig('reports/pca_pairplot_drug.pdf', bbox_inches='tight', transparent=True)
     plt.close('all')
 
     # - PCA pairplot cell lines
     pairplot_pca_samples(pca, growth)
     plt.suptitle('PCA drug response (Cell lines)', y=1.05, fontsize=9)
-    plt.savefig('reports/pca_pairplot_cell_lines.pdf', bbox_inches='tight')
+    plt.savefig('reports/pca_pairplot_cell_lines.pdf', bbox_inches='tight', transparent=True)
     plt.close('all')
 
     # - PCA pairplot cell lines - hue by cancer type
     pairplot_pca_samples_cancertype(pca)
     plt.suptitle('PCA drug response (Cell lines)', y=1.05, fontsize=9)
-    plt.savefig('reports/pca_pairplot_cell_lines_cancertype.pdf', bbox_inches='tight')
+    plt.savefig('reports/pca_pairplot_cell_lines_cancertype.pdf', bbox_inches='tight', transparent=True)
     plt.close('all')
 
     # - Growth ~ PC1 corrplot
-    corrplot_pcs_growth(pca, growth, 'PC1')
+    corrplot_pcs_growth(pca, growth, 'PC2')
     plt.gcf().set_size_inches(2., 2.)
-    plt.savefig('reports/pca_growth_corrplot.pdf', bbox_inches='tight')
+    plt.savefig('reports/pca_growth_corrplot.pdf', bbox_inches='tight', transparent=True)
     plt.close('all')
 
     # - Correlations with growth histogram
     growth_correlation_histogram(g_corr)
     plt.gcf().set_size_inches(2, 2)
-    plt.savefig('reports/pca_growth_corr_histogram.pdf', bbox_inches='tight')
+    plt.savefig('reports/pca_growth_corr_histogram.pdf', bbox_inches='tight', transparent=True)
     plt.close('all')
 
     # - Top correlated drugs with growth
     growth_correlation_top_drugs(g_corr)
     plt.gcf().set_size_inches(2, 4)
-    plt.savefig('reports/pca_growth_corr_top.pdf', bbox_inches='tight')
+    plt.savefig('reports/pca_growth_corr_top.pdf', bbox_inches='tight', transparent=True)
     plt.close('all')
