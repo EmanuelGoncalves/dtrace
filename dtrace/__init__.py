@@ -14,6 +14,9 @@ DRUGSHEET_FILE = 'data/meta/drug_samplesheet_august_2018.txt'
 HART_ESSENTIAL = 'data/gene_sets/curated_BAGEL_essential.csv'
 HART_NON_ESSENTIAL = 'data/gene_sets/curated_BAGEL_nonEssential.csv'
 
+SCORE_PANCANCER = 'data/gene_sets/pancan_core.csv'
+CERES_PANCANCER = 'data/gene_sets/pan_dependent_genes.txt'
+
 # - CRISPR-Cas9 library
 CRISPR_LIB = 'data/meta/KY_Library_v1.0.csv'
 
@@ -136,7 +139,10 @@ def get_crispr(dtype='logFC', fdr_thres=0.05, scale=False):
     dep_fdr = pd.read_csv(CRISPR_MAGECK_DEP_FDR, index_col=0, sep='\t').dropna()
     enr_fdr = pd.read_csv(CRISPR_MAGECK_ENR_FDR, index_col=0, sep='\t').dropna()
 
-    if dtype == 'both':
+    if dtype == 'bagel':
+        crispr = pd.read_csv(CRISPR_GENE_BINARY, sep='\t', index_col=0)
+
+    elif dtype == 'both':
         crispr = ((dep_fdr < fdr_thres) | (enr_fdr < fdr_thres)).astype(int)
 
     elif dtype == 'depletions':
@@ -190,9 +196,12 @@ def filter_drugresponse(df, min_events=3, min_meas=0.85, max_c=0.5, filter_max_c
     lower than the maximum screened concentration (offeseted by max_c (default = 0.5 (50%)) in at least
     min_events (default = 3) cell lines.
 
-    :param d_response:
+    :param df:
     :param min_events:
     :param min_meas:
+    :param max_c:
+    :param filter_max_concentration:
+    :param filter_owner:
     :return:
     """
     # Drug max screened concentration
@@ -220,7 +229,7 @@ def filter_mobem(mobem, min_events=3):
     return df
 
 
-def filter_crispr(crispr, min_events=3, fdr_thres=0.05, ess_thres=-1, sample_perc=0.5):
+def filter_crispr(crispr, min_events=3, fdr_thres=0.05, broad_paness=False):
     """
     Filter CRISPR-Cas9 data-set to consider only genes that show a significant depletion or
     enrichment, MAGeCK depletion/enrichment FDR < fdr_thres (default = 0.05), in at least
@@ -229,16 +238,24 @@ def filter_crispr(crispr, min_events=3, fdr_thres=0.05, ess_thres=-1, sample_per
     :param crispr:
     :param min_events:
     :param fdr_thres:
+    :param broad_paness:
     :return:
     """
-    signif_genes = get_crispr(dtype='both', fdr_thres=fdr_thres)
-    signif_genes = signif_genes[signif_genes.sum(1) >= min_events]
+    enriched_genes = get_crispr(dtype='enrichments', fdr_thres=fdr_thres)
+    enriched_genes = enriched_genes[enriched_genes.sum(1) >= min_events]
 
-    df = crispr.loc[signif_genes.index]
+    depleted_genes = get_crispr(dtype='bagel')
+    depleted_genes = depleted_genes[depleted_genes.sum(1) >= min_events]
 
-    df = df[(df < ess_thres).sum(1) < (sample_perc * df.shape[1])]
-
+    df = crispr.loc[list(enriched_genes.index) + list(depleted_genes.index)]
     df = df[(df.abs() > 0.5).sum(1) >= min_events]
+
+    pancore_score = set(pd.read_csv(SCORE_PANCANCER).iloc[:, 0])
+    df = df[~df.index.isin(pancore_score)]
+
+    if broad_paness:
+        pancore_ceres = set(pd.read_csv(CERES_PANCANCER).iloc[:, 0].apply(lambda v: v.split(' ')[0]))
+        df = df[~df.index.isin(pancore_ceres)]
 
     return df
 
@@ -304,8 +321,6 @@ def mobem_feature_type(f):
 
     else:
         raise ValueError('{} is not a valid MOBEM feature.'.format(f))
-
-    return genes
 
 
 def build_covariates(variables=None, add_growth=True, samples=None):

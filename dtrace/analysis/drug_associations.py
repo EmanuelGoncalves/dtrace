@@ -15,7 +15,7 @@ from sklearn.manifold import TSNE
 from dtrace.analysis import PAL_DTRACE
 from sklearn.preprocessing import StandardScaler
 from dtrace.assemble.assemble_ppi import build_string_ppi
-from dtrace.associations import ppi_annotation, corr_drugtarget_gene, DRUG_INFO_COLUMNS
+from dtrace.associations import ppi_annotation, corr_drugtarget_gene, DRUG_INFO_COLUMNS, multipletests_per_drug
 
 
 DRUG_TARGETS_HUE = [
@@ -333,9 +333,10 @@ def drug_aurc(lmm_drug, fdr=0.05, corr=0.25, label='target', rank_label='pval', 
 
     ax.legend(loc=4, frameon=False)
 
-    ax.set_title(title)
     legend = ax.legend(loc=4, title=legend_title, prop={'size': legend_size}, frameon=False)
     legend.get_title().set_fontsize('{}'.format(legend_size))
+
+    return ax
 
 
 def boxplot_kinobead(lmm_drug, ax=None):
@@ -644,6 +645,8 @@ if __name__ == '__main__':
     # - Linear regressions
     lmm_drug = pd.read_csv(dtrace.LMM_ASSOCIATIONS)
 
+    lmm_drug = multipletests_per_drug(lmm_drug, field='pval', method='fdr_bh')
+
     lmm_drug = ppi_annotation(lmm_drug, ppi_type=build_string_ppi, ppi_kws=dict(score_thres=900), target_thres=3)
 
     lmm_drug = corr_drugtarget_gene(lmm_drug)
@@ -694,32 +697,32 @@ if __name__ == '__main__':
     plt.close('all')
 
     # - Drug targets countplot
-    drug_targets_count(lmm_drug, min_events=5, fdr=0.05)
+    drug_targets_count(lmm_drug, min_events=5, fdr=0.1)
     plt.title('Drug targets histogram')
     plt.gcf().set_size_inches(2, 6)
     plt.savefig('reports/drug_targets_count.pdf', bbox_inches='tight', transparent=True)
     plt.close('all')
 
     # - Drug associations manhattan plot
-    manhattan_plot(lmm_drug)
+    manhattan_plot(lmm_drug, fdr_line=0.1)
     plt.gcf().set_size_inches(8, 2)
     plt.savefig('reports/drug_associations_manhattan.png', bbox_inches='tight', dpi=600)
     plt.close('all')
 
     # - Top drug associations
-    top_associations_barplot(lmm_drug)
+    top_associations_barplot(lmm_drug, fdr_line=.1)
     plt.gcf().set_size_inches(8, 6)
     plt.savefig('reports/drug_associations_barplot.pdf', bbox_inches='tight', transparent=True)
     plt.close('all')
 
     # - Count number of significant associations per drug
-    plot_count_associations(lmm_drug, min_events=3)
+    plot_count_associations(lmm_drug, min_events=3, fdr_line=.1)
     plt.gcf().set_size_inches(2, 4)
     plt.savefig('reports/drug_associations_count.pdf', bbox_inches='tight', transparent=True)
     plt.close('all')
 
     # - Count number of significant associations overall
-    recapitulated_drug_targets_barplot(lmm_drug, 0.05)
+    recapitulated_drug_targets_barplot(lmm_drug, fdr=.1)
     plt.gcf().set_size_inches(2, 1)
     plt.savefig('reports/drug_associations_count_signif.pdf', bbox_inches='tight', transparent=True)
     plt.close('all')
@@ -744,7 +747,8 @@ if __name__ == '__main__':
     plt.close('all')
 
     # - Drug target and PPI annotation AURCs
-    drug_aurc(lmm_drug, title='Drug ~ Gene associations\nnetwork interactions enrichment')
+    ax = drug_aurc(lmm_drug, fdr=.1)
+    ax.set_title('Drug ~ Gene associations\nnetwork interactions enrichment')
     plt.gcf().set_size_inches(2, 2)
     plt.savefig('reports/drug_associations_aurc.pdf', bbox_inches='tight', transparent=True)
     plt.close('all')

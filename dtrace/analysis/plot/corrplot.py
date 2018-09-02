@@ -36,10 +36,10 @@ def plot_corrplot(
 
     # Extras
     if add_hline:
-        g.ax_joint.axhline(0, ls='-', lw=0.1, c=PAL_DTRACE[1])
+        g.ax_joint.axhline(0, ls='-', lw=0.1, c=PAL_DTRACE[1], zorder=0)
 
     if add_vline:
-        g.ax_joint.axvline(0, ls='-', lw=0.1, c=PAL_DTRACE[1])
+        g.ax_joint.axvline(0, ls='-', lw=0.1, c=PAL_DTRACE[1], zorder=0)
 
     # Labels
     g.set_axis_labels('{} (log2 FC)'.format(x), '{} (ln IC50)'.format(y))

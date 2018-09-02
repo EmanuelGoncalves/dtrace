@@ -9,10 +9,11 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from dtrace import get_drugtargets
 from dtrace.analysis import PAL_DTRACE
+from sklearn.linear_model import LinearRegression
 from analysis.plot.corrplot import plot_corrplot
 from dtrace.assemble.assemble_ppi import build_string_ppi
 from statsmodels.distributions.empirical_distribution import ECDF
-from dtrace.associations import ppi_annotation, corr_drugtarget_gene, ppi_corr, DRUG_INFO_COLUMNS
+from dtrace.associations import ppi_annotation, corr_drugtarget_gene, ppi_corr, multipletests_per_drug, DRUG_INFO_COLUMNS
 
 
 def get_edges(ppi, nodes, corr_thres, norder):
@@ -91,6 +92,7 @@ if __name__ == '__main__':
 
     # Linear regressions
     lmm_drug = pd.read_csv(dtrace.LMM_ASSOCIATIONS)
+    lmm_drug = multipletests_per_drug(lmm_drug, field='pval', method='fdr_bh')
     lmm_drug = ppi_annotation(lmm_drug, ppi_type=build_string_ppi, ppi_kws=dict(score_thres=900), target_thres=3)
     lmm_drug = corr_drugtarget_gene(lmm_drug)
 
@@ -112,6 +114,7 @@ if __name__ == '__main__':
         dict(d_name='Vinblastine', g_name='BUB1B', corr_thres=0.3, n_neighbors=2),
     ]
 
+    #
     for assoc in indices:
         idx = lmm_drug.query(f"DRUG_NAME == '{assoc['d_name']}' & GeneSymbol == '{assoc['g_name']}'").index[0]
 
@@ -122,13 +125,17 @@ if __name__ == '__main__':
         x, y = f"{assoc['g_name']}", f"{assoc['d_name']}"
 
         plot_df = pd.concat([
-            crispr_logfc.loc[assoc['g_name']].rename(x), drespo.loc[(d_id, assoc['d_name'], d_screen)].rename(y)
+            crispr_logfc.loc[list(set([assoc['g_name']] + list(d_targets[d_id])))].T,
+            drespo.loc[(d_id, assoc['d_name'], d_screen)].rename(y),
         ], axis=1, sort=False).dropna().sort_values(x)
+
+        dmax = np.log(d_maxc.loc[(d_id, assoc['d_name'], d_screen), 'max_conc_micromolar'])
 
         # Plot
         plot_corrplot(x, y, plot_df, add_hline=True, lowess=False)
 
-        plt.axhline(np.log(d_maxc.loc[(d_id, assoc['d_name'], d_screen), 'max_conc_micromolar']), lw=.3, color=PAL_DTRACE[2], ls=':', zorder=0)
+        plt.axhline(dmax, lw=.3, color=PAL_DTRACE[2], ls=':', zorder=0)
+        plt.axvline(-.5, lw=.3, color=PAL_DTRACE[2], ls=':', zorder=0)
 
         plt.gcf().set_size_inches(2., 2.)
         plt.savefig(f'reports/lmm_association_corrplot_{name}.pdf', bbox_inches='tight', transparent=True)

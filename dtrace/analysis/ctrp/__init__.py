@@ -14,6 +14,22 @@ CTRP_DIR = 'data/CTRPv2.2/'
 LMM_ASSOCIATIONS_CTRP = 'data/drug_lmm_regressions_ctrp.csv'
 
 
+def get_samplesheet():
+    samplesheet = pd.read_csv(f'{CTRP_DIR}/sample_info.csv', index_col=1)
+    return samplesheet
+
+
+def get_ceres():
+    samplesheet = get_samplesheet()
+
+    ceres = pd.read_csv(f'{CTRP_DIR}/gene_effect.csv', index_col=0).T
+    ceres = ceres.rename(columns=samplesheet['CCLE_name'])
+    ceres.index = [i.split(' ')[0] for i in ceres.index]
+    ceres.columns = [i.split('_')[0] for i in ceres.columns]
+
+    return ceres
+
+
 def import_ctrp_samplesheet():
     # Import GDSC samplesheet
     gdsc = dtrace.get_samplesheet().reset_index().dropna(subset=['CCLE ID'])
@@ -38,6 +54,6 @@ def import_ctrp_aucs():
 
     ctrp_aucs = pd.read_csv(f'{CTRP_DIR}/v22.data.auc_sensitivities.txt', sep='\t')
     ctrp_aucs = pd.pivot_table(ctrp_aucs, index='index_cpd', columns='index_ccl', values='area_under_curve')
-    ctrp_aucs = ctrp_aucs.rename(columns=ctrp_samples.set_index('index_ccl')['gdsc'])
+    ctrp_aucs = ctrp_aucs.rename(columns=ctrp_samples.set_index('index_ccl')['ccl_name'])
 
     return ctrp_aucs
