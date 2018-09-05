@@ -8,15 +8,21 @@ import pandas as pd
 import seaborn as sns
 import scipy.stats as st
 import matplotlib.pyplot as plt
+import matplotlib.ticker as plticker
 from natsort import natsorted
 from sklearn.metrics import auc
 from scipy.stats import ttest_ind
 from sklearn.manifold import TSNE
 from dtrace.analysis import PAL_DTRACE
 from sklearn.preprocessing import StandardScaler
+from analysis.plot.corrplot import plot_corrplot_discrete
 from dtrace.assemble.assemble_ppi import build_string_ppi
 from dtrace.associations import ppi_annotation, corr_drugtarget_gene, DRUG_INFO_COLUMNS, multipletests_per_drug
 
+BOXPROPS = dict(linewidth=1.)
+WHISKERPROPS = dict(linewidth=1.)
+MEDIANPROPS = dict(linestyle='-', linewidth=1., color=PAL_DTRACE[0])
+FLIERPROPS = dict(marker='o', markerfacecolor='black', markersize=2., linestyle='none', markeredgecolor='none', alpha=.6)
 
 DRUG_TARGETS_HUE = [
         ('#3182bd', [{'RAF1', 'BRAF'}, {'MAPK1', 'MAPK3'}, {'MAP2K1', 'MAP2K2'}]),
@@ -98,7 +104,7 @@ def manhattan_plot(lmm_drug, fdr_line=.05, n_genes=13):
     plt.legend(list(zip(*(by_label)))[1], list(zip(*(by_label)))[0], loc='center left', bbox_to_anchor=(1.01, 0.5), prop={'size': 5}, frameon=False)
 
 
-def top_associations_barplot(lmm_drug, fdr_line=0.05, ntop=40):
+def top_associations_barplot(lmm_drug, fdr_line=0.1, ntop=60, n_cols=16):
     # Filter for signif associations
     df = lmm_drug\
         .query('fdr < {}'.format(fdr_line))\
@@ -108,6 +114,7 @@ def top_associations_barplot(lmm_drug, fdr_line=0.05, ntop=40):
         .sort_values('fdr') \
         .reset_index()
     df = df.assign(logpval=-np.log10(df['pval']).values)
+    df = df.replace({'target': {'>=3': '3+'}})
 
     # Drug order
     order = list(df.groupby('DRUG_NAME')['fdr'].min().sort_values().index)[:ntop]
@@ -115,12 +122,12 @@ def top_associations_barplot(lmm_drug, fdr_line=0.05, ntop=40):
     # Build plot dataframe
     df_, xpos = [], 0
     for i, drug_name in enumerate(order):
-        if i % 10 == 0:
+        if i % n_cols == 0:
             xpos = 0
 
         df_drug = df[df['DRUG_NAME'] == drug_name]
         df_drug = df_drug.assign(xpos=np.arange(xpos, xpos + df_drug.shape[0]))
-        df_drug = df_drug.assign(irow=int(np.floor(i / 10)))
+        df_drug = df_drug.assign(irow=int(np.floor(i / n_cols)))
 
         xpos += (df_drug.shape[0] + 2)
 
@@ -129,7 +136,7 @@ def top_associations_barplot(lmm_drug, fdr_line=0.05, ntop=40):
     df = pd.concat(df_).reset_index()
 
     # Plot
-    f, axs = plt.subplots(int(np.ceil(ntop / 10)), 1, sharex=False, sharey=True, gridspec_kw=dict(hspace=.0))
+    f, axs = plt.subplots(int(np.ceil(ntop / n_cols)), 1, sharex=False, sharey=True, gridspec_kw=dict(hspace=.0))
 
     # Barplot
     for irow in set(df['irow']):
@@ -147,12 +154,16 @@ def top_associations_barplot(lmm_drug, fdr_line=0.05, ntop=40):
         for g, p in df_irow[['GeneSymbol', 'xpos']].values:
             axs[irow].text(p, 0.1, g, ha='center', va='bottom', fontsize=5, zorder=10, rotation='vertical', color='white')
 
-        for x, y, t in df_irow[['xpos', 'logpval', 'target']].values:
-            axs[irow].text(x, y + 0.25, t, color=PAL_DTRACE[0] if t == 'T' else PAL_DTRACE[2], ha='center', fontsize=6, zorder=10)
+        for x, y, t, b in df_irow[['xpos', 'logpval', 'target', 'beta']].values:
+            c = PAL_DTRACE[0] if t == 'T' else PAL_DTRACE[2]
+            axs[irow].text(x, y + 0.25, t, color=c, ha='center', fontsize=6, zorder=10)
+            axs[irow].text(x, -1.2, f'{b:.1f}', color=c, ha='center', fontsize=6, rotation='vertical', zorder=10)
 
         sns.despine(ax=axs[irow], right=True, top=True)
         axs[irow].axes.get_xaxis().set_ticks([])
         axs[irow].set_ylabel('Drug-gene association\n(-log10 p-value)')
+
+    plt.gcf().set_size_inches(10, 6)
 
 
 def plot_count_associations(lmm_drug, fdr_line=0.05, min_events=2):
@@ -224,8 +235,8 @@ def recapitulated_drug_targets_barplot_per_screen(lmm_drug, fdr=0.05):
     # Build dataframe
     screens = ['RS', 'v17']
     plot_df = pd.DataFrame([
-        {'count': len([i for i in d_list if i[2] == s]), 'screen': s, 'names': d_label}
-    for d_label, d_list in d_lists for s in screens])
+        {'count': len([i for i in d_list if i[2] == s]), 'screen': s, 'names': d_label} for d_label, d_list in d_lists for s in screens
+    ])
 
     pal = dict(RS=PAL_DTRACE[0], v17=PAL_DTRACE[2])
 
@@ -641,11 +652,62 @@ def drug_beta_tsne(tsnes, hueby):
     g.set_titles('Screen = {col_name}')
 
 
+def drug_targets_not_tested(lmm_drug, top_n=20):
+    crispr = dtrace.get_crispr(dtype='both')
+
+    # - Count number of drugs
+    df_genes = set(lmm_drug['GeneSymbol'])
+
+    d_targets = dtrace.get_drugtargets()
+
+    d_all = {tuple(i) for i in lmm_drug[DRUG_INFO_COLUMNS].values}
+    d_annot = {tuple(i) for i in d_all if i[0] in d_targets}
+
+    d_not_tested = {tuple(i) for i in d_annot if (len(d_targets[i[0]].intersection(df_genes)) == 0) and (len(d_targets[i[0]].intersection(crispr.index)) > 0)}
+
+    # - Plot
+    plot_df = pd.Series([t for d in d_not_tested for t in d_targets[d[0]]])\
+        .value_counts().rename('count').reset_index().head(top_n)
+
+    sns.barplot('count', 'index', data=plot_df, color=PAL_DTRACE[2])
+
+    plt.axes().xaxis.set_major_locator(plticker.MultipleLocator(base=1.))
+
+    plt.title(f'Traget frequency of responding drugs\nwith non-essential targets (top {top_n})')
+    plt.xlabel('Number of drugs')
+    plt.ylabel('Drug targets')
+
+    sns.despine()
+
+
+def drug_v17_id_batch(tsnes):
+    hue_order = ['[0, 200[', '[200, 1000[', '[1000, inf.[']
+
+    plot_df = tsnes[tsnes['VERSION'] == 'v17']
+    plot_df = plot_df.assign(
+        id_discrete=pd.cut(
+            plot_df['DRUG_ID_lib'],
+            bins=[0, 200, 1000, np.max(plot_df['DRUG_ID_lib'])],
+            labels=hue_order
+        )
+    )
+
+    discrete_pal = pd.Series(PAL_DTRACE, index=set(plot_df['id_discrete'])).to_dict()
+
+    g = plot_corrplot_discrete(
+        'P1', 'P2', 'id_discrete', plot_df, discrete_pal=discrete_pal, legend_title='DRUG_ID discretised', hue_order=hue_order
+    )
+
+    g.set_axis_labels('', '')
+
+    return g
+
+
 if __name__ == '__main__':
     # - Linear regressions
     lmm_drug = pd.read_csv(dtrace.LMM_ASSOCIATIONS)
 
-    lmm_drug = multipletests_per_drug(lmm_drug, field='pval', method='fdr_bh')
+    lmm_drug = lmm_drug[['+' not in i for i in lmm_drug['DRUG_NAME']]]
 
     lmm_drug = ppi_annotation(lmm_drug, ppi_type=build_string_ppi, ppi_kws=dict(score_thres=900), target_thres=3)
 
@@ -659,7 +721,19 @@ if __name__ == '__main__':
     tsnes = drug_betas_tsne(lmm_drug, perplexity=15, learning_rate=250, n_iter=2000)
     tsnes.to_csv(dtrace.DRUG_BETAS_TSNE, index=False)
 
+    # - Drug targets not tested
+    drug_targets_not_tested(lmm_drug)
+    plt.gcf().set_size_inches(1.5, 2.5)
+    plt.savefig('reports/drug_not_tested_barplot.pdf', bbox_inches='tight', transparent=True)
+    plt.close('all')
+
     # - Drug betas TSNE
+    # Drug screen v17 ID batch effect
+    drug_v17_id_batch(tsnes)
+    plt.gcf().set_size_inches(2, 2)
+    plt.savefig('reports/drug_tsne_v17_ids_discrete.pdf', bbox_inches='tight', transparent=True)
+    plt.close('all')
+
     # Has drug significant association
     drug_beta_tsne(tsnes, hueby='signif')
     plt.suptitle('tSNE analysis of drug associations', y=1.05)
@@ -710,8 +784,7 @@ if __name__ == '__main__':
     plt.close('all')
 
     # - Top drug associations
-    top_associations_barplot(lmm_drug, fdr_line=.1)
-    plt.gcf().set_size_inches(8, 6)
+    top_associations_barplot(lmm_drug, fdr_line=.1, ntop=60)
     plt.savefig('reports/drug_associations_barplot.pdf', bbox_inches='tight', transparent=True)
     plt.close('all')
 

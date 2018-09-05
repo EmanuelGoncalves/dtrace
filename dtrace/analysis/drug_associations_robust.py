@@ -144,11 +144,11 @@ if __name__ == '__main__':
     plt.close('all')
 
     # - Strongest significant association per drug
-    associations = lmm_drug_robust.query('fdr_crispr < 0.05 & fdr_drug < 0.05')
+    associations = lmm_drug_robust.query('fdr_crispr < 0.1 & fdr_drug < 0.1')
     associations = associations.sort_values('fdr_crispr').groupby(DRUG_INFO_COLUMNS).head(1)
 
     # - Plot robust association
-    indices = [15117, 36766, 60214, 52585, 37234, 33009]
+    indices = [40851, 75694, 39545, 28335, 74760, 60534]
 
     for idx in indices:
         columns = ['DRUG_ID_lib', 'DRUG_NAME', 'VERSION', 'GeneSymbol', 'Genetic']

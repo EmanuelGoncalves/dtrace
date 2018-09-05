@@ -13,6 +13,7 @@ from sklearn.linear_model import LinearRegression
 from analysis.plot.corrplot import plot_corrplot
 from dtrace.assemble.assemble_ppi import build_string_ppi
 from statsmodels.distributions.empirical_distribution import ECDF
+from analysis.drug_associations import MEDIANPROPS, FLIERPROPS, WHISKERPROPS, BOXPROPS
 from dtrace.associations import ppi_annotation, corr_drugtarget_gene, ppi_corr, multipletests_per_drug, DRUG_INFO_COLUMNS
 
 
@@ -73,6 +74,59 @@ def plot_ppi(d_id, lmm_drug, corr_thres=0.2, fdr_thres=0.05, norder=1):
     return graph
 
 
+def target_features(target='MCL1'):
+    # Build betas matrix
+    pancore_ceres = set(pd.read_csv(dtrace.CERES_PANCANCER).iloc[:, 0].apply(lambda v: v.split(' ')[0]))
+
+    betas = pd.pivot_table(lmm_drug, index=DRUG_INFO_COLUMNS, columns='GeneSymbol', values='beta')
+    betas = betas.loc[:, ~betas.columns.isin(pancore_ceres)]
+    betas = betas.subtract(betas.mean())
+
+    drugs = [d for d in d_targets if target in d_targets[d]]
+
+    # Drugs clustermap
+    plot_df = betas.loc[drugs]
+
+    g = sns.clustermap(plot_df.T.corr(), cmap='RdGy_r', center=0, annot=True, fmt='.1f', linewidths=.3, annot_kws={'fontsize': 5})
+
+    g.ax_heatmap.set_xlabel('')
+    g.ax_heatmap.set_ylabel('')
+
+    plt.setp(g.ax_heatmap.get_yticklabels(), rotation=0)
+    plt.setp(g.ax_heatmap.get_xticklabels(), rotation=90)
+
+    plt.gcf().set_size_inches(max(0.3 * plot_df.shape[0], 2), max(0.3 * plot_df.shape[0], 2))
+    plt.savefig(f'reports/targets_betas_clustermap_{target}.pdf', bbox_inches='tight', transparent=True)
+    plt.close('all')
+
+    order = plot_df.median().sort_values()
+    order = list(order.head(10).index) + list(order.tail(10).index)
+
+    plot_df = plot_df[order].T.unstack().rename('beta').reset_index()
+
+    # Features boxplot
+    ax = plt.gca()
+
+    sns.boxplot(
+        'beta', 'GeneSymbol', data=plot_df, order=order, showcaps=False, orient='h', color=PAL_DTRACE[1],
+        medianprops=MEDIANPROPS, flierprops=FLIERPROPS, whiskerprops=WHISKERPROPS, boxprops=BOXPROPS, ax=ax
+    )
+
+    sns.stripplot(
+        'beta', 'GeneSymbol', data=plot_df, order=order, s=2, lw=.1, color=PAL_DTRACE[2], edgecolor='white', ax=ax
+    )
+
+    plt.axvline(0, ls=':', lw=.3, color=PAL_DTRACE[2], zorder=0)
+
+    plt.title(f'Compounds targeting {target}')
+    plt.xlabel('Beta score')
+    plt.ylabel('Gene symbol')
+
+    plt.gcf().set_size_inches(2, 2.5)
+    plt.savefig(f'reports/targets_betas_boxplots_{target}.pdf', bbox_inches='tight', transparent=True, dpi=300)
+    plt.close('all')
+
+
 if __name__ == '__main__':
     # - Imports
     # Data-sets
@@ -92,7 +146,7 @@ if __name__ == '__main__':
 
     # Linear regressions
     lmm_drug = pd.read_csv(dtrace.LMM_ASSOCIATIONS)
-    lmm_drug = multipletests_per_drug(lmm_drug, field='pval', method='fdr_bh')
+    lmm_drug = lmm_drug[['+' not in i for i in lmm_drug['DRUG_NAME']]]
     lmm_drug = ppi_annotation(lmm_drug, ppi_type=build_string_ppi, ppi_kws=dict(score_thres=900), target_thres=3)
     lmm_drug = corr_drugtarget_gene(lmm_drug)
 
@@ -103,11 +157,15 @@ if __name__ == '__main__':
     ppi = build_string_ppi(score_thres=900)
     ppi = ppi_corr(ppi, crispr_logfc)
 
-    # - Top associations
+    # -
+    for t in ['MCL1', 'EGFR', 'IGF1R', 'PIK3CA', 'BCL2', 'MAPK1', 'MDM2', 'PLK1']:
+        target_features(t)
+
     # - Top correlation examples
     indices = [
         dict(d_name='MCL1_1284', g_name='MCL1', corr_thres=0.2, n_neighbors=1),
         dict(d_name='Nutlin-3a (-)', g_name='MDM4', corr_thres=0.4, n_neighbors=2),
+        dict(d_name='Nutlin-3a (-)', g_name='MDM2', corr_thres=0.4, n_neighbors=2),
         dict(d_name='Sapatinib', g_name='EGFR', corr_thres=0.3, n_neighbors=2),
         dict(d_name='Rigosertib', g_name='BUB1B', corr_thres=0.3, n_neighbors=2),
         dict(d_name='Volasertib', g_name='BUB1B', corr_thres=0.3, n_neighbors=2),
@@ -124,8 +182,10 @@ if __name__ == '__main__':
         # Data-frame
         x, y = f"{assoc['g_name']}", f"{assoc['d_name']}"
 
+        genes = list(set([assoc['g_name']] + list(d_targets[d_id] if d_id in d_targets else [])))
+
         plot_df = pd.concat([
-            crispr_logfc.loc[list(set([assoc['g_name']] + list(d_targets[d_id])))].T,
+            crispr_logfc.loc[genes].T,
             drespo.loc[(d_id, assoc['d_name'], d_screen)].rename(y),
         ], axis=1, sort=False).dropna().sort_values(x)
 

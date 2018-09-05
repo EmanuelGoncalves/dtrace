@@ -247,7 +247,8 @@ def filter_crispr(crispr, min_events=3, fdr_thres=0.05, broad_paness=False):
     depleted_genes = get_crispr(dtype='bagel')
     depleted_genes = depleted_genes[depleted_genes.sum(1) >= min_events]
 
-    df = crispr.loc[list(enriched_genes.index) + list(depleted_genes.index)]
+    genes = set(enriched_genes.index).union(depleted_genes.index)
+    df = crispr.loc[list(genes)]
     df = df[(df.abs() > 0.5).sum(1) >= min_events]
 
     pancore_score = set(pd.read_csv(SCORE_PANCANCER).iloc[:, 0])

@@ -49,6 +49,9 @@ if __name__ == '__main__':
     samples = list(set(mobems).intersection(drespo).intersection(crispr))
     print('#(Samples) = {}'.format(len(samples)))
 
+    wes = dtrace.get_wes()
+    gexp = dtrace.get_geneexpression()
+
     # Drug max screened concentration
     d_maxc = pd.read_csv(dtrace.DRUG_RESPONSE_MAXC, index_col=[0, 1, 2])
 
@@ -59,43 +62,47 @@ if __name__ == '__main__':
     d_targets = get_drugtargets()
 
     # -
-    d_id = 1558
+    # d_id = 1558
+    d_id = 1372
+
+    d_name, d_screen = 'Trametinib', 'RS'
 
     d_targ = d_targets[d_id]
+    # d_targ = {'EGFR', 'ERBB2', 'ERBB3', 'KRAS'}
+    # d_targ = {'PIK3CB', 'RICTOR', 'AKT1'}
 
     df = pd.concat([
-        drespo.loc[d_id].T,
+        drespo.loc[(d_id, d_name, d_screen)],
         crispr_logfc.loc[d_targ].T
     ], axis=1, sort=False).dropna()
-
-    d_name, d_screen = df.iloc[:, 0].name
 
     dmax = np.log(d_maxc.loc[(d_id, d_name, d_screen), 'max_conc_micromolar'])
 
     d_lms = []
     for n in [1, 2]:
         for features in it.combinations(d_targ, n):
-            for interaction in [True, False]:
+            for interaction in [False, True]:
                 y = df.iloc[:, 0]
 
                 if n == 1 and interaction:
                     continue
 
                 if n > 1 and interaction:
-                    x = pd.concat([
-                        df[df[(d_name, d_screen)] < dmax][list(features)].min(1),
-                        df[df[(d_name, d_screen)] >= dmax][list(features)].mean(1)
-                    ]).to_frame().loc[y.index]
+                    x = df[list(features)]
+
+                    x_int = '*'.join(features)
+                    x[x_int] = x.eval(x_int)
+
+                    name = ' + '.join(x.columns)
 
                     x = StandardScaler().fit_transform(x)
-
-                    name = f"min({','.join(features)})"
 
                 else:
                     x = df[list(features)].loc[y.index]
-                    x = StandardScaler().fit_transform(x)
 
-                    name = ','.join(features)
+                    name = ' + '.join(x.columns)
+
+                    x = StandardScaler().fit_transform(x)
 
                 lm = LinearRegression().fit(x, y)
 
@@ -110,32 +117,20 @@ if __name__ == '__main__':
 
                 d_lms.append((n, name, lm, llm, r, lm.coef_))
 
-    print(d_lms)
+    print(list(enumerate(d_lms)))
 
     #
-    model_full, model_small = d_lms[2][3], d_lms[3][3]
+    model_full, model_small = d_lms[15][3], d_lms[14][3]
     lr = 2 * (model_full - model_small)
     lr_pval = st.chi2(1).sf(lr)
     print(lr_pval)
 
     # Plot
-    plot_df = pd.concat([
-        drespo.loc[d_id].T.iloc[:, 0].rename('drug'),
-        crispr.loc[list(d_targ)].T,
-        crispr.T.eval('+'.join(d_targ)).rename('and')
-    ], axis=1, sort=False).dropna()
+    plot_corrplot('MAP2K2', (d_id, d_name, d_screen), df, add_hline=True, lowess=False)
 
-    sns.boxplot('and', 'drug', data=plot_df, palette=PAL_DTRACE, notch=True)
-    plt.gcf().set_size_inches(1., 2.)
-    plt.savefig(f'reports/targets_boxplot.pdf', bbox_inches='tight', transparent=True)
+    plt.axhline(dmax, lw=.3, color=PAL_DTRACE[2], ls=':', zorder=0)
+    plt.axvline(-.5, lw=.3, color=PAL_DTRACE[2], ls=':', zorder=0)
+
+    plt.gcf().set_size_inches(2., 2.)
+    plt.savefig(f'reports/targets_lm.pdf', bbox_inches='tight', transparent=True)
     plt.close('all')
-
-
-    # plot_corrplot('min', (d_name, d_screen), plot_df, add_hline=True, lowess=False)
-    #
-    # plt.axhline(dmax, lw=.3, color=PAL_DTRACE[2], ls=':', zorder=0)
-    # plt.axvline(-.5, lw=.3, color=PAL_DTRACE[2], ls=':', zorder=0)
-    #
-    # plt.gcf().set_size_inches(2., 2.)
-    # plt.savefig(f'reports/targets_lm.pdf', bbox_inches='tight', transparent=True)
-    # plt.close('all')

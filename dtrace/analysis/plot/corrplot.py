@@ -57,7 +57,7 @@ def _marginal_boxplot(a, xs=None, ys=None, zs=None, vertical=False, **kws):
     ax.set_xlabel('')
 
 
-def plot_corrplot_discrete(x, y, z, plot_df, scatter_kws=None, line_kws=None, legend_title=''):
+def plot_corrplot_discrete(x, y, z, plot_df, scatter_kws=None, line_kws=None, legend_title='', discrete_pal=None, hue_order=None):
     # Defaults
     if scatter_kws is None:
         scatter_kws = dict(edgecolor='w', lw=.3, s=12)
@@ -71,7 +71,7 @@ def plot_corrplot_discrete(x, y, z, plot_df, scatter_kws=None, line_kws=None, le
     g = sns.JointGrid(x, y, plot_df, space=0, ratio=8)
 
     g.plot_marginals(
-        _marginal_boxplot, palette=pal, data=plot_df, linewidth=.3, fliersize=1, notch=False, saturation=1.0,
+        _marginal_boxplot, palette=pal if discrete_pal is None else discrete_pal, data=plot_df, linewidth=.3, fliersize=1, notch=False, saturation=1.0,
         xs=x, ys=y, zs=z
     )
 
@@ -89,7 +89,13 @@ def plot_corrplot_discrete(x, y, z, plot_df, scatter_kws=None, line_kws=None, le
 
     g.set_axis_labels('{} (log2 FC)'.format(x), '{} (ln IC50)'.format(y))
 
-    handles = [mpatches.Circle([.0, .0], .25, facecolor=c, label='Yes' if t else 'No') for t, c in pal.items()]
+    if discrete_pal is None:
+        handles = [mpatches.Circle([.0, .0], .25, facecolor=c, label='Yes' if t else 'No') for t, c in pal.items()]
+    elif hue_order is None:
+        handles = [mpatches.Circle([.0, .0], .25, facecolor=c, label=t) for t, c in discrete_pal.items()]
+    else:
+        handles = [mpatches.Circle([.0, .0], .25, facecolor=discrete_pal[t], label=t) for t in hue_order]
+
     g.ax_marg_y.legend(handles=handles, title=legend_title, loc='center left', bbox_to_anchor=(1, 0.5), frameon=False)
 
     plt.suptitle(z, y=1.05, fontsize=8)

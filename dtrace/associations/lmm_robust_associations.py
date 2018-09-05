@@ -61,7 +61,8 @@ if __name__ == '__main__':
     print('#(Samples) = {}'.format(len(samples)))
 
     # - Import significant linear regressions
-    lmm_drug = pd.read_csv(dtrace.LMM_ASSOCIATIONS).query('fdr < 0.05')
+    lmm_drug = pd.read_csv(dtrace.LMM_ASSOCIATIONS).query('fdr < 0.1')
+    lmm_drug = lmm_drug[['+' not in i for i in lmm_drug['DRUG_NAME']]]
     print('#(Significant associations) = {}'.format(lmm_drug.shape[0]))
 
     # - Robust pharmacological regressions

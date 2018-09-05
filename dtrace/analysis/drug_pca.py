@@ -46,19 +46,21 @@ def perform_pca(drespo, n_components=10):
     df = drespo.T.fillna(drespo.T.mean()).T
 
     pca = dict()
+
     for by in ['row', 'column']:
         pca[by] = dict()
 
         if by == 'column':
-            df = df.T
-
-        df = df.subtract(df.mean())
+            df_ = df.T
+            df_ = df_.subtract(df_.mean())
+        else:
+            df_ = df.subtract(df.mean())
 
         pcs_labels = list(map(lambda v: f'PC{v + 1}', range(n_components)))
 
-        pca[by]['pca'] = PCA(n_components=n_components).fit(df)
+        pca[by]['pca'] = PCA(n_components=n_components).fit(df_)
         pca[by]['vex'] = pd.Series(pca[by]['pca'].explained_variance_ratio_, index=pcs_labels)
-        pca[by]['pcs'] = pd.DataFrame(pca[by]['pca'].transform(df), index=df.index, columns=pcs_labels)
+        pca[by]['pcs'] = pd.DataFrame(pca[by]['pca'].transform(df_), index=df_.index, columns=pcs_labels)
 
     return pca
 
@@ -216,6 +218,7 @@ def drug_response_heatmap(drespo):
 
     g.ax_heatmap.set_xlabel('Cell lines')
     g.ax_heatmap.set_ylabel('Drugs')
+
 
 
 if __name__ == '__main__':
