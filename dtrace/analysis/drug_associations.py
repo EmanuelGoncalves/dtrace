@@ -17,7 +17,7 @@ from dtrace.analysis import PAL_DTRACE
 from sklearn.preprocessing import StandardScaler
 from analysis.plot.corrplot import plot_corrplot_discrete
 from dtrace.assemble.assemble_ppi import build_string_ppi
-from dtrace.associations import ppi_annotation, corr_drugtarget_gene, DRUG_INFO_COLUMNS, multipletests_per_drug
+from dtrace.associations import ppi_annotation, DRUG_INFO_COLUMNS, multipletests_per_drug
 
 BOXPROPS = dict(linewidth=1.)
 WHISKERPROPS = dict(linewidth=1.)
@@ -291,16 +291,15 @@ def beta_corr_boxplot(betas_corr):
     plt.title('Drug association profiles')
 
 
-def drug_aurc(lmm_drug, fdr=0.05, corr=0.25, label='target', rank_label='pval', legend_size=4, title='', legend_title='', ax=None):
+def drug_aurc(lmm_drug, fdr=.1, rank_label='pval', legend_size=4, legend_title='', ax=None):
     # Subset to entries that have a target
-    df = lmm_drug.query("{} != '-'".format(label))
-    df = df[(df['target'] == 'T') | (df['corr'].abs() > corr)]
+    df = lmm_drug.query("target != '-'")
 
     drugs_signif = {tuple(i) for i in df.query('fdr < {}'.format(fdr))[DRUG_INFO_COLUMNS].values}
     df = df[[tuple(i) in drugs_signif for i in df[DRUG_INFO_COLUMNS].values]]
 
     # Define order and palette
-    order = natsorted(set(df[label]))
+    order = natsorted(set(df['target']))
     order.insert(0, order.pop(order.index('T')))
 
     pal = [PAL_DTRACE[0]] + sns.light_palette(PAL_DTRACE[2], n_colors=len(order)).as_hex()[1:]
@@ -312,7 +311,7 @@ def drug_aurc(lmm_drug, fdr=0.05, corr=0.25, label='target', rank_label='pval', 
 
     # Build curve for each group
     for t in pal.index:
-        index_set = set(df[df[label] == t].index)
+        index_set = set(df[df['target'] == t].index)
 
         # Build data-frame
         x = df[rank_label].sort_values().dropna()
@@ -347,12 +346,13 @@ def drug_aurc(lmm_drug, fdr=0.05, corr=0.25, label='target', rank_label='pval', 
     legend = ax.legend(loc=4, title=legend_title, prop={'size': legend_size}, frameon=False)
     legend.get_title().set_fontsize('{}'.format(legend_size))
 
+    ax.set_title('Drug ~ Gene associations\nnetwork interactions enrichment')
+
     return ax
 
 
-def boxplot_kinobead(lmm_drug, ax=None):
-    if ax is None:
-        ax = plt.gca()
+def boxplot_kinobead(lmm_drug, fdr_thres=.1, ax=None):
+    d_targets = dtrace.get_drugtargets()
 
     # Build data-frame
     drug_id_fdr = lmm_drug.groupby('DRUG_ID_lib')['fdr'].min()
@@ -361,15 +361,37 @@ def boxplot_kinobead(lmm_drug, ax=None):
         if str(ids).lower() == 'nan':
             return np.nan
         else:
-            return drug_id_fdr.reindex(list(map(int, ids.split(';')))).min()
+            dids = list(map(int, ids.split(';')))
+            dids = [i for i in dids if i in drug_id_fdr.index]
+
+            if len(dids) == 0:
+                return np.nan
+            else:
+                return drug_id_fdr.loc[dids].min()
+
+    def targets_from_ids(ids):
+        if str(ids).lower() == 'nan':
+            return np.nan
+        else:
+            dids = list(map(int, ids.split(';')))
+            dids = [i for i in dids if i in d_targets]
+
+            if len(dids) == 0:
+                return np.nan
+            else:
+                return '; '.join({g for i in dids for g in d_targets[i]})
 
     catds = pd.read_csv('data/klaeger_et_al_catds_most_potent.csv')
     catds = catds.assign(fdr=[from_ids_to_minfdr(i) for i in catds['ids']])
-    catds = catds.assign(signif=[('NA' if np.isnan(i) else ('Yes' if i < 0.05 else 'No')) for i in catds['fdr']])
+    catds = catds.assign(signif=[('NA' if np.isnan(i) else ('Yes' if i < fdr_thres else 'No')) for i in catds['fdr']])
+    catds = catds.assign(targets=[targets_from_ids(i) for i in catds['ids']])
 
     t, p = ttest_ind(catds[catds['signif'] == 'No']['CATDS_most_potent'], catds[catds['signif'] == 'NA']['CATDS_most_potent'], equal_var=False)
 
     # Plot
+    if ax is None:
+        ax = plt.gca()
+
     order = ['No', 'Yes', 'NA']
     pal = {'No': PAL_DTRACE[2], 'Yes': PAL_DTRACE[0], 'NA': PAL_DTRACE[1]}
 
@@ -706,12 +728,8 @@ def drug_v17_id_batch(tsnes):
 if __name__ == '__main__':
     # - Linear regressions
     lmm_drug = pd.read_csv(dtrace.LMM_ASSOCIATIONS)
-
     lmm_drug = lmm_drug[['+' not in i for i in lmm_drug['DRUG_NAME']]]
-
     lmm_drug = ppi_annotation(lmm_drug, ppi_type=build_string_ppi, ppi_kws=dict(score_thres=900), target_thres=3)
-
-    lmm_drug = corr_drugtarget_gene(lmm_drug)
 
     # - Drug betas correlation
     betas_corr = drug_betas_corr(lmm_drug)
@@ -821,7 +839,6 @@ if __name__ == '__main__':
 
     # - Drug target and PPI annotation AURCs
     ax = drug_aurc(lmm_drug, fdr=.1)
-    ax.set_title('Drug ~ Gene associations\nnetwork interactions enrichment')
     plt.gcf().set_size_inches(2, 2)
     plt.savefig('reports/drug_associations_aurc.pdf', bbox_inches='tight', transparent=True)
     plt.close('all')

@@ -15,8 +15,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LinearRegression
 from analysis.plot.corrplot import plot_corrplot
 from dtrace.assemble.assemble_ppi import build_string_ppi
-from statsmodels.distributions.empirical_distribution import ECDF
-from dtrace.associations import ppi_annotation, corr_drugtarget_gene, ppi_corr, multipletests_per_drug, DRUG_INFO_COLUMNS
+from dtrace.associations import ppi_annotation, DRUG_INFO_COLUMNS
 
 
 def log_likelihood(y_true, y_pred):
@@ -61,13 +60,47 @@ if __name__ == '__main__':
     # Drug target
     d_targets = get_drugtargets()
 
+    # Linear regressions
+    lmm_drug = pd.read_csv(dtrace.LMM_ASSOCIATIONS)
+    lmm_drug = lmm_drug[['+' not in i for i in lmm_drug['DRUG_NAME']]]
+    lmm_drug = ppi_annotation(lmm_drug, ppi_type=build_string_ppi, ppi_kws=dict(score_thres=900), target_thres=3)
+
     # -
-    # d_id = 1558
-    d_id = 1372
+    # Count number of drugs
+    df_genes = set(lmm_drug['GeneSymbol'])
+
+    fdr_thres = .1
+
+    d_all = {tuple(i) for i in lmm_drug[DRUG_INFO_COLUMNS].values}
+    d_annot = {tuple(i) for i in d_all if i[0] in d_targets}
+    d_tested = {tuple(i) for i in d_annot if len(d_targets[i[0]].intersection(df_genes)) > 0}
+    d_tested_signif = {tuple(i) for i in lmm_drug.query(f'fdr < {fdr_thres}')[DRUG_INFO_COLUMNS].values if tuple(i) in d_tested}
+    d_tested_correct = {tuple(i) for i in lmm_drug.query(f"fdr < {fdr_thres} & target == 'T'")[DRUG_INFO_COLUMNS].values if tuple(i) in d_tested_signif}
+
+    # -
+    pancore_ceres = set(pd.read_csv(dtrace.CERES_PANCANCER).iloc[:, 0].apply(lambda v: v.split(' ')[0]))
+
+    df = lmm_drug[~lmm_drug['GeneSymbol'].isin(pancore_ceres)]
+    df = df[df['DRUG_ID_lib'].isin(d_targets.keys())]
+    df = df.query("target != 'T'").sort_values('beta')
+
+    # -
+    d_id, d_name, d_screen = 2125, 'Mcl1_7350', 'RS'
+
+    genes = ['EHMT2']
+    lines = list(set(wes[wes['Gene'].isin(genes)]['SAMPLE']))
+
+    plot_df = drespo.loc[(d_id, d_name, d_screen)].dropna().rename('drug').to_frame()
+    plot_df = plot_df.assign(mut=plot_df.index.isin(lines).astype(int))
+
+    sns.boxplot('mut', 'drug', data=plot_df, notch=True, palette=PAL_DTRACE)
+    plt.show()
+
+    # -
+    d_targ = d_targets[d_id]
 
     d_name, d_screen = 'Trametinib', 'RS'
 
-    d_targ = d_targets[d_id]
     # d_targ = {'EGFR', 'ERBB2', 'ERBB3', 'KRAS'}
     # d_targ = {'PIK3CB', 'RICTOR', 'AKT1'}
 

@@ -14,7 +14,7 @@ from analysis.plot.corrplot import plot_corrplot
 from dtrace.assemble.assemble_ppi import build_string_ppi
 from statsmodels.distributions.empirical_distribution import ECDF
 from analysis.drug_associations import MEDIANPROPS, FLIERPROPS, WHISKERPROPS, BOXPROPS
-from dtrace.associations import ppi_annotation, corr_drugtarget_gene, ppi_corr, multipletests_per_drug, DRUG_INFO_COLUMNS
+from dtrace.associations import ppi_annotation, ppi_corr, multipletests_per_drug, DRUG_INFO_COLUMNS
 
 
 def get_edges(ppi, nodes, corr_thres, norder):
@@ -87,7 +87,11 @@ def target_features(target='MCL1'):
     # Drugs clustermap
     plot_df = betas.loc[drugs]
 
-    g = sns.clustermap(plot_df.T.corr(), cmap='RdGy_r', center=0, annot=True, fmt='.1f', linewidths=.3, annot_kws={'fontsize': 5})
+    figsize = (max(0.3 * plot_df.shape[0], 2), max(0.3 * plot_df.shape[0], 2))
+
+    g = sns.clustermap(
+        plot_df.T.corr(), cmap='RdGy_r', center=0, annot=True, fmt='.1f', linewidths=.3, annot_kws={'fontsize': 5}, figsize=figsize
+    )
 
     g.ax_heatmap.set_xlabel('')
     g.ax_heatmap.set_ylabel('')
@@ -95,7 +99,6 @@ def target_features(target='MCL1'):
     plt.setp(g.ax_heatmap.get_yticklabels(), rotation=0)
     plt.setp(g.ax_heatmap.get_xticklabels(), rotation=90)
 
-    plt.gcf().set_size_inches(max(0.3 * plot_df.shape[0], 2), max(0.3 * plot_df.shape[0], 2))
     plt.savefig(f'reports/targets_betas_clustermap_{target}.pdf', bbox_inches='tight', transparent=True)
     plt.close('all')
 
@@ -148,7 +151,6 @@ if __name__ == '__main__':
     lmm_drug = pd.read_csv(dtrace.LMM_ASSOCIATIONS)
     lmm_drug = lmm_drug[['+' not in i for i in lmm_drug['DRUG_NAME']]]
     lmm_drug = ppi_annotation(lmm_drug, ppi_type=build_string_ppi, ppi_kws=dict(score_thres=900), target_thres=3)
-    lmm_drug = corr_drugtarget_gene(lmm_drug)
 
     # Drug target
     d_targets = get_drugtargets()
