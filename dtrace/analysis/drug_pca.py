@@ -220,7 +220,6 @@ def drug_response_heatmap(drespo):
     g.ax_heatmap.set_ylabel('Drugs')
 
 
-
 if __name__ == '__main__':
     # - Imports
     # Drug response
