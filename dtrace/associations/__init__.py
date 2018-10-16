@@ -4,26 +4,6 @@
 import dtrace
 import numpy as np
 import pandas as pd
-from limix.qtl import scan
-from sklearn.preprocessing import StandardScaler
-from statsmodels.stats.multitest import multipletests
-
-
-DRUG_INFO_COLUMNS = ['DRUG_ID_lib', 'DRUG_NAME', 'VERSION']
-
-
-def multipletests_per_drug(lr_associations, method='bonferroni', field='pval', fdr_field='fdr', index_cols=DRUG_INFO_COLUMNS):
-    d_unique = {tuple(i) for i in lr_associations[index_cols].values}
-
-    df = lr_associations.set_index(index_cols)
-
-    df = pd.concat([
-        df.loc[i].assign(
-            fdr=multipletests(df.loc[i, field], method=method)[1]
-        ).rename(columns={'fdr': fdr_field}) for i in d_unique
-    ]).reset_index()
-
-    return df
 
 
 def ppi_corr(ppi, m_corr, m_corr_thres=None):

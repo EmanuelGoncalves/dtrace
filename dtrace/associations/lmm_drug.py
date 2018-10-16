@@ -6,6 +6,7 @@ import pandas as pd
 from limix.qtl import scan
 from sklearn.preprocessing import StandardScaler
 from dtrace.associations import multipletests_per_drug
+from dtrace.importer import DrugResponse, CRISPR, MOBEM
 
 
 def lmm_association(drug, y, x, M=None, expand_drug_id=True):
@@ -44,27 +45,25 @@ def lmm_association(drug, y, x, M=None, expand_drug_id=True):
 
 if __name__ == '__main__':
     # - Import
-    mobems = dtrace.get_mobem()
-    drespo = dtrace.get_drugresponse()
+    mobems = MOBEM()
+    crispr = CRISPR()
+    drespo = DrugResponse()
 
-    crispr = dtrace.get_crispr(dtype='both')
-    crispr_logfc = dtrace.get_crispr(dtype='logFC', scale=True)
-
-    samples = list(set(mobems).intersection(drespo).intersection(crispr))
-    print('#(Samples) = {}'.format(len(samples)))
+    samples = list(set.intersection(
+        set(mobems.get_data().columns),
+        set(drespo.get_data().columns),
+        set(crispr.get_data().columns)
+    ))
+    print(f'#(Samples) = {len(samples)}')
 
     # - Filter
-    drespo = dtrace.filter_drugresponse(drespo[samples])
-
-    crispr = dtrace.filter_crispr(crispr[samples])
-    crispr_logfc = crispr_logfc.loc[crispr.index, samples]
-
-    print(
-        '#(Genomic) = {}; #(Drugs) = {}; #(Genes) = {}'.format(len(set(mobems.index)), len(set(drespo.index)), len(set(crispr.index)))
-    )
+    mobems = mobems.filter().get_data()
+    drespo = drespo.filter(subset=samples).get_data(dtype='ic50')
+    crispr = crispr.filter(subset=samples).get_data(dtype='logFC')
+    print(f'#(Genomic) = {mobems.shape[0]}; #(Drugs) = {drespo.shape[0]}; #(Genes) = {crispr.shape[0]}')
 
     # - Linear Mixed Model
-    lmm_res = pd.concat([lmm_association(d, drespo, crispr_logfc) for d in drespo.index])
+    lmm_res = pd.concat([lmm_association(d, drespo, crispr) for d in drespo.index])
     lmm_res = multipletests_per_drug(lmm_res, field='pval')
     print(lmm_res.sort_values('pval').head(60))
 
