@@ -1,12 +1,14 @@
 #!/usr/bin/env python
 # Copyright (C) 2018 Emanuel Goncalves
 
+import igraph
 import warnings
 import numpy as np
 import pandas as pd
 from crispy.utils import Utils
 
 
+# TODO: Add exported matrices of the data
 class DrugResponse(object):
     SAMPLE_INFO_COLUMNS = ('COSMIC_ID', 'CELL_LINE_NAME')
     DRUG_INFO_COLUMNS = ['DRUG_ID_lib', 'DRUG_NAME', 'VERSION']
@@ -366,3 +368,214 @@ class MOBEM(object):
 
         else:
             raise ValueError('{} is not a valid MOBEM feature.'.format(f))
+
+
+class PPI(object):
+
+    def __init__(
+            self,
+            string_file='data/ppi/9606.protein.links.full.v10.5.txt',
+            string_alias_file='data/ppi/9606.protein.aliases.v10.5.txt',
+            biogrid_file='data/ppi/BIOGRID-ORGANISM-Homo_sapiens-3.4.157.tab2.txt'
+    ):
+        self.string_file = string_file
+        self.string_alias_file = string_alias_file
+        self.biogrid_file = biogrid_file
+
+        self.drug_targets = DrugResponse().get_drugtargets()
+
+    def ppi_annotation(self, df, ppi_type, ppi_kws, target_thres=4):
+        df_genes, df_drugs = set(df['GeneSymbol']), set(df['DRUG_ID_lib'])
+
+        # PPI annotation
+        ppi = ppi_type(**ppi_kws)
+
+        # Drug target
+        d_targets = {k: self.drug_targets[k] for k in df_drugs if k in self.drug_targets}
+
+        # Calculate distance between drugs and CRISPRed genes in PPI
+        dist_d_g = self.dist_drugtarget_genes(d_targets, df_genes, ppi)
+
+        # Annotate drug regressions
+        def drug_gene_annot(d, g):
+            if d not in d_targets:
+                res = '-'
+
+            elif g in d_targets[d]:
+                res = 'T'
+
+            elif d not in dist_d_g or g not in dist_d_g[d]:
+                res = '-'
+
+            else:
+                res = self.ppi_dist_to_string(dist_d_g[d][g], target_thres)
+
+            return res
+
+        df = df.assign(target=[drug_gene_annot(d, g) for d, g in df[['DRUG_ID_lib', 'GeneSymbol']].values])
+
+        return df
+
+    @staticmethod
+    def dist_drugtarget_genes(drug_targets, genes, ppi):
+        genes = genes.intersection(set(ppi.vs['name']))
+        assert len(genes) != 0, 'No genes overlapping with PPI provided'
+
+        dmatrix = {}
+
+        for drug in drug_targets:
+            drug_genes = drug_targets[drug].intersection(genes)
+
+            if len(drug_genes) != 0:
+                dmatrix[drug] = dict(zip(*(genes, np.min(ppi.shortest_paths(source=drug_genes, target=genes), axis=0))))
+
+        return dmatrix
+
+    @staticmethod
+    def ppi_dist_to_string(d, target_thres):
+        if d == 0:
+            res = 'T'
+
+        elif d == np.inf:
+            res = '-'
+
+        elif d < target_thres:
+            res = str(int(d))
+
+        else:
+            res = '>={}'.format(target_thres)
+
+        return res
+
+    def build_biogrid_ppi(self, exp_type=None, int_type=None, organism=9606, export_pickle=None):
+        # 'Affinity Capture-MS', 'Affinity Capture-Western'
+        # 'Reconstituted Complex', 'PCA', 'Two-hybrid', 'Co-crystal Structure', 'Co-purification'
+
+        # Import
+        biogrid = pd.read_csv(self.biogrid_file, sep='\t')
+
+        # Filter organism
+        biogrid = biogrid[
+            (biogrid['Organism Interactor A'] == organism) & (biogrid['Organism Interactor B'] == organism)
+            ]
+
+        # Filter non matching genes
+        biogrid = biogrid[
+            (biogrid['Official Symbol Interactor A'] != '-') & (biogrid['Official Symbol Interactor B'] != '-')
+            ]
+
+        # Physical interactions only
+        if int_type is not None:
+            biogrid = biogrid[[i in int_type for i in biogrid['Experimental System Type']]]
+        print('Experimental System Type considered: {}'.format('; '.join(set(biogrid['Experimental System Type']))))
+
+        # Filter by experimental type
+        if exp_type is not None:
+            biogrid = biogrid[[i in exp_type for i in biogrid['Experimental System']]]
+        print('Experimental System considered: {}'.format('; '.join(set(biogrid['Experimental System']))))
+
+        # Interaction source map
+        biogrid['interaction'] = biogrid['Official Symbol Interactor A'] + '<->' + biogrid[
+            'Official Symbol Interactor B']
+
+        # Unfold associations
+        biogrid = {
+            (s, t) for p1, p2 in biogrid[['Official Symbol Interactor A', 'Official Symbol Interactor B']].values
+            for s, t in [(p1, p2), (p2, p1)] if s != t
+        }
+
+        # Build igraph network
+        # igraph network
+        net_i = igraph.Graph(directed=False)
+
+        # Initialise network lists
+        edges = [(px, py) for px, py in biogrid]
+        vertices = list({p for p1, p2 in biogrid for p in [p1, p2]})
+
+        # Add nodes
+        net_i.add_vertices(vertices)
+
+        # Add edges
+        net_i.add_edges(edges)
+
+        # Simplify
+        net_i = net_i.simplify()
+        print(net_i.summary())
+
+        # Export
+        if export_pickle is not None:
+            net_i.write_pickle(export_pickle)
+
+        return net_i
+
+    def build_string_ppi(self, score_thres=900, export_pickle=None):
+        # ENSP map to gene symbol
+        gmap = pd.read_csv(self.string_alias_file, sep='\t')
+        gmap = gmap[['BioMart_HUGO' in i.split(' ') for i in gmap['source']]]
+        gmap = gmap.groupby('string_protein_id')['alias'].agg(lambda x: set(x)).to_dict()
+        gmap = {k: list(gmap[k])[0] for k in gmap if len(gmap[k]) == 1}
+        print('ENSP gene map: ', len(gmap))
+
+        # Load String network
+        net = pd.read_csv(self.string_file, sep=' ')
+
+        # Filter by moderate confidence
+        net = net[net['combined_score'] > score_thres]
+
+        # Filter and map to gene symbol
+        net = net[[p1 in gmap and p2 in gmap for p1, p2 in net[['protein1', 'protein2']].values]]
+        net['protein1'] = [gmap[p1] for p1 in net['protein1']]
+        net['protein2'] = [gmap[p2] for p2 in net['protein2']]
+        print('String: ', len(net))
+
+        #  String network
+        net_i = igraph.Graph(directed=False)
+
+        # Initialise network lists
+        edges = [(px, py) for px, py in net[['protein1', 'protein2']].values]
+        vertices = list(set(net['protein1']).union(net['protein2']))
+
+        # Add nodes
+        net_i.add_vertices(vertices)
+
+        # Add edges
+        net_i.add_edges(edges)
+
+        # Add edge attribute score
+        net_i.es['score'] = list(net['combined_score'])
+
+        # Simplify
+        net_i = net_i.simplify(combine_edges='max')
+        print(net_i.summary())
+
+        # Export
+        if export_pickle is not None:
+            net_i.write_pickle(export_pickle)
+
+        return net_i
+
+    @staticmethod
+    def ppi_corr(ppi, m_corr, m_corr_thres=None):
+        """
+        Annotate PPI network based on Pearson correlation between the vertices of each edge using
+        m_corr data-frame and m_corr_thres (Pearson > m_corr_thress).
+
+        :param ppi:
+        :param m_corr:
+        :param m_corr_thres:
+        :return:
+        """
+        # Subset PPI network
+        ppi = ppi.subgraph([i.index for i in ppi.vs if i['name'] in m_corr.index])
+
+        # Edge correlation
+        crispr_pcc = np.corrcoef(m_corr.loc[ppi.vs['name']].values)
+        ppi.es['corr'] = [crispr_pcc[i.source, i.target] for i in ppi.es]
+
+        # Sub-set by correlation between vertices of each edge
+        if m_corr_thres is not None:
+            ppi = ppi.subgraph_edges([i.index for i in ppi.es if abs(i['corr']) > m_corr_thres])
+
+        print(ppi.summary())
+
+        return ppi
