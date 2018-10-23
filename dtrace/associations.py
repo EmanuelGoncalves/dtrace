@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # Copyright (C) 2018 Emanuel Goncalves
 
+import numpy as np
 import pandas as pd
 from limix.qtl import scan
 from sklearn.preprocessing import StandardScaler
@@ -11,27 +12,28 @@ from dtrace.importer import DrugResponse, CRISPR, MOBEM
 class Association(object):
     def __init__(self, dtype_drug='ic50'):
         # Import
-        mobems = MOBEM()
-        crispr = CRISPR()
-        drespo = DrugResponse()
+        self.mobems_obj = MOBEM()
+        self.crispr_obj = CRISPR()
+        self.drespo_obj = DrugResponse()
 
         samples = list(set.intersection(
-            set(mobems.get_data().columns),
-            set(drespo.get_data().columns),
-            set(crispr.get_data().columns)
+            set(self.mobems_obj.get_data().columns),
+            set(self.drespo_obj.get_data().columns),
+            set(self.crispr_obj.get_data().columns)
         ))
         print(f'#(Samples)={len(samples)}')
 
         # Filter
-        self.mobems = mobems.filter().get_data()
-        self.drespo = drespo.filter(subset=samples).get_data(dtype=dtype_drug)
-        self.crispr = crispr.filter(subset=samples).get_data(dtype='logFC')
+        self.mobems = self.mobems_obj.filter().get_data()
+        self.drespo = self.drespo_obj.filter(subset=samples).get_data(dtype=dtype_drug)
+        self.crispr = self.crispr_obj.filter(subset=samples).get_data(dtype='logFC')
         print(f'#(Genomic)={self.mobems.shape[0]}; #(Drugs)={self.drespo.shape[0]}; #(Genes)={self.crispr.shape[0]}')
 
     @staticmethod
     def lmm_association(drug, y, x, m=None, expand_drug_id=True):
         # Build matrices
         Y = y.loc[[drug]].T.dropna()
+        Y = pd.DataFrame(StandardScaler().fit_transform(Y), index=Y.index, columns=Y.columns)
 
         X = x[Y.index].T
         X = pd.DataFrame(StandardScaler().fit_transform(X), index=X.index, columns=X.columns)
@@ -43,7 +45,8 @@ class Association(object):
 
         # Covariates
         if m is not None:
-            m = m.loc[Y.index]
+            m = m[Y.index].T
+            m = pd.DataFrame(StandardScaler().fit_transform(m), index=m.index, columns=m.columns)
 
         # Linear Mixed Model
         lmm = scan(X, Y, K=K, M=m, lik='normal', verbose=False)
@@ -65,8 +68,6 @@ class Association(object):
 
     @staticmethod
     def lmm_robust_association(association, y1, y2, x, min_events):
-        print('[INFO] LMM {}'.format(association))
-
         # Build drug measurement matrix
         Y1 = y1.loc[[tuple(association[:3])]].T.dropna()
 
@@ -120,13 +121,40 @@ class Association(object):
 
         return df
 
-    def associations(self, method='bonferroni', min_events=3):
-        # Simple linear association
+    def get_drug_top(self, lmm_associations, drug, top_features):
+        d_genes = lmm_associations\
+            .query(f"DRUG_ID_lib == {drug[0]} & DRUG_NAME == '{drug[1]}' & VERSION == '{drug[2]}'")\
+            .sort_values('pval')\
+            .head(top_features)['GeneSymbol']
+
+        return pd.concat([
+            self.drespo.loc[drug],
+            self.crispr.loc[d_genes].T
+        ], axis=1, sort=False).dropna().T
+
+    def associations(self, method='bonferroni', min_events=3, fdr_thres=.1, top_features=5):
+        # - Simple linear regression
         lmm_res = pd.concat([self.lmm_association(d, self.drespo, self.crispr) for d in self.drespo.index])
         lmm_res = self.multipletests_per_drug(lmm_res, field='pval', method=method)
 
-        # Robust pharmacological
-        lmm_res_signif = lmm_res.query('fdr < 0.1')
+        # - Multi linear regression
+        mlmm_res = []
+        for drug in self.drespo.index:
+            drug_df = self.get_drug_top(lmm_res, drug, top_features)
+
+            drug_mlmm = pd.concat([self.lmm_association(
+                drug,
+                drug_df.iloc[[0]],
+                drug_df.drop(drug_df.iloc[[0, i]].index),
+                drug_df.iloc[[i]]
+            ).assign(covar=drug_df.index[i]) for i in np.arange(1, top_features + 1)]).sort_values('pval')
+
+            mlmm_res.append(drug_mlmm)
+        mlmm_res = pd.concat(mlmm_res)
+        mlmm_res = self.multipletests_per_drug(mlmm_res, field='pval', method=method)
+
+        # - Robust pharmacological
+        lmm_res_signif = lmm_res.query(f'fdr < {fdr_thres}')
         print(f'#(Significant associations) = {lmm_res_signif.shape[0]}')
 
         lmm_robust = pd.concat([
@@ -138,13 +166,14 @@ class Association(object):
         lmm_robust = self.multipletests_per_drug(lmm_robust, field='pval_drug', fdr_field=f'fdr_drug')
         lmm_robust = self.multipletests_per_drug(lmm_robust, field='pval_crispr', fdr_field='fdr_crispr')
 
-        return lmm_res, lmm_robust
+        return lmm_res, mlmm_res, lmm_robust
 
 
 if __name__ == '__main__':
     for dtype in ['ic50', 'auc']:
         associations = Association(dtype_drug=dtype)
-        assoc, assoc_robust = associations.associations()
+        assoc, assoc_multi, assoc_robust = associations.associations()
 
         assoc.sort_values('fdr').to_csv(f'data/drug_lmm_regressions_{dtype}.csv', index=False)
+        assoc_multi.sort_values('fdr').to_csv(f'data/drug_lmm_regressions_multiple_{dtype}.csv', index=False)
         assoc_robust.sort_values('fdr_drug').to_csv(f'data/drug_lmm_regressions_robust_{dtype}.csv', index=False)

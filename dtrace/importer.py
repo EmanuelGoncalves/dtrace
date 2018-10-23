@@ -17,11 +17,11 @@ class DrugResponse(object):
 
     def __init__(
             self,
-            drugsheet_file='data/meta/drug_samplesheet_august_2018.txt',
+            drugsheet_file='data/meta/drug_samplesheet_august_2018.xlsx',
             drugresponse_file_v17='data/drug/screening_set_384_all_owners_fitted_data_20180308.csv',
             drugresponse_file_rs='data/drug/rapid_screen_1536_all_owners_fitted_data_20180308.csv',
     ):
-        self.drugsheet = pd.read_csv(drugsheet_file, sep='\t', index_col=0)
+        self.drugsheet = pd.read_excel(drugsheet_file, index_col=0)
 
         # Import and Merge drug response matrices
         self.d_v17 = pd.read_csv(drugresponse_file_v17).assign(VERSION='v17')
@@ -388,7 +388,12 @@ class PPI(object):
         df_genes, df_drugs = set(df['GeneSymbol']), set(df['DRUG_ID_lib'])
 
         # PPI annotation
-        ppi = ppi_type(**ppi_kws)
+        if ppi_type == 'string':
+            ppi = self.build_string_ppi(**ppi_kws)
+        elif ppi_type == 'biogrid':
+            ppi = self.build_biogrid_ppi(**ppi_kws)
+        else:
+            raise Exception('ppi_type not supported, choose from: string or biogrid')
 
         # Drug target
         d_targets = {k: self.drug_targets[k] for k in df_drugs if k in self.drug_targets}
