@@ -11,7 +11,7 @@ from crispy.utils import Utils
 # TODO: Add exported matrices of the data
 class DrugResponse(object):
     SAMPLE_INFO_COLUMNS = ('COSMIC_ID', 'CELL_LINE_NAME')
-    DRUG_INFO_COLUMNS = ['DRUG_ID_lib', 'DRUG_NAME', 'VERSION']
+    DRUG_INFO_COLUMNS = ['DRUG_ID', 'DRUG_NAME', 'VERSION']
 
     DRUG_OWNERS = ['AZ', 'GDSC', 'MGH', 'NCI.Pommier', 'Nathaneal.Gray']
 
@@ -19,7 +19,7 @@ class DrugResponse(object):
             self,
             drugsheet_file='data/meta/drug_samplesheet_august_2018.xlsx',
             drugresponse_file_v17='data/drug/screening_set_384_all_owners_fitted_data_20180308.csv',
-            drugresponse_file_rs='data/drug/rapid_screen_1536_all_owners_fitted_data_20180308.csv',
+            drugresponse_file_rs='data/drug/fitted_rapid_screen_1536_v1.2.1_20181026.csv',
     ):
         self.drugsheet = pd.read_excel(drugsheet_file, index_col=0)
 
@@ -28,7 +28,7 @@ class DrugResponse(object):
         self.d_rs = pd.read_csv(drugresponse_file_rs).assign(VERSION='RS')
 
         self.drugresponse = dict()
-        for index_value, n in [('IC50_nat_log', 'ic50'), ('AUC', 'auc')]:
+        for index_value, n in [('ln_IC50', 'ic50'), ('AUC', 'auc')]:
             d_v17_matrix = pd.pivot_table(
                 self.d_v17, index=self.DRUG_INFO_COLUMNS, columns=self.SAMPLE_INFO_COLUMNS, values=index_value
             )
@@ -44,8 +44,8 @@ class DrugResponse(object):
 
         # Read drug max concentration
         self.maxconcentration = pd.concat([
-            self.d_rs.groupby(self.DRUG_INFO_COLUMNS)['max_conc_micromolar'].min(),
-            self.d_v17.groupby(self.DRUG_INFO_COLUMNS)['max_conc_micromolar'].min()
+            self.d_rs.groupby(self.DRUG_INFO_COLUMNS)['maxc'].min(),
+            self.d_v17.groupby(self.DRUG_INFO_COLUMNS)['maxc'].min()
         ]).sort_values()
 
     def get_drugtargets(self):
@@ -385,7 +385,7 @@ class PPI(object):
         self.drug_targets = DrugResponse().get_drugtargets()
 
     def ppi_annotation(self, df, ppi_type, ppi_kws, target_thres=4):
-        df_genes, df_drugs = set(df['GeneSymbol']), set(df['DRUG_ID_lib'])
+        df_genes, df_drugs = set(df['GeneSymbol']), set(df['DRUG_ID'])
 
         # PPI annotation
         if ppi_type == 'string':
@@ -417,7 +417,7 @@ class PPI(object):
 
             return res
 
-        df = df.assign(target=[drug_gene_annot(d, g) for d, g in df[['DRUG_ID_lib', 'GeneSymbol']].values])
+        df = df.assign(target=[drug_gene_annot(d, g) for d, g in df[['DRUG_ID', 'GeneSymbol']].values])
 
         return df
 
@@ -584,3 +584,16 @@ class PPI(object):
         print(ppi.summary())
 
         return ppi
+
+
+if __name__ == '__main__':
+    crispr = CRISPR()
+    drug_response = DrugResponse()
+
+    samples = list(set.intersection(
+        set(drug_response.get_data().columns),
+        set(crispr.get_data().columns)
+    ))
+    print(f'#(Samples)={len(samples)}')
+
+    drug_response.filter(subset=samples).get_data()

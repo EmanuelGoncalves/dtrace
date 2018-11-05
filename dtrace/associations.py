@@ -3,66 +3,94 @@
 
 import numpy as np
 import pandas as pd
+import itertools as it
 from limix.qtl import scan
+from limix.stats import lrt_pvalues
 from sklearn.preprocessing import StandardScaler
 from statsmodels.stats.multitest import multipletests
-from dtrace.importer import DrugResponse, CRISPR, MOBEM
+from dtrace.importer import DrugResponse, CRISPR, MOBEM, Sample
 
 
 class Association(object):
-    def __init__(self, dtype_drug='ic50'):
+    def __init__(self, dtype_drug='ic50', dtype_crispr='logFC'):
         # Import
+        self.samplesheet = Sample()
         self.mobems_obj = MOBEM()
         self.crispr_obj = CRISPR()
         self.drespo_obj = DrugResponse()
 
-        samples = list(set.intersection(
+        self.samples = list(set.intersection(
             set(self.mobems_obj.get_data().columns),
             set(self.drespo_obj.get_data().columns),
             set(self.crispr_obj.get_data().columns)
         ))
-        print(f'#(Samples)={len(samples)}')
+        print(f'#(Samples)={len(self.samples)}')
 
         # Filter
         self.mobems = self.mobems_obj.filter().get_data()
-        self.drespo = self.drespo_obj.filter(subset=samples).get_data(dtype=dtype_drug)
-        self.crispr = self.crispr_obj.filter(subset=samples).get_data(dtype='logFC')
+        self.drespo = self.drespo_obj.filter(subset=self.samples).get_data(dtype=dtype_drug)
+        self.crispr = self.crispr_obj.filter(subset=self.samples).get_data(dtype=dtype_crispr)
         print(f'#(Genomic)={self.mobems.shape[0]}; #(Drugs)={self.drespo.shape[0]}; #(Genes)={self.crispr.shape[0]}')
 
     @staticmethod
-    def lmm_association(drug, y, x, m=None, expand_drug_id=True):
+    def kinship(k):
+        K = k.dot(k.T)
+        K /= (K.values.diagonal().mean())
+        return K
+
+    @staticmethod
+    def lmm_association_limix(drug, y, x, m=None, k=None, add_intercept=True):
         # Build matrices
         Y = y.loc[[drug]].T.dropna()
-        Y = pd.DataFrame(StandardScaler().fit_transform(Y), index=Y.index, columns=Y.columns)
+        # Y = pd.DataFrame(StandardScaler().fit_transform(Y), index=Y.index, columns=Y.columns)
+        # TODO: Remove scaling of y to make effect sizes across drugs quantifiable
 
         X = x[Y.index].T
         X = pd.DataFrame(StandardScaler().fit_transform(X), index=X.index, columns=X.columns)
 
         # Random effects matrix
-        K = x[Y.index].T
-        K = K.dot(K.T)
-        K /= (K.values.diagonal().mean())
+        if k is None:
+            K = Association.kinship(x[Y.index].T)
+
+        else:
+            K = k.loc[Y.index, Y.index]
 
         # Covariates
         if m is not None:
             m = m[Y.index].T
             m = pd.DataFrame(StandardScaler().fit_transform(m), index=m.index, columns=m.columns)
 
+        # Intercept
+        if add_intercept and (m is not None):
+            m['intercept'] = 1
+
+        elif add_intercept and (m is None):
+            m = pd.DataFrame(np.ones((Y.shape[0], 1)), index=Y.index, columns=['intercept'])
+
+        else:
+            m = pd.DataFrame(np.zeros((Y.shape[0], 1)), index=Y.index, columns=['zeros'])
+
         # Linear Mixed Model
         lmm = scan(X, Y, K=K, M=m, lik='normal', verbose=False)
 
-        # Assemble output
+        return lmm, dict(x=X, y=Y, k=K, m=m)
+
+    @staticmethod
+    def lmm_association(drug, y, x, m=None, k=None, expand_drug_id=True):
+        lmm, params = Association.lmm_association_limix(drug, y, x, m, k)
+
         df = pd.DataFrame(
-            dict(beta=lmm.variant_effsizes.ravel(), pval=lmm.variant_pvalues.ravel(), GeneSymbol=X.columns))
+            dict(beta=lmm.variant_effsizes.ravel(), pval=lmm.variant_pvalues.ravel(), GeneSymbol=params['x'].columns)
+        )
 
         if expand_drug_id:
-            df = df.assign(DRUG_ID_lib=drug[0])
+            df = df.assign(DRUG_ID=drug[0])
             df = df.assign(DRUG_NAME=drug[1])
             df = df.assign(VERSION=drug[2])
         else:
             df = df.assign(DRUG_ID=drug)
 
-        df = df.assign(n_samples=Y.shape[0])
+        df = df.assign(n_samples=params['y'].shape[0])
 
         return df
 
@@ -97,7 +125,7 @@ class Association(object):
             n_events=X.sum().values
         ))
 
-        df = df.assign(DRUG_ID_lib=association[0])
+        df = df.assign(DRUG_ID=association[0])
         df = df.assign(DRUG_NAME=association[1])
         df = df.assign(VERSION=association[2])
         df = df.assign(GeneSymbol=association[3])
@@ -123,7 +151,7 @@ class Association(object):
 
     def get_drug_top(self, lmm_associations, drug, top_features):
         d_genes = lmm_associations\
-            .query(f"DRUG_ID_lib == {drug[0]} & DRUG_NAME == '{drug[1]}' & VERSION == '{drug[2]}'")\
+            .query(f"DRUG_ID == {drug[0]} & DRUG_NAME == '{drug[1]}' & VERSION == '{drug[2]}'")\
             .sort_values('pval')\
             .head(top_features)['GeneSymbol']
 
@@ -132,26 +160,63 @@ class Association(object):
             self.crispr.loc[d_genes].T
         ], axis=1, sort=False).dropna().T
 
-    def associations(self, method='bonferroni', min_events=3, fdr_thres=.1, top_features=5):
+    def associations(self, method='bonferroni', min_events=3, fdr_thres=.1):
         # - Simple linear regression
         lmm_res = pd.concat([self.lmm_association(d, self.drespo, self.crispr) for d in self.drespo.index])
         lmm_res = self.multipletests_per_drug(lmm_res, field='pval', method=method)
 
         # - Multi linear regression
         mlmm_res = []
+        # drug = (1411, 'SN1041137233', 'v17')
         for drug in self.drespo.index:
-            drug_df = self.get_drug_top(lmm_res, drug, top_features)
+            drug_df = self.get_drug_top(lmm_res, drug, 10)
 
-            drug_mlmm = pd.concat([self.lmm_association(
+            k = self.kinship(self.crispr[drug_df.columns].T)
+
+            features = list(drug_df.index[1:])
+
+            combinations = list(it.combinations(features, 2))
+            combinations = [c for c in combinations if features[0] in c]
+
+            lmm_best, lmm_best_params = Association.lmm_association_limix(
                 drug,
-                drug_df.iloc[[0]],
-                drug_df.drop(drug_df.iloc[[0, i]].index),
-                drug_df.iloc[[i]]
-            ).assign(covar=drug_df.index[i]) for i in np.arange(1, top_features + 1)]).sort_values('pval')
+                y=drug_df.loc[[drug]],
+                x=drug_df.loc[[features[0]]],
+                m=drug_df.loc[[features[0]]],
+                k=k,
+            )
 
-            mlmm_res.append(drug_mlmm)
-        mlmm_res = pd.concat(mlmm_res)
-        mlmm_res = self.multipletests_per_drug(mlmm_res, field='pval', method=method)
+            for c in combinations:
+                # lmm_null, lmm_null_params = Association.lmm_association_limix(
+                #     drug,
+                #     y=drug_df.loc[[drug]],
+                #     x=drug_df.loc[[c[0]]],
+                #     m=None,
+                #     k=k,
+                # )
+
+                lmm_alternative, lmm_alt_params = Association.lmm_association_limix(
+                    drug,
+                    y=drug_df.loc[[drug]],
+                    x=drug_df.loc[[c[0]]],
+                    m=drug_df.loc[list(c)],
+                    k=k
+                )
+
+                lrt_pval = lrt_pvalues(lmm_best.null_lml, lmm_alternative.null_lml, len(c) - 1)
+                print(c, lmm_best.null_lml, lmm_alternative.null_lml, lrt_pval)
+
+                mlmm_res.append(dict(
+                    features='+'.join(c),
+                    betas=';'.join(lmm_alternative.null_covariate_effsizes[list(c)].apply(lambda v: f'{v:.5f}')),
+                    pval=lrt_pval,
+                    DRUG_ID=drug[0],
+                    DRUG_NAME=drug[1],
+                    VERSION=drug[2]
+                ))
+
+        mlmm_res = pd.DataFrame(mlmm_res).sort_values('pval')
+        mlmm_res = mlmm_res.assign(fdr=multipletests(mlmm_res['pval'], method=method)[1])
 
         # - Robust pharmacological
         lmm_res_signif = lmm_res.query(f'fdr < {fdr_thres}')

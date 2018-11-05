@@ -8,7 +8,8 @@ import matplotlib.pyplot as plt
 from plot import Plot
 from natsort import natsorted
 from crispy.utils import Utils
-from importer import PPI, DrugResponse
+from associations import Association
+from importer import PPI, DrugResponse, CRISPR
 
 
 def manhattan_plot(lmm_drug, fdr_line=.1, n_genes=13):
@@ -111,6 +112,7 @@ def recapitulated_drug_targets_barplot(lmm_drug, fdr=.1):
     d_tested = {tuple(i) for i in d_annot if len(d_targets[i[0]].intersection(df_genes)) > 0}
     d_tested_signif = {tuple(i) for i in lmm_drug.query('fdr < {}'.format(fdr))[d_response.DRUG_INFO_COLUMNS].values if tuple(i) in d_tested}
     d_tested_correct = {tuple(i) for i in lmm_drug.query("fdr < {} & target == 'T'".format(fdr))[d_response.DRUG_INFO_COLUMNS].values if tuple(i) in d_tested_signif}
+    d_tested_correct_neigh = {tuple(i) for i in lmm_drug.query(f"fdr < {fdr} & (target == 'T' | target == '1')")[d_response.DRUG_INFO_COLUMNS].values if tuple(i) in d_tested_signif}
 
     # Build dataframe
     plot_df = pd.DataFrame(dict(
@@ -138,6 +140,22 @@ if __name__ == '__main__':
     # - Import associations
     lmm_drug = pd.read_csv('data/drug_lmm_regressions_ic50.csv')
     lmm_drug = ppi.ppi_annotation(lmm_drug, ppi_type='string', ppi_kws=dict(score_thres=900), target_thres=3)
+
+    crispr = CRISPR()
+    drug = DrugResponse()
+
+    # d, g = (1243, 'Piperlongumine', 'v17'), 'NFE2L2'
+    d, g = (1558, 'Lapatinib', 'RS'), 'ASNA1'
+
+    plot_df = pd.concat([
+        drug.get_data().loc[d].rename('drug'),
+        crispr.get_data().loc[g].rename('crispr')
+    ], axis=1, sort=False).dropna()
+
+    ax = sns.jointplot('crispr', 'drug', data=plot_df)
+    ax.ax_joint.axhline(y=np.log(drug.maxconcentration[d]), ls='-', color='k', lw=.5)
+
+    plt.show()
 
     # - Drug associations manhattan plot
     manhattan_plot(lmm_drug, fdr_line=0.1)
