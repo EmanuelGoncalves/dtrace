@@ -157,14 +157,14 @@ class CRISPR(object):
             foldchanges_file='CRISPRcleaned_logFCs.tsv',
             binarydep_file='binaryDepScores.tsv',
             mageckdep_file='MAGeCK_depFDRs.tsv',
-            mageckenr_file='MAGeCK_enrFDRs.tsv'
+            mageckenr_file='MAGeCK_enrFDRs.tsv',
     ):
         self.crispr = dict()
 
         self.crispr['mageck_dep'] = pd.read_csv(f'{datadir}/{mageckdep_file}', index_col=0, sep='\t').dropna()
         self.crispr['mageck_enr'] = pd.read_csv(f'{datadir}/{mageckenr_file}', index_col=0, sep='\t').dropna()
-        self.crispr['binary_dep'] = pd.read_csv(f'{datadir}/{binarydep_file}', sep='\t', index_col=0).dropna()
-        self.crispr['logFC'] = pd.read_csv(f'{datadir}/{foldchanges_file}', index_col=0, sep='\t').dropna()
+        self.crispr['binary_dep'] = pd.read_csv(f'{datadir}/{binarydep_file}', index_col=0, sep='\t').dropna()
+        self.crispr['logFC'] = pd.read_csv(f'{datadir}/{foldchanges_file}', index_col=0).dropna()
 
     def get_data(self, dtype='logFC', fdr_thres=0.05, scale=True):
         """
@@ -209,10 +209,10 @@ class CRISPR(object):
             df = df.loc[:, df.columns.isin(subset)]
 
         # Filter by genes significantly depleted or enriched
-        enriched_genes = self.get_data(dtype='mageck_enr', fdr_thres=fdr_thres)[df.columns]
+        enriched_genes = self.get_data(dtype='mageck_enr', fdr_thres=fdr_thres).reindex(columns=df.columns).dropna(axis=1)
         enriched_genes = enriched_genes[enriched_genes.sum(1) >= min_events]
 
-        depleted_genes = self.get_data(dtype='binary_dep')[df.columns]
+        depleted_genes = self.get_data(dtype='binary_dep').reindex(columns=df.columns).dropna(axis=1)
         depleted_genes = depleted_genes[depleted_genes.sum(1) >= min_events]
 
         df = df.loc[list(set(enriched_genes.index).union(depleted_genes.index))]
@@ -231,7 +231,7 @@ class CRISPR(object):
 
         # - Subset matrices
         for k in self.crispr:
-            self.crispr[k] = self.crispr[k].loc[df.index, df.columns]
+            self.crispr[k] = self.crispr[k].loc[df.index].reindex(columns=df.columns)
 
         return self
 

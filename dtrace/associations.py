@@ -165,80 +165,14 @@ class Association(object):
         lmm_res = pd.concat([self.lmm_association(d, self.drespo, self.crispr) for d in self.drespo.index])
         lmm_res = self.multipletests_per_drug(lmm_res, field='pval', method=method)
 
-        # - Multi linear regression
-        mlmm_res = []
-        # drug = (1411, 'SN1041137233', 'v17')
-        for drug in self.drespo.index:
-            drug_df = self.get_drug_top(lmm_res, drug, 10)
-
-            k = self.kinship(self.crispr[drug_df.columns].T)
-
-            features = list(drug_df.index[1:])
-
-            combinations = list(it.combinations(features, 2))
-            combinations = [c for c in combinations if features[0] in c]
-
-            lmm_best, lmm_best_params = Association.lmm_association_limix(
-                drug,
-                y=drug_df.loc[[drug]],
-                x=drug_df.loc[[features[0]]],
-                m=drug_df.loc[[features[0]]],
-                k=k,
-            )
-
-            for c in combinations:
-                # lmm_null, lmm_null_params = Association.lmm_association_limix(
-                #     drug,
-                #     y=drug_df.loc[[drug]],
-                #     x=drug_df.loc[[c[0]]],
-                #     m=None,
-                #     k=k,
-                # )
-
-                lmm_alternative, lmm_alt_params = Association.lmm_association_limix(
-                    drug,
-                    y=drug_df.loc[[drug]],
-                    x=drug_df.loc[[c[0]]],
-                    m=drug_df.loc[list(c)],
-                    k=k
-                )
-
-                lrt_pval = lrt_pvalues(lmm_best.null_lml, lmm_alternative.null_lml, len(c) - 1)
-                print(c, lmm_best.null_lml, lmm_alternative.null_lml, lrt_pval)
-
-                mlmm_res.append(dict(
-                    features='+'.join(c),
-                    betas=';'.join(lmm_alternative.null_covariate_effsizes[list(c)].apply(lambda v: f'{v:.5f}')),
-                    pval=lrt_pval,
-                    DRUG_ID=drug[0],
-                    DRUG_NAME=drug[1],
-                    VERSION=drug[2]
-                ))
-
-        mlmm_res = pd.DataFrame(mlmm_res).sort_values('pval')
-        mlmm_res = mlmm_res.assign(fdr=multipletests(mlmm_res['pval'], method=method)[1])
-
-        # - Robust pharmacological
-        lmm_res_signif = lmm_res.query(f'fdr < {fdr_thres}')
-        print(f'#(Significant associations) = {lmm_res_signif.shape[0]}')
-
-        lmm_robust = pd.concat([
-            self.lmm_robust_association(a, self.drespo, self.crispr, self.mobems, min_events)
-            for a in lmm_res_signif[DrugResponse.DRUG_INFO_COLUMNS + ['GeneSymbol']].values
-        ])
-
-        # Correct lmm p-values
-        lmm_robust = self.multipletests_per_drug(lmm_robust, field='pval_drug', fdr_field=f'fdr_drug')
-        lmm_robust = self.multipletests_per_drug(lmm_robust, field='pval_crispr', fdr_field='fdr_crispr')
-
-        return lmm_res, mlmm_res, lmm_robust
+        return lmm_res, None, None
 
 
 if __name__ == '__main__':
-    for dtype in ['ic50', 'auc']:
+    for dtype in ['ic50']:
         associations = Association(dtype_drug=dtype)
         assoc, assoc_multi, assoc_robust = associations.associations()
 
         assoc.sort_values('fdr').to_csv(f'data/drug_lmm_regressions_{dtype}.csv', index=False)
-        assoc_multi.sort_values('fdr').to_csv(f'data/drug_lmm_regressions_multiple_{dtype}.csv', index=False)
-        assoc_robust.sort_values('fdr_drug').to_csv(f'data/drug_lmm_regressions_robust_{dtype}.csv', index=False)
+        # assoc_multi.sort_values('fdr').to_csv(f'data/drug_lmm_regressions_multiple_{dtype}.csv', index=False)
+        # assoc_robust.sort_values('fdr_drug').to_csv(f'data/drug_lmm_regressions_robust_{dtype}.csv', index=False)

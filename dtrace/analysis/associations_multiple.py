@@ -29,8 +29,6 @@ if __name__ == '__main__':
     # - Imports
     wes = pd.read_csv('/Users/eg14/Projects/prioritize_crispr/data/WES_variants.csv')
 
-    'PEO1' in wes[wes['Gene'] == 'PLK4']['SAMPLE'].values
-
     samples = Sample()
     crispr = CRISPR()
     assoc = Association(dtype_drug='ic50', dtype_crispr='binary_dep')

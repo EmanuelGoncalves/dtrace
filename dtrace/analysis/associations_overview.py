@@ -141,11 +141,11 @@ if __name__ == '__main__':
     lmm_drug = pd.read_csv('data/drug_lmm_regressions_ic50.csv')
     lmm_drug = ppi.ppi_annotation(lmm_drug, ppi_type='string', ppi_kws=dict(score_thres=900), target_thres=3)
 
-    crispr = CRISPR()
+    crispr = CRISPR(foldchanges_file='crispr_crispy.csv', foldchanges_file_sep=',')
     drug = DrugResponse()
 
     # d, g = (1243, 'Piperlongumine', 'v17'), 'NFE2L2'
-    d, g = (1558, 'Lapatinib', 'RS'), 'ASNA1'
+    d, g = (2235, 'AZD5991', 'RS'), 'MARCH5'
 
     plot_df = pd.concat([
         drug.get_data().loc[d].rename('drug'),
