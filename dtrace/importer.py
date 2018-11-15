@@ -388,6 +388,32 @@ class GeneExpression:
     def get_data(self):
         return self.gexp.copy()
 
+    def filter(self, subset=None):
+        df = self.get_data()
+
+        # Subset matrices
+        if subset is not None:
+            df = df.loc[:, df.columns.isin(subset)]
+
+        return df
+
+
+class Proteomics:
+    def __init__(self, proteomics_file='data/genomic/proteomics_coread.csv.gz'):
+        self.proteomics = pd.read_csv(proteomics_file, index_col=0)
+
+    def get_data(self):
+        return self.proteomics.copy()
+
+    def filter(self, subset=None):
+        df = self.get_data()
+
+        # Subset matrices
+        if subset is not None:
+            df = df.loc[:, df.columns.isin(subset)]
+
+        return df
+
 
 class PPI:
     def __init__(

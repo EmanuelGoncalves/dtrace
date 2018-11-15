@@ -84,26 +84,32 @@ class Plot(object):
 
         return grid
 
-    def plot_multiple(self, x, y, style, dataframe):
-        order = list(dataframe.groupby(y)[x].mean().sort_values(ascending=False).index)
+    def plot_multiple(self, x, y, style, dataframe, order=None, ax=None):
+        if ax is None:
+            ax = plt.gca()
+
+        if order is None:
+            order = list(dataframe.groupby(y)[x].mean().sort_values(ascending=False).index)
+
+        dataframe = dataframe.dropna(subset=[x, y, style])
 
         pal = pd.Series(QCplot.get_palette_continuous(len(order), self.PAL_DTRACE[2]), index=order)
 
         sns.boxplot(
-            x=x, y=y, data=dataframe, orient='h', palette=pal.to_dict(), flierprops=QCplot.FLIERPROPS,
-            saturation=1., showcaps=False, order=order
+            x=x, y=y, data=dataframe, orient='h', palette=pal.to_dict(), sym='', saturation=1., showcaps=False,
+            order=order, ax=ax
         )
 
         for t, df in dataframe.groupby(style):
             sns.stripplot(
                 x=x, y=y, data=df, orient='h', palette=pal.to_dict(), size=2, edgecolor='white',
-                linewidth=.1, order=order, marker=self.MARKERS[t], label=t, jitter=.3
+                linewidth=.1, order=order, marker=self.MARKERS[t], label=t, jitter=.3, ax=ax
             )
 
-        handles, labels = plt.gca().get_legend_handles_labels()
-        legend_by_label = dict(zip(labels, handles))
+        handles, labels = ax.get_legend_handles_labels()
+        legend_by_label = dict(zip(list(reversed(labels)), list(reversed(handles))))
 
-        plt.legend(legend_by_label.values(), legend_by_label.keys(), prop=dict(size=4), frameon=False, loc=4)
+        ax.legend(legend_by_label.values(), legend_by_label.keys(), prop=dict(size=4), frameon=False, loc=4)
 
     @staticmethod
     def _marginal_boxplot(a, xs=None, ys=None, zs=None, vertical=False, **kws):
