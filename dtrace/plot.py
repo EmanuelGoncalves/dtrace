@@ -2,11 +2,13 @@
 # Copyright (C) 2018 Emanuel Goncalves
 
 import numpy as np
+import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
 import matplotlib.patches as mpatches
 from scipy.stats import pearsonr
+from crispy.qc_plot import QCplot
 
 
 class MidpointNormalize(colors.Normalize):
@@ -42,46 +44,66 @@ class Plot(object):
         marker='o', markerfacecolor='black', markersize=2., linestyle='none', markeredgecolor='none', alpha=.6
     )
 
+    MARKERS = dict(Sanger='o', Broad='X')
+
     def __init__(self):
         sns.set(style='ticks', context='paper', rc=self.SNS_RC, font_scale=.75)
 
     def plot_corrplot(
-            self, x, y, dataframe, scatter_kws=None, line_kws=None, annot_kws=None, marginal_kws=None, add_hline=True,
-            add_vline=True, lowess=False
+            self, x, y, style, dataframe, add_hline=True, add_vline=True, annot_text=None, lowess=False
     ):
-        # Defaults
-        if scatter_kws is None:
-            scatter_kws = dict(edgecolor='w', lw=.3, s=12)
+        grid = sns.JointGrid(x, y, data=dataframe, space=0)
 
-        if line_kws is None:
-            line_kws = dict(lw=1., color=self.PAL_DTRACE[0])
+        # Joint
+        for t, df in dataframe.groupby(style):
+            grid.ax_joint.scatter(
+                x=df[x], y=df[y], edgecolor='w', lw=.1, s=5, color=self.PAL_DTRACE[2], marker=self.MARKERS[t], label=t,
+                alpha=.8
+            )
 
-        if annot_kws is None:
-            annot_kws = dict(stat='R')
+        grid.plot_joint(sns.regplot, data=dataframe, line_kws=dict(lw=1., color=self.PAL_DTRACE[0]), marker='', lowess=lowess)
 
-        if marginal_kws is None:
-            marginal_kws = dict(kde=False, hist_kws=dict(linewidth=0))
+        # Annotation
+        if annot_text is None:
+            cor, pval = pearsonr(dataframe[x], dataframe[y])
+            annot_text = f'R={cor:.2g}, p={pval:.1e}'
 
-        # Joint and Marginal plot
-        g = sns.jointplot(
-            x, y, data=dataframe, kind='reg', space=0, color=self.PAL_DTRACE[2], annot_kws=annot_kws,
-            marginal_kws=marginal_kws, joint_kws=dict(lowess=lowess, scatter_kws=scatter_kws, line_kws=line_kws)
-        )
+        grid.ax_joint.text(.95, .05, annot_text, fontsize=5, transform=grid.ax_joint.transAxes, ha='right')
 
-        #
-        g.annotate(pearsonr, template='R={val:.2g}, p={p:.1e}', frameon=False, loc=4)
+        # Marginals
+        grid.plot_marginals(sns.distplot, kde=False, hist_kws=dict(linewidth=0), color=self.PAL_DTRACE[2])
 
-        # Extras
+        # Extra
         if add_hline:
-            g.ax_joint.axhline(0, ls='-', lw=0.1, c=self.PAL_DTRACE[1], zorder=0)
+            grid.ax_joint.axhline(0, ls='-', lw=0.1, c=self.PAL_DTRACE[1], zorder=0)
 
         if add_vline:
-            g.ax_joint.axvline(0, ls='-', lw=0.1, c=self.PAL_DTRACE[1], zorder=0)
+            grid.ax_joint.axvline(0, ls='-', lw=0.1, c=self.PAL_DTRACE[1], zorder=0)
 
-        # Labels
-        g.set_axis_labels('{} (log2 FC)'.format(x), '{} (ln IC50)'.format(y))
+        grid.ax_joint.legend(prop=dict(size=4), frameon=False, loc=2)
 
-        return g
+        return grid
+
+    def plot_multiple(self, x, y, style, dataframe):
+        order = list(dataframe.groupby(y)[x].mean().sort_values(ascending=False).index)
+
+        pal = pd.Series(QCplot.get_palette_continuous(len(order), self.PAL_DTRACE[2]), index=order)
+
+        sns.boxplot(
+            x=x, y=y, data=dataframe, orient='h', palette=pal.to_dict(), flierprops=QCplot.FLIERPROPS,
+            saturation=1., showcaps=False, order=order
+        )
+
+        for t, df in dataframe.groupby(style):
+            sns.stripplot(
+                x=x, y=y, data=df, orient='h', palette=pal.to_dict(), size=2, edgecolor='white',
+                linewidth=.1, order=order, marker=self.MARKERS[t], label=t, jitter=.3
+            )
+
+        handles, labels = plt.gca().get_legend_handles_labels()
+        legend_by_label = dict(zip(labels, handles))
+
+        plt.legend(legend_by_label.values(), legend_by_label.keys(), prop=dict(size=4), frameon=False, loc=4)
 
     @staticmethod
     def _marginal_boxplot(a, xs=None, ys=None, zs=None, vertical=False, **kws):
@@ -93,25 +115,25 @@ class Plot(object):
         ax.set_ylabel('')
         ax.set_xlabel('')
 
+    @classmethod
     def plot_corrplot_discrete(
-            self, x, y, z, plot_df, scatter_kws=None, line_kws=None, legend_title='', discrete_pal=None, hue_order=None
+            cls, x, y, z, plot_df, scatter_kws=None, line_kws=None, legend_title='', discrete_pal=None, hue_order=None
     ):
         # Defaults
         if scatter_kws is None:
             scatter_kws = dict(edgecolor='w', lw=.3, s=12)
 
         if line_kws is None:
-            line_kws = dict(lw=1., color=self.PAL_DTRACE[0])
+            line_kws = dict(lw=1., color=cls.PAL_DTRACE[0])
 
-        pal = {0: self.PAL_DTRACE[2], 1: self.PAL_DTRACE[0]}
+        pal = {0: cls.PAL_DTRACE[2], 1: cls.PAL_DTRACE[0]}
 
         #
         g = sns.JointGrid(x, y, plot_df, space=0, ratio=8)
 
         g.plot_marginals(
-            self._marginal_boxplot, palette=pal if discrete_pal is None else discrete_pal, data=plot_df, linewidth=.3,
-            fliersize=1, notch=False, saturation=1.0,
-            xs=x, ys=y, zs=z
+            cls._marginal_boxplot, palette=pal if discrete_pal is None else discrete_pal, data=plot_df, linewidth=.3,
+            fliersize=1, notch=False, saturation=1.0, xs=x, ys=y, zs=z
         )
 
         sns.regplot(

@@ -5,21 +5,20 @@ import igraph
 import warnings
 import numpy as np
 import pandas as pd
-from crispy.utils import Utils
+import crispy as cy
 
 
-# TODO: Add exported matrices of the data
-class DrugResponse(object):
-    SAMPLE_INFO_COLUMNS = ('COSMIC_ID', 'CELL_LINE_NAME')
-    DRUG_INFO_COLUMNS = ['DRUG_ID', 'DRUG_NAME', 'VERSION']
+class DrugResponse:
+    SAMPLE_COLUMNS = ['model_id']
+    DRUG_COLUMNS = ['DRUG_ID', 'DRUG_NAME', 'VERSION']
 
     DRUG_OWNERS = ['AZ', 'GDSC', 'MGH', 'NCI.Pommier', 'Nathaneal.Gray']
 
     def __init__(
             self,
-            drugsheet_file='data/meta/drug_samplesheet_august_2018.xlsx',
-            drugresponse_file_v17='data/drug/screening_set_384_all_owners_fitted_data_20180308.csv',
-            drugresponse_file_rs='data/drug/fitted_rapid_screen_1536_v1.2.1_20181026.csv',
+            drugsheet_file='data/meta/drugsheet_20181114.xlsx',
+            drugresponse_file_v17='data/drug/screening_set_384_all_owners_fitted_data_20180308_updated.csv',
+            drugresponse_file_rs='data/drug/fitted_rapid_screen_1536_v1.2.1_20181026_updated.csv',
     ):
         self.drugsheet = pd.read_excel(drugsheet_file, index_col=0)
 
@@ -30,23 +29,22 @@ class DrugResponse(object):
         self.drugresponse = dict()
         for index_value, n in [('ln_IC50', 'ic50'), ('AUC', 'auc')]:
             d_v17_matrix = pd.pivot_table(
-                self.d_v17, index=self.DRUG_INFO_COLUMNS, columns=self.SAMPLE_INFO_COLUMNS, values=index_value
+                self.d_v17, index=self.DRUG_COLUMNS, columns=self.SAMPLE_COLUMNS, values=index_value
             )
 
             d_vrs_matrix = pd.pivot_table(
-                self.d_rs, index=self.DRUG_INFO_COLUMNS, columns=self.SAMPLE_INFO_COLUMNS, values=index_value
+                self.d_rs, index=self.DRUG_COLUMNS, columns=self.SAMPLE_COLUMNS, values=index_value
             )
 
-            df = pd.concat([d_v17_matrix, d_vrs_matrix], axis=0)
-            df.columns = df.columns.droplevel(0)
+            df = pd.concat([d_v17_matrix, d_vrs_matrix], axis=0, sort=False)
 
-            self.drugresponse[n] = df
+            self.drugresponse[n] = df.copy()
 
         # Read drug max concentration
         self.maxconcentration = pd.concat([
-            self.d_rs.groupby(self.DRUG_INFO_COLUMNS)['maxc'].min(),
-            self.d_v17.groupby(self.DRUG_INFO_COLUMNS)['maxc'].min()
-        ]).sort_values()
+            self.d_rs.groupby(self.DRUG_COLUMNS)['maxc'].min(),
+            self.d_v17.groupby(self.DRUG_COLUMNS)['maxc'].min()
+        ], sort=False).sort_values()
 
     def get_drugtargets(self):
         d_targets = self.drugsheet['Target Curated'].dropna().to_dict()
@@ -57,24 +55,9 @@ class DrugResponse(object):
         return self.drugresponse[dtype].copy()
 
     def filter(
-            self, subset=None, min_events=3, min_meas=0.85, max_c=0.5, filter_max_concentration=True, filter_owner=True,
-            filter_combinations=True
+            self, dtype='ic50', subset=None, min_events=3, min_meas=0.75, max_c=0.5, filter_max_concentration=True,
+            filter_owner=True, filter_combinations=True
     ):
-        """
-        Filter Drug-response (ln IC50) data-set to consider only drugs with measurements across
-        at least min_meas (deafult=0.85 (85%)) of the total cell lines measured and drugs have an IC50
-        lower than the maximum screened concentration (offeseted by max_c (default = 0.5 (50%)) in at least
-        min_events (default = 3) cell lines.
-
-        :param subset:
-        :param min_events:
-        :param min_meas:
-        :param max_c:
-        :param filter_max_concentration:
-        :param filter_owner:
-        :param filter_combinations:
-        :return:
-        """
         # Drug max screened concentration
         df = self.get_data(dtype='ic50')
         d_maxc = np.log(self.maxconcentration * max_c)
@@ -100,11 +83,7 @@ class DrugResponse(object):
         if filter_combinations:
             df = df[[' + ' not in i[1] for i in df.index]]
 
-        # - Subset matrices
-        for k in self.drugresponse:
-            self.drugresponse[k] = self.drugresponse[k].loc[df.index, df.columns]
-
-        return self
+        return self.get_data(dtype).loc[df.index, df.columns]
 
     def is_in_druglist(self, drug_ids):
         return np.all([d in self.drugsheet.index for d in drug_ids])
@@ -149,58 +128,81 @@ class DrugResponse(object):
 
         return set(drug_name + drug_synonyms)
 
+    @staticmethod
+    def growth_corr(df, growth):
+        samples = list(set(growth.dropna().index).intersection(df.columns))
 
-class CRISPR(object):
+        g_corr = df[samples].T\
+            .corrwith(growth[samples])\
+            .sort_values()\
+            .rename('corr')\
+            .reset_index()
+
+        return g_corr
+
+
+class CRISPR:
+    LOW_QUALITY_SAMPLES = ['SIDM00096']
+
     def __init__(
-            self,
-            datadir='data/crispr/',
-            foldchanges_file='CRISPRcleaned_logFCs.tsv',
-            binarydep_file='binaryDepScores.tsv',
-            mageckdep_file='MAGeCK_depFDRs.tsv',
-            mageckenr_file='MAGeCK_enrFDRs.tsv',
+            self, datadir='data/crispr/',
+            sanger_fc_file='sanger_depmap18_fc_corrected.csv',
+            sanger_qc_file='sanger_depmap18_fc_ess_aucs.csv',
+            broad_fc_file='broad_depmap18q4_fc_corrected.csv',
+            broad_qc_file='broad_depmap18q4_fc_ess_aucs.csv'
     ):
-        self.crispr = dict()
+        self.DATADIR = datadir
 
-        self.crispr['mageck_dep'] = pd.read_csv(f'{datadir}/{mageckdep_file}', index_col=0, sep='\t').dropna()
-        self.crispr['mageck_enr'] = pd.read_csv(f'{datadir}/{mageckenr_file}', index_col=0, sep='\t').dropna()
-        self.crispr['binary_dep'] = pd.read_csv(f'{datadir}/{binarydep_file}', index_col=0, sep='\t').dropna()
-        self.crispr['logFC'] = pd.read_csv(f'{datadir}/{foldchanges_file}', index_col=0).dropna()
+        self.SANGER_FC_FILE = sanger_fc_file
+        self.SANGER_QC_FILE = sanger_qc_file
 
-    def get_data(self, dtype='logFC', fdr_thres=0.05, scale=True):
-        """
-        CRISPR-Cas9 scores as log fold-changes (CN corrected) or binary matrices marking (1) significant
-        depletions (dtype = 'depletions'), enrichments (dtype = 'enrichments') or both (dtype = 'both').
+        self.BROAD_FC_FILE = broad_fc_file
+        self.BROAD_QC_FILE = broad_qc_file
 
-        :param dtype: String (default = 'logFC')
-        :param fdr_thres: Float (default = 0.1)
-        :param scale: Boolean (default = False)
-        :return: pandas.DataFrame
-        """
+        self.crispr, self.institute = self.__merge_matricies()
 
-        df = self.crispr[dtype]
+        self.crispr = self.crispr.drop(columns=self.LOW_QUALITY_SAMPLES)
 
-        if dtype in ['mageck_dep', 'mageck_enr']:
-            df = (df < fdr_thres).astype(int)
+        self.qc_ess = self.__merge_qc_arrays()
 
-        if dtype == 'logFC' and scale:
+    def __merge_qc_arrays(self):
+        gdsc_qc = pd.Series.from_csv(f'{self.DATADIR}/{self.SANGER_QC_FILE}')
+        broad_qc = pd.Series.from_csv(f'{self.DATADIR}/{self.BROAD_QC_FILE}')
+
+        qcs = pd.concat([
+            gdsc_qc[self.institute[self.institute == 'Sanger'].index],
+            broad_qc[self.institute[self.institute == 'Broad'].index]
+        ])
+
+        return qcs
+
+    def __merge_matricies(self):
+        gdsc_fc = pd.read_csv(f'{self.DATADIR}/{self.SANGER_FC_FILE}', index_col=0).dropna()
+        broad_fc = pd.read_csv(f'{self.DATADIR}/{self.BROAD_FC_FILE}', index_col=0).dropna()
+
+        genes = list(set(gdsc_fc.index).intersection(broad_fc.index))
+
+        merged_matrix = pd.concat([
+            gdsc_fc.loc[genes],
+            broad_fc.loc[genes, [i for i in broad_fc if i not in gdsc_fc.columns]]
+        ], axis=1, sort=False)
+
+        institute = pd.Series({s: 'Sanger' if s in gdsc_fc.columns else 'Broad' for s in merged_matrix})
+
+        return merged_matrix, institute
+
+    def get_data(self, scale=True):
+        df = self.crispr.copy()
+
+        if scale:
             df = self.scale(df)
 
         return df
 
-    def filter(self, subset=None, min_events=3, fdr_thres=0.05, abs_fc_thres=0.5, broad_paness=False):
-        """
-        Filter CRISPR-Cas9 data-set to consider only genes that show a significant depletion or
-        enrichment, MAGeCK depletion/enrichment FDR < fdr_thres (default = 0.05), in at least
-        min_events (default = 3) cell lines.
-
-        :param subset:
-        :param min_events:
-        :param fdr_thres:
-        :param abs_fc_thres:
-        :param broad_paness:
-        :return:
-        """
-
+    def filter(
+            self, subset=None, scale=True, abs_thres=None, drop_core_essential=False, min_events=5,
+            drop_core_essential_broad=False
+    ):
         df = self.get_data(scale=True)
 
         # - Filters
@@ -208,50 +210,27 @@ class CRISPR(object):
         if subset is not None:
             df = df.loc[:, df.columns.isin(subset)]
 
-        # Filter by genes significantly depleted or enriched
-        enriched_genes = self.get_data(dtype='mageck_enr', fdr_thres=fdr_thres).reindex(columns=df.columns).dropna(axis=1)
-        enriched_genes = enriched_genes[enriched_genes.sum(1) >= min_events]
+        # Filter by scaled scores
+        if abs_thres is not None:
+            df = df[(df.abs() > abs_thres).sum(1) >= min_events]
 
-        depleted_genes = self.get_data(dtype='binary_dep').reindex(columns=df.columns).dropna(axis=1)
-        depleted_genes = depleted_genes[depleted_genes.sum(1) >= min_events]
+        # Filter out core essential genes
+        if drop_core_essential:
+            df = df[~df.index.isin(cy.Utils.get_adam_core_essential())]
 
-        df = df.loc[list(set(enriched_genes.index).union(depleted_genes.index))]
-
-        # Filter by scaled fold-changes
-        df = df[(df.abs() > abs_fc_thres).sum(1) >= min_events]
-
-        # Filter by core-essential genes
-        pancore_score = Utils.get_adam_core_essential()
-        df = df[~df.index.isin(pancore_score)]
-
-        # Filter by Broad core-essential genes
-        if broad_paness:
-            pancore_ceres = Utils.get_broad_core_essential()
-            df = df[~df.index.isin(pancore_ceres)]
+        if drop_core_essential_broad:
+            df = df[~df.index.isin(cy.Utils.get_broad_core_essential())]
 
         # - Subset matrices
-        for k in self.crispr:
-            self.crispr[k] = self.crispr[k].loc[df.index].reindex(columns=df.columns)
-
-        return self
+        return self.get_data(scale=scale).loc[df.index].reindex(columns=df.columns)
 
     @staticmethod
     def scale(df, essential=None, non_essential=None, metric=np.median):
-        """
-        Min/Max scaling of CRISPR-Cas9 log-FC by median (default) Essential and Non-Essential.
-
-        :param df: Float pandas.DataFrame
-        :param essential: set(String)
-        :param non_essential: set(String)
-        :param metric: np.Median (default)
-        :return: Float pandas.DataFrame
-        """
-
         if essential is None:
-            essential = Utils.get_essential_genes(return_series=False)
+            essential = cy.Utils.get_essential_genes(return_series=False)
 
         if non_essential is None:
-            non_essential = Utils.get_non_essential_genes(return_series=False)
+            non_essential = cy.Utils.get_non_essential_genes(return_series=False)
 
         assert len(essential.intersection(df.index)) != 0, \
             'DataFrame has no index overlapping with essential list'
@@ -267,20 +246,25 @@ class CRISPR(object):
         return df
 
 
-class Sample(object):
+class Sample:
     def __init__(
             self,
-            samplesheet_file='data/meta/samplesheet.csv',
-            growthrate_file='data/gdsc/growth/growth_rates_screening_set_1536_180119.csv',
-            ploidy_file='data/ploidy.csv',
-            index='Cell Line Name'
+            samplesheet_file='data/meta/model_list_2018-09-28_1452.csv',
+            growthrate_file='data/meta/growth_rates_rapid_screen_1536_v1.2.2_20181113.csv',
+            samples_origin='data/meta/samples_origin.csv'
     ):
-        self.samplesheet = pd.read_csv(samplesheet_file).dropna(subset=[index]).set_index(index)
-        self.ploidy = pd.read_csv(ploidy_file, index_col=0)['ploidy']
-        self.growth = self.__assemble_growth_rates(growthrate_file)
+        self.index = 'model_id'
 
-    @staticmethod
-    def __assemble_growth_rates(dfile):
+        self.samplesheet = pd.read_csv(samplesheet_file).dropna(subset=[self.index]).set_index(self.index)
+
+        self.growth = pd.read_csv(growthrate_file)
+        self.samplesheet['growth'] = self.growth.groupby(self.index)['GROWTH_RATE'].mean()\
+            .reindex(self.samplesheet.index)
+
+        self.institute = pd.Series.from_csv(samples_origin)
+        self.samplesheet['institute'] = self.institute.reindex(self.samplesheet.index)
+
+    def __assemble_growth_rates(self, dfile):
         # Import
         dratio = pd.read_csv(dfile, index_col=0)
 
@@ -288,56 +272,83 @@ class Sample(object):
         dratio['DATE_CREATED'] = pd.to_datetime(dratio['DATE_CREATED'])
 
         # Group growth ratios per seeding
-        d_nc1 = dratio.groupby(['CELL_LINE_NAME', 'SEEDING_DENSITY']).agg(
-            {'growth_rate': [np.median, 'count'], 'DATE_CREATED': [np.max]}).reset_index()
+        d_nc1 = dratio.groupby([self.index, 'SEEDING_DENSITY'])\
+            .agg({'growth_rate': [np.median, 'count'], 'DATE_CREATED': [np.max]})\
+            .reset_index()
+
         d_nc1.columns = ['_'.join(filter(lambda x: x != '', i)) for i in d_nc1]
 
         # Pick most recent measurements per cell line
-        d_nc1 = d_nc1.iloc[d_nc1.groupby('CELL_LINE_NAME')['DATE_CREATED_amax'].idxmax()].set_index('CELL_LINE_NAME')
+        d_nc1 = d_nc1.iloc[d_nc1.groupby(self.index)['DATE_CREATED_amax'].idxmax()].set_index(self.index)
 
         return d_nc1
 
-    def build_covariates(self, variables=None, add_growth=True, samples=None):
-        variables = ['Cancer Type'] if variables is None else variables
+    def build_covariates(
+            self, samples=None, discrete_vars=None, continuos_vars=None, extra_vars=None
+    ):
+        covariates = []
 
-        covariates = pd.get_dummies(self.samplesheet[variables])
+        if discrete_vars is not None:
+            covariates.append(
+                pd.concat([
+                    pd.get_dummies(self.samplesheet[v].dropna()) for v in discrete_vars
+                ], axis=1, sort=False)
+            )
 
-        if add_growth:
-            covariates = pd.concat([covariates, self.growth['growth_rate_median']], axis=1)
+        if continuos_vars is not None:
+            covariates.append(self.samplesheet.reindex(columns=continuos_vars))
+
+        if extra_vars is not None:
+            covariates.append(extra_vars.copy())
+
+        if len(covariates) == 0:
+            return None
+
+        covariates = pd.concat(covariates, axis=1, sort=False)
 
         if samples is not None:
             covariates = covariates.loc[samples]
 
-        covariates = covariates.loc[:, covariates.sum() != 0]
-
         return covariates
 
 
-class MOBEM(object):
+class Genomic:
     def __init__(
             self,
-            drop_factors=True,
-            mobem_file='data/PANCAN_mobem.csv'
+            mobem_file='data/genomic/PANCAN_mobem.csv', drop_factors=True, add_msi=True
     ):
-        self.sample = Sample(index='COSMIC ID')
+        self.sample = Sample()
+
+        idmap = self.sample.samplesheet.reset_index().dropna(subset=['COSMIC_ID', 'model_id']) \
+            .set_index('COSMIC_ID')['model_id']
 
         mobem = pd.read_csv(mobem_file, index_col=0)
-        mobem = mobem.set_index(self.sample.samplesheet.loc[mobem.index, 'Cell Line Name'], drop=True)
-        mobem = mobem.T
+        mobem = mobem[mobem.index.astype(str).isin(idmap.index)]
+        mobem = mobem.set_index(idmap[mobem.index.astype(str)].values)
 
-        if drop_factors:
-            mobem = mobem.drop(['TISSUE_FACTOR', 'MSI_FACTOR', 'MEDIA_FACTOR'])
+        if drop_factors is not None:
+            mobem = mobem.drop(columns={'TISSUE_FACTOR', 'MSI_FACTOR', 'MEDIA_FACTOR'})
 
-        self.mobem = mobem.astype(int)
+        if add_msi:
+            self.msi = self.sample.samplesheet.loc[mobem.index, 'msi_status']
+            mobem['msi_status'] = (self.msi == 'MSI-H').astype(int)[mobem.index].values
+
+        self.mobem = mobem.astype(int).T
 
     def get_data(self):
         return self.mobem.copy()
 
-    def filter(self, min_events=3):
+    def filter(self, subset=None, min_events=5):
         df = self.get_data()
+
+        # Subset matrices
+        if subset is not None:
+            df = df.loc[:, df.columns.isin(subset)]
+
+        # Minimum number of events
         df = df[df.sum(1) >= min_events]
-        self.mobem = self.mobem.loc[df.index, df.columns]
-        return self
+
+        return df
 
     @staticmethod
     def mobem_feature_to_gene(f):
@@ -370,8 +381,15 @@ class MOBEM(object):
             raise ValueError('{} is not a valid MOBEM feature.'.format(f))
 
 
-class PPI(object):
+class GeneExpression:
+    def __init__(self, gexp_file='data/genomic/rnaseq_voom.csv.gz'):
+        self.gexp = pd.read_csv(gexp_file, index_col=0)
 
+    def get_data(self):
+        return self.gexp.copy()
+
+
+class PPI:
     def __init__(
             self,
             string_file='data/ppi/9606.protein.links.full.v10.5.txt',
@@ -588,6 +606,8 @@ class PPI(object):
 
 if __name__ == '__main__':
     crispr = CRISPR()
+    samples = Sample()
+    genomic = Genomic()
     drug_response = DrugResponse()
 
     samples = list(set.intersection(
@@ -596,4 +616,5 @@ if __name__ == '__main__':
     ))
     print(f'#(Samples)={len(samples)}')
 
-    drug_response.filter(subset=samples).get_data()
+    drug_respo = drug_response.filter(subset=samples, min_meas=0.75)
+    print(f'Spaseness={(1 - drug_respo.count().sum() / np.prod(drug_respo.shape)) * 100:.1f}%')
