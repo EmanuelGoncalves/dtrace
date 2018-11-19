@@ -3,7 +3,9 @@
 
 import numpy as np
 import pandas as pd
+import itertools as it
 from limix.qtl import scan
+from limix.stats import lrt_pvalues
 from sklearn.preprocessing import StandardScaler
 from statsmodels.stats.multitest import multipletests
 from dtrace.importer import DrugResponse, CRISPR, Genomic, Sample, PPI, GeneExpression, Proteomics
@@ -127,7 +129,7 @@ class Association:
         ]
 
     @staticmethod
-    def __lmm_single_associations(y, x, m=None, k=None, expand_drug_id=True):
+    def lmm_single_association(y, x, m=None, k=None, expand_drug_id=True):
         lmm, params = Association.lmm_association_limix(y, x, m, k)
 
         df = pd.DataFrame(
@@ -156,7 +158,7 @@ class Association:
         # - Single feature linear mixed regression
         # Association
         lmm_single = pd.concat([
-            self.__lmm_single_associations(self.drespo.loc[[d]].T, self.crispr.T, k=k, m=m) for d in self.drespo.index
+            self.lmm_single_association(self.drespo.loc[[d]].T, self.crispr.T, k=k, m=m) for d in self.drespo.index
         ])
 
         # Multiple p-value correction
@@ -167,7 +169,7 @@ class Association:
 
         # Annotate association distance to target
         lmm_single = self.ppi.ppi_annotation(
-            lmm_single, ppi_type='string', ppi_kws=dict(score_thres=900), target_thres=3
+            lmm_single, ppi_type='string', ppi_kws=dict(score_thres=900), target_thres=5
         )
 
         # Sort p-values
@@ -230,6 +232,70 @@ class Association:
 
         return lmmrobust
 
+    def get_drug_top(self, lmm_associations, drug, top_features):
+        d_genes = lmm_associations\
+            .query(f"DRUG_ID == {drug[0]} & DRUG_NAME == '{drug[1]}' & VERSION == '{drug[2]}'")\
+            .sort_values('pval')\
+            .head(top_features)['GeneSymbol']
+
+        return pd.concat([
+            self.drespo.loc[drug],
+            self.crispr.loc[d_genes].T
+        ], axis=1, sort=False).dropna().T
+
+    def lmm_multiple_association(self, lmm_associations, top_features=10):
+        mlmm_res = []
+        # drug = (1411, 'SN1041137233', 'v17')
+
+        for drug in self.drespo.index:
+            # Top associated genes
+            drug_df = self.get_drug_top(lmm_associations, drug, top_features)
+
+            # Kinship and covariates
+            k = self.kinship(self.crispr[drug_df.columns].T)
+            m = self.get_covariates().loc[drug_df.columns]
+
+            # Combination of features with the top feature
+            features = list(drug_df.index[1:])
+            combinations = list(it.combinations(features, 2))
+            combinations = [c for c in combinations if features[0] in c]
+
+            # Null model with top feature
+            lmm_best, lmm_best_params = Association.lmm_association_limix(
+                y=drug_df.loc[[drug]].T,
+                x=drug_df.loc[[features[0]]].T,
+                m=pd.concat([m, drug_df.loc[[features[0]]].T], axis=1).dropna(),
+                k=k
+            )
+
+            # Test the feature combinations
+            for c in combinations:
+                # Alternative model with both features
+                lmm_alternative, lmm_alt_params = Association.lmm_association_limix(
+                    y=drug_df.loc[[drug]].T,
+                    x=drug_df.loc[[features[0]]].T,
+                    m=pd.concat([m, drug_df.loc[list(c)].T], axis=1).dropna(),
+                    k=k
+                )
+
+                # Log-ratio test
+                lrt_pval = lrt_pvalues(lmm_best.null_lml, lmm_alternative.null_lml, len(c) - 1)
+
+                # Add results
+                mlmm_res.append(dict(
+                    features='+'.join(c),
+                    betas=';'.join(lmm_alternative.null_covariate_effsizes[list(c)].apply(lambda v: f'{v:.5f}')),
+                    pval=lrt_pval,
+                    DRUG_ID=drug[0],
+                    DRUG_NAME=drug[1],
+                    VERSION=drug[2]
+                ))
+
+        mlmm_res = pd.DataFrame(mlmm_res).sort_values('pval')
+        mlmm_res = self.multipletests_per_drug(mlmm_res, field='pval', fdr_field='fdr')
+
+        return mlmm_res
+
 
 if __name__ == '__main__':
     dtype = 'ic50'
@@ -245,3 +311,8 @@ if __name__ == '__main__':
     lmm_robust\
         .sort_values(['fdr_drug', 'pval_drug'])\
         .to_csv(f'data/drug_lmm_regressions_robust_{dtype}.csv.gz', index=False, compression='gzip')
+
+    lmm_multi = assoc.lmm_multiple_association(lmm_dsingle)
+    lmm_multi \
+        .sort_values(['pval', 'fdr']) \
+        .to_csv(f'data/drug_lmm_regressions_multiple_{dtype}.csv.gz', index=False, compression='gzip')

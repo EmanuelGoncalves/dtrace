@@ -35,7 +35,7 @@ class Plot(object):
 
     PAL_SET2 = sns.color_palette('Set2', n_colors=8).as_hex()
 
-    PAL_DTRACE = [PAL_SET2[1], '#E1E1E1', '#656565']
+    PAL_DTRACE = [PAL_SET2[1], '#E1E1E1', '#656565', '#2b8cbe']
 
     BOXPROPS = dict(linewidth=1.)
     WHISKERPROPS = dict(linewidth=1.)

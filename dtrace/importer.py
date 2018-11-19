@@ -16,11 +16,10 @@ class DrugResponse:
 
     def __init__(
             self,
-            drugsheet_file='data/meta/drugsheet_20181114.xlsx',
             drugresponse_file_v17='data/drug/screening_set_384_all_owners_fitted_data_20180308_updated.csv',
             drugresponse_file_rs='data/drug/fitted_rapid_screen_1536_v1.2.1_20181026_updated.csv',
     ):
-        self.drugsheet = pd.read_excel(drugsheet_file, index_col=0)
+        self.drugsheet = self.get_drugsheet()
 
         # Import and Merge drug response matrices
         self.d_v17 = pd.read_csv(drugresponse_file_v17).assign(VERSION='v17')
@@ -46,8 +45,13 @@ class DrugResponse:
             self.d_v17.groupby(self.DRUG_COLUMNS)['maxc'].min()
         ], sort=False).sort_values()
 
-    def get_drugtargets(self):
-        d_targets = self.drugsheet['Target Curated'].dropna().to_dict()
+    @staticmethod
+    def get_drugsheet(drugsheet_file='data/meta/drugsheet_20181114.xlsx'):
+        return pd.read_excel(drugsheet_file, index_col=0)
+
+    @classmethod
+    def get_drugtargets(cls):
+        d_targets = cls.get_drugsheet()['Target Curated'].dropna().to_dict()
         d_targets = {k: {t.strip() for t in d_targets[k].split(';')} for k in d_targets}
         return d_targets
 
@@ -426,42 +430,55 @@ class PPI:
         self.string_alias_file = string_alias_file
         self.biogrid_file = biogrid_file
 
-        self.drug_targets = DrugResponse().get_drugtargets()
+        self.drug_targets = DrugResponse.get_drugtargets()
 
-    def ppi_annotation(self, df, ppi_type, ppi_kws, target_thres=4):
+    def ppi_annotation(self, df, ppi_type, ppi_kws, target_thres=5):
         df_genes, df_drugs = set(df['GeneSymbol']), set(df['DRUG_ID'])
 
         # PPI annotation
         if ppi_type == 'string':
             ppi = self.build_string_ppi(**ppi_kws)
+
         elif ppi_type == 'biogrid':
             ppi = self.build_biogrid_ppi(**ppi_kws)
+
         else:
             raise Exception('ppi_type not supported, choose from: string or biogrid')
 
         # Drug target
         d_targets = {k: self.drug_targets[k] for k in df_drugs if k in self.drug_targets}
 
-        # Calculate distance between drugs and CRISPRed genes in PPI
+        # Drug targets not in the screen
+        d_targets_not_screened = {k for k in d_targets if len(d_targets[k].intersection(df_genes)) == 0}
+
+        # Calculate distance between drugs and genes in PPI
         dist_d_g = self.dist_drugtarget_genes(d_targets, df_genes, ppi)
 
         # Annotate drug regressions
         def drug_gene_annot(d, g):
             if d not in d_targets:
-                res = '-'
+                res = 'No link; No drug target information'
+
+            elif d in d_targets_not_screened:
+                res = 'No link; Drug target(s) not in CRISPR screen'
+
+            elif d not in dist_d_g:
+                res = 'No link; Drug target(s) not in network'
+
+            elif g not in dist_d_g[d]:
+                res = 'No link; Gene not in network'
 
             elif g in d_targets[d]:
                 res = 'T'
-
-            elif d not in dist_d_g or g not in dist_d_g[d]:
-                res = '-'
 
             else:
                 res = self.ppi_dist_to_string(dist_d_g[d][g], target_thres)
 
             return res
 
-        df = df.assign(target=[drug_gene_annot(d, g) for d, g in df[['DRUG_ID', 'GeneSymbol']].values])
+        df = df.assign(target_detailed=[drug_gene_annot(d, g) for d, g in df[['DRUG_ID', 'GeneSymbol']].values])
+
+        df = df.assign(target=['-' if t.startswith('No link;') else t for t in df['target_detailed']])
 
         return df
 
@@ -486,13 +503,13 @@ class PPI:
             res = 'T'
 
         elif d == np.inf:
-            res = '-'
+            res = 'No link; No connection'
 
         elif d < target_thres:
-            res = str(int(d))
+            res = f'{int(d)}'
 
         else:
-            res = '>={}'.format(target_thres)
+            res = f'{int(target_thres)}+'
 
         return res
 

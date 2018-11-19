@@ -16,7 +16,7 @@ from associations import Association
 from sklearn.preprocessing import StandardScaler
 
 
-class SingleLMMAnalysis(object):
+class SingleLMMAnalysis:
     @classmethod
     def manhattan_plot(cls, lmm_drug, fdr=.1, n_genes=20):
         # Import gene genomic coordinates from CRISPR-Cas9 library
@@ -83,76 +83,6 @@ class SingleLMMAnalysis(object):
                    prop={'size': 5}, frameon=False)
 
     @classmethod
-    def beta_histogram(cls, lmm_drug):
-        kde_kws = dict(cut=0, lw=1, zorder=1, alpha=.8)
-        hist_kws = dict(alpha=.4, zorder=1, linewidth=0)
-
-        sns.distplot(
-            lmm_drug.query("target != 'T'")['beta'], color=Plot.PAL_DTRACE[2], kde_kws=kde_kws, hist_kws=hist_kws,
-            label='All', bins=30
-        )
-
-        sns.distplot(
-            lmm_drug.query("target == 'T'")['beta'], color=Plot.PAL_DTRACE[0], kde_kws=kde_kws, hist_kws=hist_kws,
-            label='Target', bins=30
-        )
-
-        sns.despine(right=True, top=True)
-
-        plt.axvline(0, c=Plot.PAL_DTRACE[1], lw=.3, ls='-', zorder=0)
-
-        plt.xlabel('Association beta')
-        plt.ylabel('Density')
-
-        plt.legend(prop={'size': 6}, loc=2, frameon=False)
-
-    @classmethod
-    def recapitulated_drug_targets_barplot(cls, lmm_drug, fdr=.1):
-        dcols = DrugResponse.DRUG_COLUMNS
-        d_targets, df_genes = DrugResponse().get_drugtargets(), set(lmm_drug['GeneSymbol'])
-
-        # Count number of drugs
-        d_all = {
-            tuple(i) for i in lmm_drug[dcols].values
-        }
-
-        d_annot = {
-            tuple(i) for i in d_all if i[0] in d_targets
-        }
-
-        d_tested = {
-            tuple(i) for i in d_annot if len(d_targets[i[0]].intersection(df_genes)) > 0
-        }
-
-        d_tested_signif = {
-            tuple(i) for i in lmm_drug.query(f'fdr < {fdr}')[dcols].values if tuple(i) in d_tested
-        }
-
-        d_tested_correct = {
-            tuple(i) for i in lmm_drug.query(f"fdr < {fdr} & target == 'T'")[dcols].values if
-        tuple(i) in d_tested_signif
-        }
-
-        # Build dataframe
-        plot_df = pd.DataFrame(dict(
-            names=['All', 'w/Target', 'w/Tested target', 'w/Signif tested target', 'w/Correct target'],
-            count=list(map(len, [d_all, d_annot, d_tested, d_tested_signif, d_tested_correct]))
-        )).sort_values('count', ascending=True)
-        plot_df = plot_df.assign(y=range(plot_df.shape[0]))
-
-        # Plot
-        plt.barh(plot_df['y'], plot_df['count'], color=Plot.PAL_DTRACE[2], linewidth=0)
-
-        sns.despine(right=True, top=True)
-
-        for c, y in plot_df[['count', 'y']].values:
-            plt.text(c + 3, y, str(c), va='center', fontsize=5, zorder=10, color=Plot.PAL_DTRACE[2])
-
-        plt.yticks(plot_df['y'], plot_df['names'])
-        plt.xlabel('Number of drugs')
-        plt.ylabel('')
-
-    @classmethod
     def top_associations_barplot(cls, lmm_drug, fdr_line=0.1, ntop=60, n_cols=16):
         # Filter for signif associations
         df = lmm_drug \
@@ -163,7 +93,6 @@ class SingleLMMAnalysis(object):
             .sort_values('fdr') \
             .reset_index()
         df = df.assign(logpval=-np.log10(df['pval']).values)
-        df = df.replace({'target': {'>=3': '3+'}})
 
         # Drug order
         order = list(df.groupby('DRUG_NAME')['fdr'].min().sort_values().index)[:ntop]
@@ -217,10 +146,10 @@ class SingleLMMAnalysis(object):
 
     @staticmethod
     def boxplot_kinobead(lmm_drug, fdr_thres=.1, ax=None):
-        d_targets = DrugResponse.get_drugtargets()
+        d_targets = DrugResponse().get_drugtargets()
 
         # Build data-frame
-        drug_id_fdr = lmm_drug.groupby('DRUG_ID_lib')['fdr'].min()
+        drug_id_fdr = lmm_drug.groupby('DRUG_ID')['fdr'].min()
 
         def from_ids_to_minfdr(ids):
             if str(ids).lower() == 'nan':
@@ -279,7 +208,7 @@ class SingleLMMAnalysis(object):
         ax.set_ylabel('Selectivity[$CATDS_{most\ potent}$]')
 
 
-class SingleLMMTSNE(object):
+class SingleLMMTSNE:
     DRUG_TARGETS_HUE = [
         ('#3182bd', [{'RAF1', 'BRAF'}, {'MAPK1', 'MAPK3'}, {'MAP2K1', 'MAP2K2'}]),
         ('#e6550d', [{'PIK3CA', 'PIK3CB'}, {'AKT1', 'AKT2', 'AKT3'}, {'MTOR'}]),
@@ -580,18 +509,13 @@ if __name__ == '__main__':
     plt.savefig('reports/drug_associations_manhattan.png', bbox_inches='tight', transparent=True, dpi=300)
     plt.close('all')
 
-    SingleLMMAnalysis.beta_histogram(lmm_drug)
-    plt.gcf().set_size_inches(2, 2)
-    plt.savefig('reports/drug_associations_beta_histogram.pdf', bbox_inches='tight', transparent=True)
-    plt.close('all')
-
-    SingleLMMAnalysis.recapitulated_drug_targets_barplot(lmm_drug, fdr=.1)
-    plt.gcf().set_size_inches(2, 1)
-    plt.savefig('reports/drug_associations_count_signif.pdf', bbox_inches='tight', transparent=True)
-    plt.close('all')
-
     SingleLMMAnalysis.top_associations_barplot(lmm_drug, fdr_line=.1, ntop=60)
     plt.savefig('reports/drug_associations_barplot.pdf', bbox_inches='tight', transparent=True)
+    plt.close('all')
+
+    SingleLMMAnalysis.boxplot_kinobead(lmm_drug, fdr_thres=.1)
+    plt.gcf().set_size_inches(1, 2)
+    plt.savefig('reports/drug_associations_kinobeads.pdf', bbox_inches='tight', transparent=True)
     plt.close('all')
 
     # - Drug betas TSNEs
