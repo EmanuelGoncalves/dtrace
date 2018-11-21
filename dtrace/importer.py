@@ -1,11 +1,13 @@
 #!/usr/bin/env python
 # Copyright (C) 2018 Emanuel Goncalves
 
+import pydot
 import igraph
 import warnings
 import numpy as np
 import pandas as pd
 import crispy as cy
+from dtrace.plot import Plot
 
 
 class DrugResponse:
@@ -46,13 +48,19 @@ class DrugResponse:
         ], sort=False).sort_values()
 
     @staticmethod
-    def get_drugsheet(drugsheet_file='data/meta/drugsheet_20181114.xlsx'):
+    def get_drugsheet(drugsheet_file='data/meta/drugsheet_20181119.xlsx'):
         return pd.read_excel(drugsheet_file, index_col=0)
 
     @classmethod
-    def get_drugtargets(cls):
-        d_targets = cls.get_drugsheet()['Target Curated'].dropna().to_dict()
+    def get_drugtargets(cls, by='id'):
+        if by == 'id':
+            d_targets = cls.get_drugsheet()['Target Curated'].dropna().to_dict()
+
+        else:
+            d_targets = cls.get_drugsheet().groupby('Name')['Target Curated'].first().dropna().to_dict()
+
         d_targets = {k: {t.strip() for t in d_targets[k].split(';')} for k in d_targets}
+
         return d_targets
 
     def get_data(self, dtype='ic50'):
@@ -146,7 +154,7 @@ class DrugResponse:
 
 
 class CRISPR:
-    LOW_QUALITY_SAMPLES = ['SIDM00096']
+    LOW_QUALITY_SAMPLES = ['SIDM00096', 'SIDM01085', 'SIDM00958']
 
     def __init__(
             self, datadir='data/crispr/',
@@ -419,6 +427,23 @@ class Proteomics:
         return df
 
 
+class CopyNumber:
+    def __init__(self, cnv_file='data/genomic/copynumber_total_new_map.csv.gz'):
+        self.copynumber = pd.read_csv(cnv_file, index_col=0)
+
+    def get_data(self):
+        return self.copynumber.copy()
+
+    def filter(self, subset=None):
+        df = self.get_data()
+
+        # Subset matrices
+        if subset is not None:
+            df = df.loc[:, df.columns.isin(subset)]
+
+        return df
+
+
 class PPI:
     def __init__(
             self,
@@ -646,12 +671,78 @@ class PPI:
 
         return ppi
 
+    @classmethod
+    def plot_ppi(cls, drug_name, d_associations, ppi, corr_thres=0.2, fdr=0.1, norder=1):
+        d_targets = DrugResponse.get_drugtargets(by='Name')
+
+        # Build data-set
+        d_signif = d_associations.query(f"(DRUG_NAME == '{drug_name}') & (fdr < {fdr})")
+        d_ppi_df = cls.get_edges(ppi, list(d_signif['GeneSymbol']), corr_thres, norder)
+
+        # Build graph
+        graph = pydot.Dot(graph_type='graph', pagedir='TR')
+
+        kws_nodes = dict(
+            style='"rounded,filled"', shape='rect', color=Plot.PAL_DTRACE[1], penwidth=2, fontcolor='white'
+        )
+
+        kws_edges = dict(
+            fontsize=9, fontcolor=Plot.PAL_DTRACE[2], color=Plot.PAL_DTRACE[2]
+        )
+
+        for s, t, r in d_ppi_df[['source', 'target', 'r']].values:
+            # Add source node
+            fs = 15 if s in d_signif['GeneSymbol'].values else 9
+            fc = Plot.PAL_DTRACE[0 if drug_name in d_targets and s in d_targets[drug_name] else 2]
+
+            source = pydot.Node(s, fillcolor=fc, fontsize=fs, **kws_nodes)
+            graph.add_node(source)
+
+            # Add target node
+            fc = Plot.PAL_DTRACE[0 if drug_name in d_targets and t in d_targets[drug_name] else 2]
+            fs = 15 if t in d_signif['GeneSymbol'].values else 9
+
+            target = pydot.Node(t, fillcolor=fc, fontsize=fs, **kws_nodes)
+            graph.add_node(target)
+
+            # Add edge
+            edge = pydot.Edge(source, target, label='{:.2f}'.format(r), **kws_edges)
+            graph.add_edge(edge)
+
+        return graph
+
+    @classmethod
+    def get_edges(cls, ppi, nodes, corr_thres, norder):
+        # Subset network
+        ppi_sub = ppi.copy().subgraph_edges([e for e in ppi.es if abs(e['corr']) >= corr_thres])
+
+        # Nodes that are contained in the network
+        nodes = {v for v in nodes if v in ppi_sub.vs['name']}
+        assert len(nodes) > 0, 'None of the nodes is contained in the PPI'
+
+        # Nodes neighborhood
+        neighbor_nodes = {v for n in nodes for v in ppi_sub.neighborhood(n, order=norder)}
+
+        # Build subgraph
+        subgraph = ppi_sub.subgraph(neighbor_nodes)
+
+        # Build data-frame
+        nodes_df = pd.DataFrame([{
+            'source': subgraph.vs[e.source]['name'],
+            'target': subgraph.vs[e.target]['name'],
+            'r': e['corr']
+        } for e in subgraph.es]).sort_values('r')
+
+        return nodes_df
+
 
 if __name__ == '__main__':
     crispr = CRISPR()
     samples = Sample()
     genomic = Genomic()
     drug_response = DrugResponse()
+    gexp = GeneExpression()
+    cn = CopyNumber()
 
     samples = list(set.intersection(
         set(drug_response.get_data().columns),

@@ -54,7 +54,7 @@ class Preliminary:
 
         g = g.map_diag(plt.hist, color=color, linewidth=0, alpha=.5)
 
-        g = g.map_offdiag(plt.scatter, s=3, edgecolor='white', lw=.1, alpha=.5, color=color)
+        g = g.map_offdiag(plt.scatter, s=8, edgecolor='white', lw=.1, alpha=.8, color=color)
 
         if hue is not None:
             g = g.add_legend()
@@ -75,7 +75,7 @@ class Preliminary:
 
         g = g.map_diag(plt.hist, color=color, linewidth=0, alpha=.5)
 
-        g = g.map_offdiag(plt.scatter, s=3, edgecolor='white', lw=.1, color=color)
+        g = g.map_offdiag(plt.scatter, s=8, edgecolor='white', lw=.1, alpha=.8, color=color)
 
         if hue is not None:
             g = g.add_legend()
@@ -104,7 +104,7 @@ class Preliminary:
         )
 
         g = g.map_diag(sns.distplot, hist=False)
-        g = g.map_offdiag(plt.scatter, s=4, edgecolor='white', lw=.1, alpha=.8)
+        g = g.map_offdiag(plt.scatter, s=8, edgecolor='white', lw=.1, alpha=.8)
         g = g.add_legend()
 
         cls._pairplot_fix_labels(g, pca, by='column')

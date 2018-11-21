@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 # Copyright (C) 2018 Emanuel Goncalves
 
-import textwrap
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -81,68 +80,6 @@ class SingleLMMAnalysis:
         by_label = [(l, by_label[l]) for l in order_legend]
         plt.legend(list(zip(*(by_label)))[1], list(zip(*(by_label)))[0], loc='center left', bbox_to_anchor=(1.01, 0.5),
                    prop={'size': 5}, frameon=False)
-
-    @classmethod
-    def top_associations_barplot(cls, lmm_drug, fdr_line=0.1, ntop=60, n_cols=16):
-        # Filter for signif associations
-        df = lmm_drug \
-            .query('fdr < {}'.format(fdr_line)) \
-            .sort_values('fdr') \
-            .groupby(['DRUG_NAME', 'GeneSymbol']) \
-            .first() \
-            .sort_values('fdr') \
-            .reset_index()
-        df = df.assign(logpval=-np.log10(df['pval']).values)
-
-        # Drug order
-        order = list(df.groupby('DRUG_NAME')['fdr'].min().sort_values().index)[:ntop]
-
-        # Build plot dataframe
-        df_, xpos = [], 0
-        for i, drug_name in enumerate(order):
-            if i % n_cols == 0:
-                xpos = 0
-
-            df_drug = df[df['DRUG_NAME'] == drug_name]
-            df_drug = df_drug.assign(xpos=np.arange(xpos, xpos + df_drug.shape[0]))
-            df_drug = df_drug.assign(irow=int(np.floor(i / n_cols)))
-
-            xpos += (df_drug.shape[0] + 2)
-
-            df_.append(df_drug)
-
-        df = pd.concat(df_).reset_index()
-
-        # Plot
-        f, axs = plt.subplots(int(np.ceil(ntop / n_cols)), 1, sharex='none', sharey='all', gridspec_kw=dict(hspace=.0))
-
-        # Barplot
-        for irow in set(df['irow']):
-            df_irow = df[df['irow'] == irow]
-
-            df_irow_ = df_irow.query("target != 'T'")
-            axs[irow].bar(df_irow_['xpos'], df_irow_['logpval'], .8, color=Plot.PAL_DTRACE[2], align='center', zorder=5, linewidth=0)
-
-            df_irow_ = df_irow.query("target == 'T'")
-            axs[irow].bar(df_irow_['xpos'], df_irow_['logpval'], .8, color=Plot.PAL_DTRACE[0], align='center', zorder=5, linewidth=0)
-
-            for k, v in df_irow.groupby('DRUG_NAME')['xpos'].min().sort_values().to_dict().items():
-                axs[irow].text(v - 1.2, 0.1, textwrap.fill(k, 15), va='bottom', fontsize=7, zorder=10, rotation='vertical', color=Plot.PAL_DTRACE[2])
-
-            for g, p in df_irow[['GeneSymbol', 'xpos']].values:
-                axs[irow].text(p, 0.1, g, ha='center', va='bottom', fontsize=5, zorder=10, rotation='vertical', color='white')
-
-            for x, y, t, b in df_irow[['xpos', 'logpval', 'target', 'beta']].values:
-                c = Plot.PAL_DTRACE[0] if t == 'T' else Plot.PAL_DTRACE[2]
-
-                axs[irow].text(x, y + 0.25, t, color=c, ha='center', fontsize=6, zorder=10)
-                axs[irow].text(x, -3, f'{b:.1f}', color=c, ha='center', fontsize=6, rotation='vertical', zorder=10)
-
-            sns.despine(ax=axs[irow], right=True, top=True)
-            axs[irow].axes.get_xaxis().set_ticks([])
-            axs[irow].set_ylabel('Drug-gene association\n(-log10 p-value)')
-
-        plt.gcf().set_size_inches(13, 6)
 
     @staticmethod
     def boxplot_kinobead(lmm_drug, fdr_thres=.1, ax=None):
@@ -505,17 +442,8 @@ if __name__ == '__main__':
 
     # - Single feature linear regression
     SingleLMMAnalysis.manhattan_plot(lmm_drug, fdr=0.1)
-    plt.gcf().set_size_inches(8, 2)
-    plt.savefig('reports/drug_associations_manhattan.png', bbox_inches='tight', transparent=True, dpi=300)
-    plt.close('all')
-
-    SingleLMMAnalysis.top_associations_barplot(lmm_drug, fdr_line=.1, ntop=60)
-    plt.savefig('reports/drug_associations_barplot.pdf', bbox_inches='tight', transparent=True)
-    plt.close('all')
-
-    SingleLMMAnalysis.boxplot_kinobead(lmm_drug, fdr_thres=.1)
-    plt.gcf().set_size_inches(1, 2)
-    plt.savefig('reports/drug_associations_kinobeads.pdf', bbox_inches='tight', transparent=True)
+    plt.gcf().set_size_inches(5, 2)
+    plt.savefig('reports/drug_associations_manhattan.png', bbox_inches='tight', transparent=True, dpi=600)
     plt.close('all')
 
     # - Drug betas TSNEs

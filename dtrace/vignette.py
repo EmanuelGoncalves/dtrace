@@ -37,6 +37,9 @@ if __name__ == '__main__':
     cbin = pd.concat([plot_df[g].apply(lambda v: g if v < -.5 else '') for g in [gene_assoc, gene_extra]], axis=1)
     plot_df['essentiality'] = cbin.apply(lambda v: ' + '.join([i for i in v if i != '']), axis=1).replace('', 'None').values
 
+    for g in [gene_assoc, gene_extra]:
+        plot_df[f'{g}_cn'] = datasets.cn.loc[g].reindex(plot_df.index).values
+
     for g in [gene_assoc, gene_extra, 'FIS1', 'DNM1L', 'MFN1', 'MFN2', 'MIEF2', 'MIEF1', 'FUNDC1', 'HNF4A']:
         plot_df[f'{g}_gexp'] = datasets.gexp.loc[g].reindex(plot_df.index).values
 
