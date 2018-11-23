@@ -8,12 +8,10 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from plot import Plot
 from natsort import natsorted
-from importer import DrugResponse, PPI
+from crispy.utils import Utils
 from crispy.qc_plot import QCplot
-from scipy.stats import ttest_ind
 from associations import Association
-from scipy.stats.distributions import hypergeom
-from sklearn.metrics import f1_score, recall_score, precision_score
+from importer import DrugResponse, PPI
 
 
 class TargetBenchmark:
@@ -185,8 +183,74 @@ class TargetBenchmark:
 
         plt.gcf().set_size_inches(10, 8)
 
-        plt.savefig('reports/target_benchmark_associations_barplot.pdf', bbox_inches='tight', transparent=True)
-        plt.close('all')
+    def manhattan_plot(self, n_genes=20):
+        # Import gene genomic coordinates from CRISPR-Cas9 library
+        crispr_lib = Utils.get_crispr_lib().groupby('gene').agg({'start': 'min', 'chr': 'first'})
+
+        # Plot data-frame
+        df = self.lmm_drug.copy()
+        df = df.assign(pos=crispr_lib.loc[df['GeneSymbol'], 'start'].values)
+        df = df.assign(chr=crispr_lib.loc[df['GeneSymbol'], 'chr'].apply(lambda v: v.replace('chr', '')).values)
+        df = df.sort_values(['chr', 'pos'])
+
+        # Most frequently associated genes
+        top_genes = self.lmm_drug.groupby('GeneSymbol')['fdr'].min().sort_values().head(n_genes)
+        top_genes_pal = dict(zip(*(top_genes.index, sns.color_palette('tab20', n_colors=n_genes).as_hex())))
+
+        # Plot
+        chrms = set(df['chr'])
+        label_fdr = 'Significant'
+
+        f, axs = plt.subplots(1, len(chrms), sharex='none', sharey='row', gridspec_kw=dict(wspace=.05))
+        for i, name in enumerate(natsorted(chrms)):
+            df_group = df[df['chr'] == name]
+
+            # Plot non-significant
+            df_nonsignif = df_group.query(f'fdr >= {self.fdr}')
+            axs[i].scatter(df_nonsignif['pos'], -np.log10(df_nonsignif['pval']), c=Plot.PAL_DTRACE[(i % 2) + 1], s=2)
+
+            # Plot significant
+            df_signif = df_group.query(f'fdr < {self.fdr}')
+            df_signif = df_signif[~df_signif['GeneSymbol'].isin(top_genes.index)]
+            axs[i].scatter(
+                df_signif['pos'], -np.log10(df_signif['pval']), c=Plot.PAL_DTRACE[0], s=2, zorder=3, label=label_fdr
+            )
+
+            # Plot significant associations of top frequent genes
+            df_genes = df_group.query(f'fdr < {self.fdr}')
+            df_genes = df_genes[df_genes['GeneSymbol'].isin(top_genes.index)]
+            for pos, pval, gene in df_genes[['pos', 'pval', 'GeneSymbol']].values:
+                axs[i].scatter(
+                    pos, -np.log10(pval), c=top_genes_pal[gene], s=6, zorder=4, label=gene, marker='2', lw=.75
+                )
+
+            # Misc
+            axs[i].axes.get_xaxis().set_ticks([])
+            axs[i].set_xlabel(name)
+            axs[i].set_ylim(0)
+
+            if i != 0:
+                sns.despine(ax=axs[i], left=True, right=True, top=True)
+                axs[i].yaxis.set_ticks_position('none')
+
+            else:
+                sns.despine(ax=axs[i], right=True, top=True)
+                axs[i].set_ylabel('Drug-gene association\n(-log10 p-value)')
+
+        f.add_subplot(111, frameon=False)
+        plt.tick_params(labelcolor='none', top='off', bottom='off', left='off', right='off')
+        plt.grid(False)
+        plt.xlabel('Chromosome')
+
+        # Legend
+        order_legend = [label_fdr] + list(top_genes.index)
+        by_label = {l: p for ax in axs for p, l in zip(*(ax.get_legend_handles_labels()))}
+        by_label = [(l, by_label[l]) for l in order_legend]
+
+        plt.legend(
+            list(zip(*(by_label)))[1], list(zip(*(by_label)))[0], loc='center left', bbox_to_anchor=(1.01, 0.5),
+            prop={'size': 5}, frameon=False
+        )
 
 
 if __name__ == '__main__':
@@ -197,8 +261,17 @@ if __name__ == '__main__':
     ppi = PPI.ppi_corr(ppi, trg.datasets.crispr)
 
     #
+    trg.top_associations_barplot()
+    plt.savefig('reports/target_benchmark_associations_barplot.pdf', bbox_inches='tight', transparent=True)
+    plt.close('all')
+
+    trg.manhattan_plot(n_genes=20)
+    plt.gcf().set_size_inches(5, 2)
+    plt.savefig('reports/drug_associations_manhattan.png', bbox_inches='tight', transparent=True, dpi=600)
+    plt.close('all')
+
     trg.recapitulated_drug_targets_barplot()
-    plt.gcf().set_size_inches(3, 2)
+    plt.gcf().set_size_inches(2, 1)
     plt.savefig('reports/target_benchmark_count_signif.pdf', bbox_inches='tight', transparent=True)
     plt.close('all')
 
@@ -220,7 +293,7 @@ if __name__ == '__main__':
     # Single feature examples
     dgs = [('Alpelisib', 'PIK3CA'), ('Nutlin-3a (-)', 'MDM2'), ('MCL1_1284', 'MCL1'), ('MCL1_1284', 'MARCH5')]
 
-    # dg = ('Alpelisib', 'PIK3CA')
+    # dg = ('696119', 'FLI1')
     for dg in dgs:
         assoc = trg.lmm_drug[(trg.lmm_drug['DRUG_NAME'] == dg[0]) & (trg.lmm_drug['GeneSymbol'] == dg[1])].iloc[0]
 
@@ -235,7 +308,7 @@ if __name__ == '__main__':
             trg.datasets.crispr_obj.institute.rename('Institute'),
         ], axis=1, sort=False).dropna()
 
-        g = Plot().plot_corrplot('crispr', 'drug', 'Institute', plot_df, add_hline=True, annot_text=annot_text)
+        g = Plot.plot_corrplot('crispr', 'drug', 'Institute', plot_df, add_hline=True, annot_text=annot_text)
 
         g.ax_joint.axhline(y=dmax, linewidth=.3, color=Plot.PAL_DTRACE[2], ls=':', zorder=0)
 
@@ -262,7 +335,11 @@ if __name__ == '__main__':
         plt.close('all')
 
     # PPI
-    d, t, o = ('Linsitinib', .3, 1)
-    for d, t, o in [('Nutlin-3a (-)', .5, 1), ('MCL1_1284', .2, 2)]:
-        graph = PPI.plot_ppi(d, trg.lmm_drug, ppi, corr_thres=t, norder=o, fdr=0.05)
-        graph.write_pdf(f'reports/ppi_{d}.pdf')
+    ppi_examples = [
+        ('Nutlin-3a (-)', .4, 1, ['RPL37', 'UBE3B']),
+        ('AZD3759', .3, 1, None)
+    ]
+    # d, t, o = ('Nutlin-3a (-)', .4, 1, ['RPL37', 'UBE3B'])
+    for d, t, o, e in ppi_examples:
+        graph = PPI.plot_ppi(d, trg.lmm_drug, ppi, corr_thres=t, norder=o, fdr=0.05, exclude_nodes=e)
+        graph.write_pdf(f'reports/association_ppi_{d}.pdf')

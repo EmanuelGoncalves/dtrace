@@ -7,142 +7,11 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from plot import Plot
 from natsort import natsorted
-from crispy.utils import Utils
 from scipy.stats import ttest_ind
 from sklearn.manifold import TSNE
 from importer import DrugResponse
 from associations import Association
 from sklearn.preprocessing import StandardScaler
-
-
-class SingleLMMAnalysis:
-    @classmethod
-    def manhattan_plot(cls, lmm_drug, fdr=.1, n_genes=20):
-        # Import gene genomic coordinates from CRISPR-Cas9 library
-        crispr_lib = Utils.get_crispr_lib().groupby('gene').agg({'start': 'min', 'chr': 'first'})
-
-        # Plot data-frame
-        df = lmm_drug.copy()
-        df = df.assign(pos=crispr_lib.loc[df['GeneSymbol'], 'start'].values)
-        df = df.assign(chr=crispr_lib.loc[df['GeneSymbol'], 'chr'].apply(lambda v: v.replace('chr', '')).values)
-        df = df.sort_values(['chr', 'pos'])
-
-        # Most frequently associated genes
-        top_genes = lmm_drug.groupby('GeneSymbol')['fdr'].min().sort_values().head(n_genes)
-        top_genes_pal = dict(zip(*(top_genes.index, sns.color_palette('tab20', n_colors=n_genes).as_hex())))
-
-        # Plot
-        chrms = set(df['chr'])
-        label_fdr = 'Significant'
-
-        f, axs = plt.subplots(1, len(chrms), sharex='none', sharey='row', gridspec_kw=dict(wspace=.05))
-        for i, name in enumerate(natsorted(chrms)):
-            df_group = df[df['chr'] == name]
-
-            # Plot non-significant
-            df_nonsignif = df_group.query(f'fdr >= {fdr}')
-            axs[i].scatter(df_nonsignif['pos'], -np.log10(df_nonsignif['pval']), c=Plot.PAL_DTRACE[(i % 2) + 1], s=2)
-
-            # Plot significant
-            df_signif = df_group.query(f'fdr < {fdr}')
-            df_signif = df_signif[~df_signif['GeneSymbol'].isin(top_genes.index)]
-            axs[i].scatter(df_signif['pos'], -np.log10(df_signif['pval']), c=Plot.PAL_DTRACE[0], s=2, zorder=3,
-                           label=label_fdr)
-
-            # Plot significant associations of top frequent genes
-            df_genes = df_group.query(f'fdr < {fdr}')
-            df_genes = df_genes[df_genes['GeneSymbol'].isin(top_genes.index)]
-            for pos, pval, gene in df_genes[['pos', 'pval', 'GeneSymbol']].values:
-                axs[i].scatter(pos, -np.log10(pval), c=top_genes_pal[gene], s=6, zorder=4, label=gene, marker='2',
-                               lw=.75)
-
-            # Misc
-            axs[i].axes.get_xaxis().set_ticks([])
-            axs[i].set_xlabel(name)
-            axs[i].set_ylim(0)
-
-            if i != 0:
-                sns.despine(ax=axs[i], left=True, right=True, top=True)
-                axs[i].yaxis.set_ticks_position('none')
-
-            else:
-                sns.despine(ax=axs[i], right=True, top=True)
-                axs[i].set_ylabel('Drug-gene association\n(-log10 p-value)')
-
-        f.add_subplot(111, frameon=False)
-        plt.tick_params(labelcolor='none', top='off', bottom='off', left='off', right='off')
-        plt.grid(False)
-        plt.xlabel('Chromosome')
-
-        # Legend
-        order_legend = [label_fdr] + list(top_genes.index)
-        by_label = {l: p for ax in axs for p, l in zip(*(ax.get_legend_handles_labels()))}
-        by_label = [(l, by_label[l]) for l in order_legend]
-        plt.legend(list(zip(*(by_label)))[1], list(zip(*(by_label)))[0], loc='center left', bbox_to_anchor=(1.01, 0.5),
-                   prop={'size': 5}, frameon=False)
-
-    @staticmethod
-    def boxplot_kinobead(lmm_drug, fdr_thres=.1, ax=None):
-        d_targets = DrugResponse().get_drugtargets()
-
-        # Build data-frame
-        drug_id_fdr = lmm_drug.groupby('DRUG_ID')['fdr'].min()
-
-        def from_ids_to_minfdr(ids):
-            if str(ids).lower() == 'nan':
-                return np.nan
-            else:
-                dids = list(map(int, ids.split(';')))
-                dids = [i for i in dids if i in drug_id_fdr.index]
-
-                if len(dids) == 0:
-                    return np.nan
-                else:
-                    return drug_id_fdr.loc[dids].min()
-
-        def targets_from_ids(ids):
-            if str(ids).lower() == 'nan':
-                return np.nan
-            else:
-                dids = list(map(int, ids.split(';')))
-                dids = [i for i in dids if i in d_targets]
-
-                if len(dids) == 0:
-                    return np.nan
-                else:
-                    return '; '.join({g for i in dids for g in d_targets[i]})
-
-        catds = pd.read_csv('data/klaeger_et_al_catds_most_potent.csv')
-        catds = catds.assign(fdr=[from_ids_to_minfdr(i) for i in catds['ids']])
-        catds = catds.assign(
-            signif=[('NA' if np.isnan(i) else ('Yes' if i < fdr_thres else 'No')) for i in catds['fdr']])
-        catds = catds.assign(targets=[targets_from_ids(i) for i in catds['ids']])
-
-        t, p = ttest_ind(
-            catds[catds['signif'] == 'No']['CATDS_most_potent'],
-            catds[catds['signif'] == 'Yes']['CATDS_most_potent'],
-            equal_var=False
-        )
-        print(p)
-
-        # Plot
-        if ax is None:
-            ax = plt.gca()
-
-        order = ['No', 'Yes', 'NA']
-        pal = {'No': Plot.PAL_DTRACE[2], 'Yes': Plot.PAL_DTRACE[0], 'NA': Plot.PAL_DTRACE[1]}
-
-        sns.boxplot(catds['signif'], catds['CATDS_most_potent'], notch=True, palette=pal, linewidth=.3, fliersize=1.5, order=order, ax=ax)
-        sns.swarmplot(catds['signif'], catds['CATDS_most_potent'], palette=pal, linewidth=.3, size=2, order=order,
-                      ax=ax)
-        ax.axhline(0.5, lw=.3, c=Plot.PAL_DTRACE[1], ls='-', alpha=.8, zorder=0)
-
-        sns.despine(top=True, right=True, ax=ax)
-
-        ax.set_ylim((-0.1, 1.1))
-
-        ax.set_xlabel('Drug has a significant\nCRISPR-Cas9 association')
-        ax.set_ylabel('Selectivity[$CATDS_{most\ potent}$]')
 
 
 class SingleLMMTSNE:
@@ -315,7 +184,7 @@ class SingleLMMTSNE:
             )
         )
 
-        discrete_pal = pd.Series(Plot.PAL_DTRACE, index=set(plot_df['id_discrete'])).to_dict()
+        discrete_pal = pd.Series(Plot.PAL_DTRACE[:3], index=set(plot_df['id_discrete'])).to_dict()
 
         g = Plot.plot_corrplot_discrete(
             'P1', 'P2', 'id_discrete', plot_df, discrete_pal=discrete_pal, legend_title='DRUG_ID discretised',
@@ -372,7 +241,7 @@ class RobustLMMAnalysis(object):
 
         # Plot
         order = ['Mutation', 'CN loss', 'CN gain']
-        pal = pd.Series(Plot.PAL_DTRACE, index=order).to_dict()
+        pal = pd.Series(Plot.PAL_DTRACE[:3], index=order).to_dict()
 
         sns.barplot('count', 'name', 'type', data=plot_df, palette=pal, hue_order=order, dodge=False, saturation=1)
 
@@ -389,7 +258,7 @@ class RobustLMMAnalysis(object):
         f, axs = plt.subplots(1, 2, sharex='none', sharey='none', gridspec_kw=dict(wspace=.75))
 
         order = ['Mutation', 'CN loss', 'CN gain']
-        pal = pd.Series(Plot.PAL_DTRACE, index=order).to_dict()
+        pal = pd.Series(Plot.PAL_DTRACE[:3], index=order).to_dict()
 
         for i, d in enumerate(['drug', 'crispr']):
             ax = axs[i]
@@ -440,12 +309,6 @@ if __name__ == '__main__':
     lmm_drug = pd.read_csv('data/drug_lmm_regressions_ic50.csv.gz')
     lmm_robust = pd.read_csv('data/drug_lmm_regressions_robust_ic50.csv.gz')
 
-    # - Single feature linear regression
-    SingleLMMAnalysis.manhattan_plot(lmm_drug, fdr=0.1)
-    plt.gcf().set_size_inches(5, 2)
-    plt.savefig('reports/drug_associations_manhattan.png', bbox_inches='tight', transparent=True, dpi=600)
-    plt.close('all')
-
     # - Drug betas TSNEs
     tsnes = SingleLMMTSNE(lmm_drug)
 
@@ -487,3 +350,40 @@ if __name__ == '__main__':
     RobustLMMAnalysis.top_robust_features(lmm_robust)
     plt.savefig('reports/robust_top_associations.pdf', bbox_inches='tight', transparent=True)
     plt.close('all')
+
+    # Examples
+    rassocs = [
+        ('Olaparib', 'FLI1', 'EWSR1.FLI1_mut'),
+        ('Dabrafenib', 'BRAF', 'BRAF_mut'),
+        ('Nutlin-3a (-)', 'MDM2', 'TP53_mut'),
+        ('Taselisib', 'PIK3CA', 'PIK3CA_mut')
+    ]
+
+    # d, c, g = ('Taselisib', 'PIK3CA', 'PIK3CA_mut')
+    for d, c, g in rassocs:
+        assoc = lmm_robust[
+            (lmm_robust['DRUG_NAME'] == d) & (lmm_robust['GeneSymbol'] == c) & (lmm_robust['Genetic'] == g)
+        ].iloc[0]
+
+        drug = tuple(assoc[DrugResponse.DRUG_COLUMNS])
+
+        dmax = np.log(datasets.drespo_obj.maxconcentration[drug])
+
+        plot_df = pd.concat([
+            datasets.drespo.loc[drug].rename('drug'),
+            datasets.crispr.loc[c].rename('crispr'),
+            datasets.genomic.loc[g].rename('genetic'),
+            datasets.crispr_obj.institute.rename('Institute'),
+        ], axis=1, sort=False).dropna()
+
+        grid = Plot.plot_corrplot_discrete('crispr', 'drug', 'genetic', 'Institute', plot_df)
+
+        grid.ax_joint.axhline(y=dmax, linewidth=.3, color=Plot.PAL_DTRACE[2], ls=':', zorder=0)
+
+        grid.set_axis_labels(f'{c} (scaled log2 FC)', f'{d} (ln IC50)')
+
+        plt.suptitle(g, y=1.05, fontsize=8)
+
+        plt.gcf().set_size_inches(1.5, 1.5)
+        plt.savefig(f'reports/robust_scatter_{d}_{c}_{g}.pdf', bbox_inches='tight', transparent=True)
+        plt.close('all')

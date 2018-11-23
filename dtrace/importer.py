@@ -672,11 +672,15 @@ class PPI:
         return ppi
 
     @classmethod
-    def plot_ppi(cls, drug_name, d_associations, ppi, corr_thres=0.2, fdr=0.1, norder=1):
+    def plot_ppi(cls, drug_name, d_associations, ppi, corr_thres=0.2, fdr=0.1, norder=1, exclude_nodes=None):
         d_targets = DrugResponse.get_drugtargets(by='Name')
 
         # Build data-set
         d_signif = d_associations.query(f"(DRUG_NAME == '{drug_name}') & (fdr < {fdr})")
+
+        if exclude_nodes is not None:
+            d_signif = d_signif[~d_signif['GeneSymbol'].isin(exclude_nodes)]
+
         d_ppi_df = cls.get_edges(ppi, list(d_signif['GeneSymbol']), corr_thres, norder)
 
         # Build graph

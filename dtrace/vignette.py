@@ -15,8 +15,6 @@ if __name__ == '__main__':
     datasets = Association(dtype_drug='ic50')
 
     lmm_drug = pd.read_csv('data/drug_lmm_regressions_ic50.csv.gz')
-    lmm_robust = pd.read_csv('data/drug_lmm_regressions_robust_ic50.csv.gz')
-    lmm_multiple = pd.read_csv('data/drug_lmm_regressions_multiple_ic50.csv.gz')
 
     # -
     drug, gene_assoc, gene_extra = (1956, 'MCL1_1284', 'RS'), 'MARCH5', 'MCL1'
@@ -55,36 +53,26 @@ if __name__ == '__main__':
     plot_df['sensitive'] = (plot_df['drug'] < dmax).astype(int).values
 
     #
-    g = Plot().plot_corrplot(gene_assoc, 'drug', 'Institute', plot_df, add_hline=True, annot_text=annot_text)
-
-    g.ax_joint.axhline(y=dmax, linewidth=.3, color=Plot.PAL_DTRACE[2], ls=':', zorder=0)
-
-    g.set_axis_labels(f'{gene_assoc} (scaled log2 FC)', f'{drug[1]} (ln IC50, {drug[2]})')
-
-    plt.gcf().set_size_inches(2, 2)
-    plt.savefig(f'reports/association_drug_scatter.pdf', bbox_inches='tight', transparent=True)
-    plt.close('all')
-
-    #
     g = Plot().plot_corrplot(gene_assoc, gene_extra, 'Institute', plot_df, add_hline=True, annot_text=annot_text)
 
     g.set_axis_labels(f'{gene_assoc} (scaled log2 FC)', f'{gene_extra} (scaled log2 FC)')
 
-    plt.gcf().set_size_inches(2, 2)
-    plt.savefig(f'reports/association_drug_corr_scatter.pdf', bbox_inches='tight', transparent=True)
+    plt.gcf().set_size_inches(1.5, 1.5)
+    plt.savefig(f'reports/vignette_corr_scatter_{gene_assoc}_{gene_extra}.pdf', bbox_inches='tight', transparent=True)
     plt.close('all')
-
 
     #
     g = Plot().plot_multiple('drug', 'essentiality', 'Institute', plot_df)
+
+    sns.despine()
 
     plt.axvline(dmax, linewidth=.3, color=Plot.PAL_DTRACE[2], ls=':', zorder=0)
 
     plt.xlabel(f'{drug[1]} (ln IC50, {drug[2]})')
     plt.ylabel('Essential genes')
 
-    plt.gcf().set_size_inches(3., 1)
-    plt.savefig(f"reports/association_multiple_scatter.pdf", bbox_inches='tight', transparent=True)
+    plt.gcf().set_size_inches(3, 1.5)
+    plt.savefig(f"reports/vignette_multiple_boxplot_{gene_assoc}_{gene_extra}.pdf", bbox_inches='tight', transparent=True)
     plt.close('all')
 
     #

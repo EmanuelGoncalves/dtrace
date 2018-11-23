@@ -135,7 +135,7 @@ class Association:
         lmm, params = Association.lmm_association_limix(y, x, m, k)
 
         df = pd.DataFrame(
-            dict(beta=lmm.variant_effsizes.ravel(), pval=lmm.variant_pvalues.ravel(), GeneSymbol=params['x'].columns)
+            dict(beta=lmm.variant_effsizes.values, pval=lmm.variant_pvalues.values, GeneSymbol=params['x'].columns)
         )
 
         drug = y.columns[0]
@@ -204,10 +204,10 @@ class Association:
 
         # Assemble output
         df = pd.DataFrame(dict(
-            beta_drug=lmm_y1.variant_effsizes.ravel(),
-            pval_drug=lmm_y1.variant_pvalues.ravel(),
-            beta_crispr=lmm_y2.variant_effsizes.ravel(),
-            pval_crispr=lmm_y2.variant_pvalues.ravel(),
+            beta_drug=lmm_y1.variant_effsizes.values,
+            pval_drug=lmm_y1.variant_pvalues.values,
+            beta_crispr=lmm_y2.variant_effsizes.values,
+            pval_crispr=lmm_y2.variant_pvalues.values,
             Genetic=X.columns,
             n_events=X.sum().values
         ))
