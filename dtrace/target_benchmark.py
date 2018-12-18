@@ -10,6 +10,7 @@ from plot import Plot
 from natsort import natsorted
 from crispy.utils import Utils
 from crispy.qc_plot import QCplot
+from scipy.stats import ttest_ind
 from associations import Association
 from importer import DrugResponse, PPI
 
@@ -35,6 +36,49 @@ class TargetBenchmark:
         self.drugs_tested_correct = {
             d for d in self.lmm_drug.query(f"fdr < {self.fdr} & target == 'T'")['DRUG_NAME'] if d in self.drugs_tested_signif
         }
+
+    def boxplot_kinobead(self):
+        drugs_correct = set(self.lmm_drug.query(f"(fdr < {self.fdr}) & (target == 'T')")['DRUG_ID'].apply(str))
+
+        catds = pd.read_csv('data/klaeger_et_al_catds_most_potent.csv')
+
+        def __catds_id_match(ids):
+            if str(ids).lower() == 'nan':
+                return 'NA'
+            elif len(set(ids.split(';')).intersection(drugs_correct)) == 0:
+                return 'No'
+            else:
+                return 'Yes'
+
+        catds['signif'] = catds['ids'].apply(__catds_id_match)
+
+        t, p = ttest_ind(
+            catds[catds['signif'] == 'No']['CATDS_most_potent'],
+            catds[catds['signif'] == 'Yes']['CATDS_most_potent'],
+            equal_var=False
+        )
+        print(p)
+
+        # Plot
+        ax = plt.gca()
+
+        order = ['No', 'Yes', 'NA']
+        pal = {'No': Plot.PAL_DTRACE[2], 'Yes': Plot.PAL_DTRACE[0], 'NA': Plot.PAL_DTRACE[1]}
+
+        sns.boxplot(catds['signif'], catds['CATDS_most_potent'], notch=True, palette=pal, linewidth=.3, fliersize=1.5, order=order, ax=ax)
+        sns.swarmplot(catds['signif'], catds['CATDS_most_potent'], palette=pal, linewidth=.3, size=2, order=order, ax=ax)
+        ax.axhline(0.5, lw=.3, c=Plot.PAL_DTRACE[1], ls='-', alpha=.8, zorder=0)
+
+        sns.despine(top=True, right=True, ax=ax)
+
+        ax.set_ylim((-0.1, 1.1))
+
+        ax.set_xlabel('Drug has a significant\nCRISPR-Cas9 association')
+        ax.set_ylabel('Selectivity[$CATDS_{most\ potent}$]')
+
+        # plt.gcf().set_size_inches(1, 2)
+        # plt.savefig('reports/target_benchmark_kinobeads.pdf', bbox_inches='tight', transparent=True)
+        # plt.close('all')
 
     def beta_histogram(self):
         kde_kws = dict(cut=0, lw=1, zorder=1, alpha=.8)

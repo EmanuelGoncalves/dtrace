@@ -41,16 +41,23 @@ class Association:
         print(f'#(Drugs)={self.drespo.shape[0]}; #(Genes)={self.crispr.shape[0]}; #(Genomic)={self.genomic.shape[0]}')
 
     def get_covariates(self):
-        crispr_samples_pcs = pd.read_csv('data/crispr_pca_column_pcs.csv', index_col=0)
-        drug_samples_pcs = pd.read_csv('data/drug_pca_column_pcs.csv', index_col=0)
+        # Samples CRISPR QC (recall essential genes)
+        crispr_ess_qc = self.crispr_obj.qc_ess.rename('recall_essential').rename('crispr_qc_ess')
+        crispr_ess_qc = (crispr_ess_qc - crispr_ess_qc.mean()) / crispr_ess_qc.std()
 
+        # CRISPR institute of origin PC
+        crispr_insitute = pd.read_csv('data/crispr_pca_column_pcs.csv', index_col=0)['PC1'].rename('crispr_qc_ess')
+
+        # Cell lines growth rate
+        drug_growth = pd.read_csv('data/drug_pca_column_pcs.csv', index_col=0)['PC1'].rename('drug_growth')
+
+        # Cell lines culture conditions
+        culture = pd.get_dummies(self.samplesheet.samplesheet['growth_properties']).drop(columns=['Unknown'])
+
+        # Merge covariates
         covariates = pd.concat([
-            self.crispr_obj.qc_ess.rename('recall_essential'),
-            crispr_samples_pcs['PC1'].rename('crispr_pc1'),
-            drug_samples_pcs['PC1'].rename('drug_pc1'),
-        ], axis=1, sort=False)
-
-        covariates = covariates.loc[self.samples]
+            crispr_ess_qc, crispr_insitute, drug_growth, culture
+        ], axis=1, sort=False).loc[self.samples]
 
         return covariates
 
@@ -64,7 +71,7 @@ class Association:
     def lmm_association_limix(y, x, m=None, k=None, add_intercept=True, lik='normal'):
         # Build matrices
         Y = y.dropna()
-        # Y = pd.DataFrame(StandardScaler().fit_transform(Y), index=Y.index, columns=Y.columns)
+        Y = pd.DataFrame(StandardScaler().fit_transform(Y), index=Y.index, columns=Y.columns)
 
         X = x.loc[Y.index]
         X = pd.DataFrame(StandardScaler().fit_transform(X), index=X.index, columns=X.columns)
@@ -79,7 +86,7 @@ class Association:
         # Covariates
         if m is not None:
             m = m.loc[Y.index]
-            m = pd.DataFrame(StandardScaler().fit_transform(m), index=m.index, columns=m.columns)
+            # m = pd.DataFrame(StandardScaler().fit_transform(m), index=m.index, columns=m.columns)
 
         # Add intercept
         if add_intercept and (m is not None):
@@ -185,9 +192,11 @@ class Association:
 
         # Build drug measurement matrix
         Y1 = y1.loc[[tuple(association[:3])], samples].T.dropna()
+        Y1 = pd.DataFrame(StandardScaler().fit_transform(Y1), index=Y1.index, columns=Y1.columns)
 
         # Build CRISPR measurement matrix
         Y2 = y2.loc[[association[3]], Y1.index].T
+        Y2 = pd.DataFrame(StandardScaler().fit_transform(Y2), index=Y2.index, columns=Y2.columns)
 
         # Build genomic feature matrix
         X = x[Y1.index].T
@@ -298,6 +307,33 @@ class Association:
 
         return mlmm_res
 
+    def lmm_gexp(self, y_features, method='bonferroni'):
+        # Samples with gene-expression
+        samples = list(self.gexp)
+
+        # Kinship matrix (random effects)
+        k = self.kinship(self.gexp.T)
+        m = self.get_covariates().loc[samples]
+
+        # Association
+        lmm_single = pd.concat([
+            self.lmm_single_association(
+                self.crispr.loc[[f], samples].T, self.gexp.T, k=k, m=m, expand_drug_id=False
+            ) for f in y_features
+        ])
+
+        lmm_single = lmm_single.rename(columns={
+            'DRUG_ID': 'GeneEss', 'GeneSymbol': 'GeneExp'
+        })
+
+        # Multiple p-value correction
+        lmm_single = self.multipletests_per_drug(lmm_single, field='pval', method=method, index_cols=['GeneEss'])
+
+        # Sort p-values
+        lmm_single = lmm_single.sort_values(['fdr', 'pval'])
+
+        return lmm_single
+
 
 if __name__ == '__main__':
     dtype = 'ic50'
@@ -318,3 +354,6 @@ if __name__ == '__main__':
     lmm_multi \
         .sort_values(['pval', 'fdr']) \
         .to_csv(f'data/drug_lmm_regressions_multiple_{dtype}.csv.gz', index=False, compression='gzip')
+
+    lmm_cgexp = assoc.lmm_gexp(set(lmm_dsingle.query('fdr < .1')['GeneSymbol']))
+    lmm_cgexp.to_csv(f'data/drug_lmm_regressions_gexp_{dtype}.csv.gz', index=False, compression='gzip')

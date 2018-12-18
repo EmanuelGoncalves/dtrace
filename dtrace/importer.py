@@ -756,3 +756,6 @@ if __name__ == '__main__':
 
     drug_respo = drug_response.filter(subset=samples, min_meas=0.75)
     print(f'Spaseness={(1 - drug_respo.count().sum() / np.prod(drug_respo.shape)) * 100:.1f}%')
+
+    dresp = drug_response.get_data()
+    dresp.to_csv('/Users/eg14/Downloads/drug_response.csv')

@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 from plot import Plot
 import statsmodels.api as sm
 from associations import Association
+from importer import DrugResponse
 from sklearn.linear_model import LinearRegression
 
 if __name__ == '__main__':
@@ -15,6 +16,7 @@ if __name__ == '__main__':
     datasets = Association(dtype_drug='ic50')
 
     lmm_drug = pd.read_csv('data/drug_lmm_regressions_ic50.csv.gz')
+    lmm_cgexp = pd.read_csv(f'data/drug_lmm_regressions_gexp_ic50.csv.gz')
 
     # -
     drug, gene_assoc, gene_extra = (1956, 'MCL1_1284', 'RS'), 'MARCH5', 'MCL1'
@@ -34,6 +36,8 @@ if __name__ == '__main__':
 
     cbin = pd.concat([plot_df[g].apply(lambda v: g if v < -.5 else '') for g in [gene_assoc, gene_extra]], axis=1)
     plot_df['essentiality'] = cbin.apply(lambda v: ' + '.join([i for i in v if i != '']), axis=1).replace('', 'None').values
+
+    plot_df['TP53_mut'] = datasets.genomic.loc['TP53_mut'].reindex(plot_df.index)
 
     for g in [gene_assoc, gene_extra]:
         plot_df[f'{g}_cn'] = datasets.cn.loc[g].reindex(plot_df.index).values
