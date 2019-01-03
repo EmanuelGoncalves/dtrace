@@ -740,6 +740,32 @@ class PPI:
         return nodes_df
 
 
+class Apoptosis:
+    def __init__(self, dfile='data/apoptosis/AUC_data.csv'):
+        crename = dict(
+            HT29='HT-29', CW2='CW-2', HCT15='HCT-15', DIFI='DiFi', U2OS='U-2-OS', HUTU80='HuTu-80', LS1034='LS-1034',
+            OUMS23='OUMS-23', SNU407='SNU-407', COLO205='COLO-205', SNU81='SNU-81', CCK81='CCK-81', NCIH747='NCI-H747',
+            COLO320HSR='COLO-320-HSR', SNUC2B='SNU-C2B', SKCO1='SK-CO-1', CaR1='CaR-1', COLO678='COLO-678',
+            LS411N='LS-411N', CL40='CL-40', SNUC5='SNU-C5', HT115='HT-115', LS180='LS-180', RCM1='RCM-1',
+            NCIH630='NCI-H630', HCT116='HCT-116', NCIH508='NCI-H508', HCC56='HCC-56', SNU175='SNU-175', CL34='CL-34',
+            LS123='LS-123', COLO741='COLO-741', CL11='CL-11', NCIH716='NCI-H716', SNUC1='SNU-C1'
+        )
+
+        self.samplesheet = Sample().samplesheet
+
+        self.screen = pd.read_csv(dfile)
+        self.screen = self.screen.replace(dict(CELL_LINE=crename))
+        self.screen = self.screen[self.screen['CELL_LINE'].isin(self.samplesheet['model_name'])]
+
+        model_id = self.samplesheet.reset_index().set_index('model_name')['model_id']
+        self.screen = self.screen.assign(model_id=model_id.loc[self.screen['CELL_LINE']].values)
+
+    def get_data(self, drug='DMSO', values='AUC'):
+        smatrix = self.screen.query(f"DRUG == '{drug}'")
+        smatrix = pd.pivot_table(smatrix, index='PEPTIDE', columns='model_id', values=values)
+        return smatrix
+
+
 if __name__ == '__main__':
     crispr = CRISPR()
     samples = Sample()
@@ -747,6 +773,8 @@ if __name__ == '__main__':
     drug_response = DrugResponse()
     gexp = GeneExpression()
     cn = CopyNumber()
+    apoptosis = Apoptosis()
+    proteomics = Proteomics()
 
     samples = list(set.intersection(
         set(drug_response.get_data().columns),
@@ -757,5 +785,11 @@ if __name__ == '__main__':
     drug_respo = drug_response.filter(subset=samples, min_meas=0.75)
     print(f'Spaseness={(1 - drug_respo.count().sum() / np.prod(drug_respo.shape)) * 100:.1f}%')
 
-    dresp = drug_response.get_data()
-    dresp.to_csv('/Users/eg14/Downloads/drug_response.csv')
+    ap = apoptosis.get_data()
+    prot = proteomics.get_data()
+
+    samples = list(set(ap).intersection(prot))
+
+    ap_corr = pd.DataFrame({i: prot[samples].corrwith(ap.loc[i, samples], axis=1) for i in ap.index})
+
+    ap_corr.loc['MCL1']
