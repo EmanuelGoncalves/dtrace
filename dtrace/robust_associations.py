@@ -9,7 +9,7 @@ from plot import Plot
 from natsort import natsorted
 from scipy.stats import ttest_ind
 from sklearn.manifold import TSNE
-from importer import DrugResponse
+from DataImporter import DrugResponse
 from associations import Association
 from sklearn.preprocessing import StandardScaler
 

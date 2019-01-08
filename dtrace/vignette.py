@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from plot import Plot
 import statsmodels.api as sm
 from associations import Association
-from importer import DrugResponse
+from DataImporter import DrugResponse
 from sklearn.linear_model import LinearRegression
 
 if __name__ == '__main__':

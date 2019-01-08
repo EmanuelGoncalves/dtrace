@@ -6,7 +6,7 @@ import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 from plot import Plot
-from importer import PPI
+from DataImporter import PPI
 from associations import Association
 
 if __name__ == '__main__':

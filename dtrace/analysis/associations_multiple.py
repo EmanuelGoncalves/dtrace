@@ -8,7 +8,7 @@ import itertools as it
 import matplotlib.pyplot as plt
 from plot import Plot
 from crispy import QCplot
-from importer import CRISPR, Sample
+from DataImporter import CRISPR, Sample
 from crispy.utils import Utils
 from associations import Association
 

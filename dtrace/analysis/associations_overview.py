@@ -9,7 +9,7 @@ from plot import Plot
 from natsort import natsorted
 from crispy.utils import Utils
 from associations import Association
-from importer import PPI, DrugResponse, CRISPR
+from DataImporter import PPI, DrugResponse, CRISPR
 
 
 

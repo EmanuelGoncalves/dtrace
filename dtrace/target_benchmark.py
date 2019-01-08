@@ -12,7 +12,7 @@ from crispy.utils import Utils
 from crispy.qc_plot import QCplot
 from scipy.stats import ttest_ind
 from associations import Association
-from importer import DrugResponse, PPI
+from DataImporter import DrugResponse, PPI
 
 
 class TargetBenchmark:
@@ -75,10 +75,6 @@ class TargetBenchmark:
 
         ax.set_xlabel('Drug has a significant\nCRISPR-Cas9 association')
         ax.set_ylabel('Selectivity[$CATDS_{most\ potent}$]')
-
-        # plt.gcf().set_size_inches(1, 2)
-        # plt.savefig('reports/target_benchmark_kinobeads.pdf', bbox_inches='tight', transparent=True)
-        # plt.close('all')
 
     def beta_histogram(self):
         kde_kws = dict(cut=0, lw=1, zorder=1, alpha=.8)

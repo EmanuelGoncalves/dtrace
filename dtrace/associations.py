@@ -8,7 +8,7 @@ from limix.qtl import scan
 from limix.stats import lrt_pvalues
 from sklearn.preprocessing import StandardScaler
 from statsmodels.stats.multitest import multipletests
-from dtrace.importer import DrugResponse, CRISPR, Genomic, Sample, PPI, GeneExpression, Proteomics, CopyNumber
+from dtrace.DataImporter import DrugResponse, CRISPR, Genomic, Sample, PPI, GeneExpression, Proteomics, CopyNumber
 
 
 class Association:

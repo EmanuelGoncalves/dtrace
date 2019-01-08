@@ -6,7 +6,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from plot import Plot
 from scipy.stats import pearsonr
-from importer import DrugResponse
+from DataImporter import DrugResponse
 from associations import Association
 from sklearn.decomposition import PCA
 
