@@ -5,8 +5,8 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
-from DTracePlot import Plot
 import statsmodels.api as sm
+from DTracePlot import DTracePlot
 from Associations import Association
 from DataImporter import DrugResponse
 from sklearn.linear_model import LinearRegression
@@ -19,130 +19,70 @@ if __name__ == '__main__':
     lmm_cgexp = pd.read_csv(f'data/drug_lmm_regressions_gexp_ic50.csv.gz')
 
     # -
-    drug, gene_assoc, gene_extra = (1956, 'MCL1_1284', 'RS'), 'MARCH5', 'MCL1'
-    # drug, gene_assoc, gene_extra = (1786, 'AZD4547', 'RS'), 'FGFR2', 'FGFR1'
+    gene_assoc, gene_extra = 'MARCH5', 'MCL1'
 
-    plot_df = pd.concat([
-        datasets.drespo.loc[drug].rename('drug'),
+    drugs = [(1956, 'MCL1_1284', 'RS'), (2354, 'MCL1_8070', 'RS'), (1946, 'MCL1_5526', 'RS'), (2127, 'Mcl1_6386', 'RS')]
 
-        datasets.crispr.loc[gene_assoc].rename(gene_assoc),
-        datasets.crispr.loc[gene_extra].rename(gene_extra),
+    for drug in drugs:
+        dmax = np.log(datasets.drespo_obj.maxconcentration[drug])
 
-        datasets.crispr_obj.institute.rename('Institute'),
+        for tissue in ['Colorectal Carcinoma', 'Breast Carcinoma']:
+            print(drug, tissue)
 
-        datasets.samplesheet.samplesheet['model_name'],
-        datasets.samplesheet.samplesheet['cancer_type']
-    ], axis=1, sort=False).dropna()
+            # Data-frame
+            plot_df = pd.concat([
+                datasets.drespo.loc[drug].rename('drug'),
 
-    cbin = pd.concat([plot_df[g].apply(lambda v: g if v < -.5 else '') for g in [gene_assoc, gene_extra]], axis=1)
-    plot_df['essentiality'] = cbin.apply(lambda v: ' + '.join([i for i in v if i != '']), axis=1).replace('', 'None').values
+                datasets.crispr.loc[gene_assoc].rename(f'CRISPR {gene_assoc}'),
+                datasets.crispr.loc[gene_extra].rename(f'CRISPR {gene_extra}'),
 
-    plot_df['TP53_mut'] = datasets.genomic.loc['TP53_mut'].reindex(plot_df.index)
+                datasets.crispr_obj.institute.rename('Institute'),
 
-    for g in [gene_assoc, gene_extra]:
-        plot_df[f'{g}_cn'] = datasets.cn.loc[g].reindex(plot_df.index).values
+                datasets.samplesheet.samplesheet['model_name'],
+                datasets.samplesheet.samplesheet['cancer_type'],
+            ], axis=1, sort=False).dropna()
 
-    for g in [gene_assoc, gene_extra, 'FIS1', 'DNM1L', 'MFN1', 'MFN2', 'MIEF2', 'MIEF1', 'FUNDC1', 'HNF4A']:
-        plot_df[f'{g}_gexp'] = datasets.gexp.loc[g].reindex(plot_df.index).values
+            # Tissue
+            plot_df = plot_df.query(f"cancer_type == '{tissue}'")
 
-    for p in ['FIS1', 'DNM1L', 'MFN1', 'MFN2', 'MIEF2', 'MIEF1', 'FUNDC1', 'HNF4A']:
-        plot_df[f'{p}_prot'] = datasets.prot.loc[p].reindex(plot_df.index).values
+            # Aggregate essentiality
+            cbin = pd.concat([
+                plot_df[f'CRISPR {g}'].apply(lambda v: g if v < -.5 else '') for g in [gene_assoc, gene_extra]
+            ], axis=1)
+            plot_df['essentiality'] = cbin.apply(lambda v: ' + '.join([i for i in v if i != '']), axis=1).replace('', 'None').values
 
-    #
-    dg_lmm = datasets.get_association(lmm_drug, drug, gene_assoc)
-    annot_text = f"Beta={dg_lmm.iloc[0]['beta']:.2g}, FDR={dg_lmm.iloc[0]['fdr']:.1e}"
+            # -
+            g = DTracePlot().plot_multiple('drug', 'essentiality', 'Institute', plot_df, n_offset=1.2)
 
-    dmax = np.log(datasets.drespo_obj.maxconcentration[drug])
+            sns.despine()
 
-    plot_df['sensitive'] = (plot_df['drug'] < dmax).astype(int).values
+            plt.axvline(dmax, linewidth=.3, color=DTracePlot.PAL_DTRACE[2], ls=':', zorder=0)
 
-    #
-    g = Plot().plot_corrplot(gene_assoc, gene_extra, 'Institute', plot_df, add_hline=True, annot_text=annot_text)
+            plt.xlabel(f'{drug[1]} (ln IC50, {drug[2]})')
+            plt.ylabel('Essential genes')
 
-    g.set_axis_labels(f'{gene_assoc} (scaled log2 FC)', f'{gene_extra} (scaled log2 FC)')
+            plt.title(tissue)
 
-    plt.gcf().set_size_inches(1.5, 1.5)
-    plt.savefig(f'reports/vignette_corr_scatter_{gene_assoc}_{gene_extra}.pdf', bbox_inches='tight', transparent=True)
-    plt.close('all')
+            plt.gcf().set_size_inches(2, 1)
+            plt.savefig(
+                f"reports/boxplot_{tissue}_{drug[1]}_{gene_assoc}_{gene_extra}.pdf",
+                bbox_inches='tight', transparent=True
+            )
+            plt.close('all')
 
-    #
-    g = Plot().plot_multiple('drug', 'essentiality', 'Institute', plot_df)
+            # -
+            if tissue == 'Colorectal Carcinoma':
+                plot_df = pd.concat([plot_df, datasets.apoptosis.T], axis=1, sort=False).dropna().drop('SIDM00834')
+                plot_df = pd.melt(plot_df, id_vars='essentiality', value_vars=list(datasets.apoptosis.T))
 
-    sns.despine()
+                order = ['None', 'MARCH5', 'MCL1', 'MARCH5 + MCL1']
 
-    plt.axvline(dmax, linewidth=.3, color=Plot.PAL_DTRACE[2], ls=':', zorder=0)
+                pal = pd.Series(DTracePlot.get_palette_continuous(len(order), DTracePlot.PAL_DTRACE[2]), index=order)
 
-    plt.xlabel(f'{drug[1]} (ln IC50, {drug[2]})')
-    plt.ylabel('Essential genes')
+                sns.boxplot(
+                    'variable', 'value', 'essentiality', data=plot_df, showcaps=False, hue_order=order, palette=pal
+                )
 
-    plt.gcf().set_size_inches(3, 1.5)
-    plt.savefig(f"reports/vignette_multiple_boxplot_{gene_assoc}_{gene_extra}.pdf", bbox_inches='tight', transparent=True)
-    plt.close('all')
-
-    #
-    order = list(plot_df.groupby('cancer_type')['drug'].mean().sort_values().index)
-
-    sns.boxplot(
-        'drug', 'cancer_type', 'essentiality', data=plot_df, saturation=1., showcaps=False, order=order,
-        flierprops=Plot.FLIERPROPS, whiskerprops=Plot.WHISKERPROPS, boxprops=Plot.BOXPROPS
-    )
-
-    plt.axvline(dmax, linewidth=.3, color=Plot.PAL_DTRACE[2], ls=':', zorder=0)
-
-    plt.gcf().set_size_inches(3, 10)
-    plt.savefig(f"reports/association_multiple_scatter_cancer_type.pdf", bbox_inches='tight', transparent=True)
-    plt.close('all')
-
-    #
-    df = datasets.crispr[[i.startswith('MARCH') for i in datasets.crispr.index]].corr()
-
-    row_colors = plot_df['sensitive'].astype(str).map(dict(zip(plot_df['sensitive'].astype(str).unique(), "rbg")))
-
-    sns.clustermap(df, row_colors=row_colors)
-
-    plt.show()
-
-    #
-    x, order = 'FUNDC1', ['None', gene_assoc, gene_extra, f'{gene_assoc} + {gene_extra}']
-
-    g = Plot().plot_multiple(f'{x}_gexp', 'essentiality', 'Institute', plot_df, order=order)
-
-    plt.xlabel(f'{x} (RNA-seq voom)')
-    plt.ylabel('Essential genes')
-
-    plt.gcf().set_size_inches(3., 1)
-    plt.savefig(f"reports/association_multiple_gexp_scatter.pdf", bbox_inches='tight', transparent=True)
-    plt.close('all')
-
-    #
-    'FIS1', 'DNM1L', 'MFN1', 'MFN2', 'MIEF2', 'MIEF1', 'FUNDC1'
-
-    x = 'FUNDC1'
-
-    order = ['None', gene_assoc, gene_extra, f'{gene_assoc} + {gene_extra}']
-
-    Plot().plot_multiple(f'{x}_prot', 'essentiality', 'Institute', plot_df, order=order)
-
-    plt.xlabel(f'{x} (Proteomics log2 FC)')
-    plt.ylabel('Essential genes')
-
-    plt.gcf().set_size_inches(3., 1)
-    plt.savefig(f"reports/association_multiple_prot_scatter.pdf", bbox_inches='tight', transparent=True)
-    plt.close('all')
-
-    #
-    df = plot_df[[f'{x}_prot', f'{x}_gexp']].dropna()
-
-    lm = sm.OLS(df[f'{x}_prot'], sm.add_constant(df[[f'{x}_gexp']])).fit()
-    print(lm.summary())
-
-    plot_df[f'{x}_prot_residual'] = lm.resid.reindex(plot_df.index).values
-
-    Plot().plot_multiple(f'{x}_prot_residual', 'essentiality', 'Institute', plot_df, order=order)
-
-    plt.xlabel(f'{x} (Proteomics residuals log2 FC)')
-    plt.ylabel('Essential genes')
-
-    plt.gcf().set_size_inches(3., 1)
-    plt.savefig(f"reports/association_multiple_prot_residual_scatter.pdf", bbox_inches='tight', transparent=True)
-    plt.close('all')
+                plt.gcf().set_size_inches(3, 2)
+                plt.savefig(f"reports/boxplot_apoptosis_{tissue}_{drug[1]}_{gene_assoc}_{gene_extra}.pdf", bbox_inches='tight', transparent=True)
+                plt.close('all')

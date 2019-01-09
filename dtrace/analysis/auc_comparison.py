@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
-from DTracePlot import Plot
+from DTracePlot import DTracePlot
 from DataImporter import PPI
 from Associations import Association
 
@@ -19,7 +19,7 @@ if __name__ == '__main__':
     # -
     plot_df = pd.concat([assoc_auc['beta'].rename('AUC'), assoc_ic50['beta'].rename('IC50')], axis=1)
 
-    Plot().plot_corrplot('AUC', 'IC50', plot_df)
+    DTracePlot().plot_corrplot('AUC', 'IC50', plot_df)
     plt.gcf().set_size_inches(2, 2)
     plt.savefig('reports/associations_beta_corr.png', bbox_inches='tight', transparent=True, dpi=300)
     plt.close('all')

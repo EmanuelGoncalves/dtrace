@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
-from DTracePlot import Plot
+from DTracePlot import DTracePlot
 from natsort import natsorted
 from crispy.utils import Utils
 from Associations import Association
@@ -30,7 +30,7 @@ if __name__ == '__main__':
         crispr.get_data().loc[g].rename('crispr')
     ], axis=1, sort=False).dropna()
 
-    dplot = Plot()
+    dplot = DTracePlot()
     dplot.plot_corrplot('crispr', 'drug', plot_df, add_hline=True, lowess=False)
 
     plt.axhline(np.log(drug.maxconcentration[d]), lw=.3, color=dplot.PAL_DTRACE[2], ls=':', zorder=0)

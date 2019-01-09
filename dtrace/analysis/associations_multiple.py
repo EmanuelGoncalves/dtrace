@@ -6,7 +6,7 @@ import pandas as pd
 import seaborn as sns
 import itertools as it
 import matplotlib.pyplot as plt
-from DTracePlot import Plot
+from DTracePlot import DTracePlot
 from crispy import QCplot
 from DataImporter import CRISPR, Sample
 from crispy.utils import Utils
@@ -52,14 +52,14 @@ if __name__ == '__main__':
 
     # Order
     order = list(plot_df.groupby('name')['drug'].mean().sort_values(ascending=False).index)
-    pal = pd.Series(QCplot.get_palette_continuous(len(order), Plot.PAL_DTRACE[2]), index=order)
+    pal = pd.Series(QCplot.get_palette_continuous(len(order), DTracePlot.PAL_DTRACE[2]), index=order)
 
     sns.boxplot(
         y='name', x='drug', data=plot_df, orient='h', palette=pal.to_dict(), flierprops=QCplot.FLIERPROPS, saturation=1., showcaps=False, order=order
     )
     sns.swarmplot(y='name', x='drug', data=plot_df, orient='h', palette=pal.to_dict(), size=2, edgecolor='white', linewidth=.5, order=order)
 
-    plt.axvline(dmax, ls='-', lw=.5, zorder=3, color=Plot.PAL_DTRACE[0])
+    plt.axvline(dmax, ls='-', lw=.5, zorder=3, color=DTracePlot.PAL_DTRACE[0])
 
     plt.xlabel(f'{d_name} ({d_id}, {d_screen})')
     plt.ylabel('')

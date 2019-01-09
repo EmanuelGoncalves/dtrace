@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
-from DTracePlot import Plot
+from DTracePlot import DTracePlot
 from natsort import natsorted
 from scipy.stats import ttest_ind
 from sklearn.manifold import TSNE
@@ -91,7 +91,7 @@ class SingleLMMTSNE:
 
     def drug_beta_tsne(self, hueby):
         if hueby == 'signif':
-            pal = {'No': Plot.PAL_DTRACE[2], 'Yes': Plot.PAL_DTRACE[0]}
+            pal = {'No': DTracePlot.PAL_DTRACE[2], 'Yes': DTracePlot.PAL_DTRACE[0]}
 
             g = sns.FacetGrid(
                 self.tsnes, col='VERSION', hue='has_signif', palette=pal, hue_order=['No', 'Yes'], sharey=False,
@@ -99,13 +99,13 @@ class SingleLMMTSNE:
             )
 
             g.map(plt.scatter, 'P1', 'P2', alpha=1., lw=.3, edgecolor='white', s=10)
-            g.map(plt.axhline, y=0, ls='-', lw=0.3, c=Plot.PAL_DTRACE[1], alpha=.2, zorder=0)
-            g.map(plt.axvline, x=0, ls='-', lw=0.3, c=Plot.PAL_DTRACE[1], alpha=.2, zorder=0)
+            g.map(plt.axhline, y=0, ls='-', lw=0.3, c=DTracePlot.PAL_DTRACE[1], alpha=.2, zorder=0)
+            g.map(plt.axvline, x=0, ls='-', lw=0.3, c=DTracePlot.PAL_DTRACE[1], alpha=.2, zorder=0)
 
             g.add_legend(title='Significant', prop=dict(size=4), frameon=False)
 
         elif hueby == 'target':
-            pal = {'No': Plot.PAL_DTRACE[2], 'Yes': Plot.PAL_DTRACE[0]}
+            pal = {'No': DTracePlot.PAL_DTRACE[2], 'Yes': DTracePlot.PAL_DTRACE[0]}
 
             g = sns.FacetGrid(
                 self.tsnes, col='VERSION', hue='target', palette=pal, hue_order=['Yes', 'No'], sharey=False,
@@ -113,8 +113,8 @@ class SingleLMMTSNE:
             )
 
             g.map(plt.scatter, 'P1', 'P2', alpha=1., lw=.3, edgecolor='white', s=10)
-            g.map(plt.axhline, y=0, ls='-', lw=0.3, c=Plot.PAL_DTRACE[1], alpha=.2, zorder=0)
-            g.map(plt.axvline, x=0, ls='-', lw=0.3, c=Plot.PAL_DTRACE[1], alpha=.2, zorder=0)
+            g.map(plt.axhline, y=0, ls='-', lw=0.3, c=DTracePlot.PAL_DTRACE[1], alpha=.2, zorder=0)
+            g.map(plt.axvline, x=0, ls='-', lw=0.3, c=DTracePlot.PAL_DTRACE[1], alpha=.2, zorder=0)
 
             g.add_legend(title='Known target?', prop=dict(size=4), frameon=False)
 
@@ -128,7 +128,7 @@ class SingleLMMTSNE:
             pal_rs = dict(zip(*(pal_rs, sns.color_palette('tab20', n_colors=len(pal_rs)).as_hex())))
 
             pal = {**pal_v17, **pal_rs}
-            pal['NA'] = Plot.PAL_DTRACE[1]
+            pal['NA'] = DTracePlot.PAL_DTRACE[1]
 
             g = sns.FacetGrid(
                 self.tsnes, col='VERSION', hue='rep', palette=pal, sharey=False, sharex=False, legend_out=True,
@@ -136,8 +136,8 @@ class SingleLMMTSNE:
             )
 
             g.map(plt.scatter, 'P1', 'P2', alpha=1., lw=.3, edgecolor='white', s=10)
-            g.map(plt.axhline, y=0, ls='-', lw=0.3, c=Plot.PAL_DTRACE[1], alpha=.2, zorder=0)
-            g.map(plt.axvline, x=0, ls='-', lw=0.3, c=Plot.PAL_DTRACE[1], alpha=.2, zorder=0)
+            g.map(plt.axhline, y=0, ls='-', lw=0.3, c=DTracePlot.PAL_DTRACE[1], alpha=.2, zorder=0)
+            g.map(plt.axvline, x=0, ls='-', lw=0.3, c=DTracePlot.PAL_DTRACE[1], alpha=.2, zorder=0)
 
             g.add_legend(title='', prop=dict(size=4), frameon=False)
 
@@ -147,7 +147,7 @@ class SingleLMMTSNE:
             colors = [i for l in hueby for i in l[0]]
 
             pal = dict(zip(*(labels, colors)))
-            pal['NA'] = Plot.PAL_DTRACE[1]
+            pal['NA'] = DTracePlot.PAL_DTRACE[1]
 
             df = self.tsnes.assign(hue=[[i for i, g in enumerate(sets) if g.intersection(t.split(';'))] for t in self.tsnes['targets']])
             df = self.tsnes.assign(hue=[labels[i[0]] if len(i) > 0 else 'NA' for i in df['hue']])
@@ -160,12 +160,12 @@ class SingleLMMTSNE:
             for i, s in enumerate(['v17', 'RS']):
                 ax = g.axes.ravel()[i]
                 df_plot = df.query("(target == 'No') & (VERSION == '{}')".format(s))
-                ax.scatter(df_plot['P1'], df_plot['P2'], color=Plot.PAL_DTRACE[1], marker='x', lw=0.3, s=5, alpha=0.7,
+                ax.scatter(df_plot['P1'], df_plot['P2'], color=DTracePlot.PAL_DTRACE[1], marker='x', lw=0.3, s=5, alpha=0.7,
                            label='No target info')
 
             g.map(plt.scatter, 'P1', 'P2', alpha=1., lw=.3, edgecolor='white', s=10)
-            g.map(plt.axhline, y=0, ls='-', lw=0.3, c=Plot.PAL_DTRACE[1], alpha=.2, zorder=0)
-            g.map(plt.axvline, x=0, ls='-', lw=0.3, c=Plot.PAL_DTRACE[1], alpha=.2, zorder=0)
+            g.map(plt.axhline, y=0, ls='-', lw=0.3, c=DTracePlot.PAL_DTRACE[1], alpha=.2, zorder=0)
+            g.map(plt.axvline, x=0, ls='-', lw=0.3, c=DTracePlot.PAL_DTRACE[1], alpha=.2, zorder=0)
 
             g.add_legend(title='', prop=dict(size=4), label_order=labels + ['NA'] + ['No info'], frameon=False)
 
@@ -184,9 +184,9 @@ class SingleLMMTSNE:
             )
         )
 
-        discrete_pal = pd.Series(Plot.PAL_DTRACE[:3], index=set(plot_df['id_discrete'])).to_dict()
+        discrete_pal = pd.Series(DTracePlot.PAL_DTRACE[:3], index=set(plot_df['id_discrete'])).to_dict()
 
-        g = Plot.plot_corrplot_discrete(
+        g = DTracePlot.plot_corrplot_discrete(
             'P1', 'P2', 'id_discrete', plot_df, discrete_pal=discrete_pal, legend_title='DRUG_ID discretised',
             hue_order=hue_order
         )
@@ -213,12 +213,12 @@ class RobustLMMAnalysis(object):
         plot_df = plot_df.assign(y=range(plot_df.shape[0]))
 
         # Plot
-        plt.barh(plot_df['y'], plot_df['count'], color=Plot.PAL_DTRACE[2], linewidth=0)
+        plt.barh(plot_df['y'], plot_df['count'], color=DTracePlot.PAL_DTRACE[2], linewidth=0)
 
         sns.despine(right=True, top=True)
 
         for c, y in plot_df[['count', 'y']].values:
-            plt.text(c + 3, y, str(c), va='center', fontsize=5, zorder=10, color=Plot.PAL_DTRACE[2])
+            plt.text(c + 3, y, str(c), va='center', fontsize=5, zorder=10, color=DTracePlot.PAL_DTRACE[2])
 
         plt.yticks(plot_df['y'], plot_df['names'])
         plt.xlabel('Number of signifcant associations')
@@ -241,7 +241,7 @@ class RobustLMMAnalysis(object):
 
         # Plot
         order = ['Mutation', 'CN loss', 'CN gain']
-        pal = pd.Series(Plot.PAL_DTRACE[:3], index=order).to_dict()
+        pal = pd.Series(DTracePlot.PAL_DTRACE[:3], index=order).to_dict()
 
         sns.barplot('count', 'name', 'type', data=plot_df, palette=pal, hue_order=order, dodge=False, saturation=1)
 
@@ -258,7 +258,7 @@ class RobustLMMAnalysis(object):
         f, axs = plt.subplots(1, 2, sharex='none', sharey='none', gridspec_kw=dict(wspace=.75))
 
         order = ['Mutation', 'CN loss', 'CN gain']
-        pal = pd.Series(Plot.PAL_DTRACE[:3], index=order).to_dict()
+        pal = pd.Series(DTracePlot.PAL_DTRACE[:3], index=order).to_dict()
 
         for i, d in enumerate(['drug', 'crispr']):
             ax = axs[i]
@@ -288,7 +288,7 @@ class RobustLMMAnalysis(object):
                 ax.text(fc - xoffset, y, drug, va='center', fontsize=4, zorder=10, color='gray', ha='right')
                 ax.text(fc + xoffset, y, g_genes, va='center', fontsize=3, zorder=10, color='gray', ha='left')
 
-            ax.axvline(0, lw=.1, c=Plot.PAL_DTRACE[1])
+            ax.axvline(0, lw=.1, c=DTracePlot.PAL_DTRACE[1])
 
             ax.set_xlabel('Effect size (beta)')
             ax.set_ylabel('')
@@ -376,9 +376,9 @@ if __name__ == '__main__':
             datasets.crispr_obj.institute.rename('Institute'),
         ], axis=1, sort=False).dropna()
 
-        grid = Plot.plot_corrplot_discrete('crispr', 'drug', 'genetic', 'Institute', plot_df)
+        grid = DTracePlot.plot_corrplot_discrete('crispr', 'drug', 'genetic', 'Institute', plot_df)
 
-        grid.ax_joint.axhline(y=dmax, linewidth=.3, color=Plot.PAL_DTRACE[2], ls=':', zorder=0)
+        grid.ax_joint.axhline(y=dmax, linewidth=.3, color=DTracePlot.PAL_DTRACE[2], ls=':', zorder=0)
 
         grid.set_axis_labels(f'{c} (scaled log2 FC)', f'{d} (ln IC50)')
 

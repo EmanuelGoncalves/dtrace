@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
-from DTracePlot import Plot
+from DTracePlot import DTracePlot
 from natsort import natsorted
 from crispy.utils import Utils
 from crispy.qc_plot import QCplot
@@ -63,11 +63,11 @@ class TargetBenchmark:
         ax = plt.gca()
 
         order = ['No', 'Yes', 'NA']
-        pal = {'No': Plot.PAL_DTRACE[2], 'Yes': Plot.PAL_DTRACE[0], 'NA': Plot.PAL_DTRACE[1]}
+        pal = {'No': DTracePlot.PAL_DTRACE[2], 'Yes': DTracePlot.PAL_DTRACE[0], 'NA': DTracePlot.PAL_DTRACE[1]}
 
         sns.boxplot(catds['signif'], catds['CATDS_most_potent'], notch=True, palette=pal, linewidth=.3, fliersize=1.5, order=order, ax=ax)
         sns.swarmplot(catds['signif'], catds['CATDS_most_potent'], palette=pal, linewidth=.3, size=2, order=order, ax=ax)
-        ax.axhline(0.5, lw=.3, c=Plot.PAL_DTRACE[1], ls='-', alpha=.8, zorder=0)
+        ax.axhline(0.5, lw=.3, c=DTracePlot.PAL_DTRACE[1], ls='-', alpha=.8, zorder=0)
 
         sns.despine(top=True, right=True, ax=ax)
 
@@ -81,18 +81,18 @@ class TargetBenchmark:
         hist_kws = dict(alpha=.4, zorder=1, linewidth=0)
 
         sns.distplot(
-            self.lmm_drug.query("target != 'T'")['beta'], color=Plot.PAL_DTRACE[2], kde_kws=kde_kws, hist_kws=hist_kws,
+            self.lmm_drug.query("target != 'T'")['beta'], color=DTracePlot.PAL_DTRACE[2], kde_kws=kde_kws, hist_kws=hist_kws,
             label='All', bins=30
         )
 
         sns.distplot(
-            self.lmm_drug.query("target == 'T'")['beta'], color=Plot.PAL_DTRACE[0], kde_kws=kde_kws, hist_kws=hist_kws,
+            self.lmm_drug.query("target == 'T'")['beta'], color=DTracePlot.PAL_DTRACE[0], kde_kws=kde_kws, hist_kws=hist_kws,
             label='Target', bins=30
         )
 
         sns.despine(right=True, top=True)
 
-        plt.axvline(0, c=Plot.PAL_DTRACE[1], lw=.3, ls='-', zorder=0)
+        plt.axvline(0, c=DTracePlot.PAL_DTRACE[1], lw=.3, ls='-', zorder=0)
 
         plt.xlabel('Association beta')
         plt.ylabel('Density')
@@ -104,12 +104,12 @@ class TargetBenchmark:
 
         sns.distplot(
             self.lmm_drug.query("target != 'T'")['pval'], hist_kws=hist_kws, bins=30, kde=False, label='All',
-            color=Plot.PAL_DTRACE[2]
+            color=DTracePlot.PAL_DTRACE[2]
         )
 
         sns.distplot(
             self.lmm_drug.query("target == 'T'")['pval'], hist_kws=hist_kws, bins=30, kde=False, label='Target',
-            color=Plot.PAL_DTRACE[0]
+            color=DTracePlot.PAL_DTRACE[0]
         )
 
         sns.despine()
@@ -130,12 +130,12 @@ class TargetBenchmark:
         plot_df = plot_df.assign(y=range(plot_df.shape[0]))
 
         # Plot
-        plt.barh(plot_df['y'], plot_df['count'], color=Plot.PAL_DTRACE[2], linewidth=0)
+        plt.barh(plot_df['y'], plot_df['count'], color=DTracePlot.PAL_DTRACE[2], linewidth=0)
 
         sns.despine(right=True, top=True)
 
         for c, y in plot_df[['count', 'y']].values:
-            plt.text(c + 3, y, str(c), va='center', fontsize=5, zorder=10, color=Plot.PAL_DTRACE[2])
+            plt.text(c + 3, y, str(c), va='center', fontsize=5, zorder=10, color=DTracePlot.PAL_DTRACE[2])
 
         plt.yticks(plot_df['y'], plot_df['names'])
         plt.xlabel('Number of drugs')
@@ -148,7 +148,7 @@ class TargetBenchmark:
 
         pal = dict(zip(*(
             order,
-            [Plot.PAL_DTRACE[1]] + QCplot.get_palette_continuous(len(order) - 2, color=Plot.PAL_DTRACE[2]) + [Plot.PAL_DTRACE[3]]
+            [DTracePlot.PAL_DTRACE[1]] + QCplot.get_palette_continuous(len(order) - 2, color=DTracePlot.PAL_DTRACE[2]) + [DTracePlot.PAL_DTRACE[3]]
         )))
 
         QCplot.bias_boxplot(
@@ -200,19 +200,19 @@ class TargetBenchmark:
             df_irow = df[df['irow'] == irow]
 
             df_irow_ = df_irow.query("target != 'T'")
-            axs[irow].bar(df_irow_['xpos'], df_irow_['logpval'], .8, color=Plot.PAL_DTRACE[2], align='center', zorder=5, linewidth=0)
+            axs[irow].bar(df_irow_['xpos'], df_irow_['logpval'], .8, color=DTracePlot.PAL_DTRACE[2], align='center', zorder=5, linewidth=0)
 
             df_irow_ = df_irow.query("target == 'T'")
-            axs[irow].bar(df_irow_['xpos'], df_irow_['logpval'], .8, color=Plot.PAL_DTRACE[0], align='center', zorder=5, linewidth=0)
+            axs[irow].bar(df_irow_['xpos'], df_irow_['logpval'], .8, color=DTracePlot.PAL_DTRACE[0], align='center', zorder=5, linewidth=0)
 
             for k, v in df_irow.groupby('DRUG_NAME')['xpos'].min().sort_values().to_dict().items():
-                axs[irow].text(v - 1.2, 0.1, textwrap.fill(k, 15), va='bottom', fontsize=7, zorder=10, rotation='vertical', color=Plot.PAL_DTRACE[2])
+                axs[irow].text(v - 1.2, 0.1, textwrap.fill(k, 15), va='bottom', fontsize=7, zorder=10, rotation='vertical', color=DTracePlot.PAL_DTRACE[2])
 
             for g, p in df_irow[['GeneSymbol', 'xpos']].values:
                 axs[irow].text(p, 0.1, g, ha='center', va='bottom', fontsize=5, zorder=10, rotation='vertical', color='white')
 
             for x, y, t, b in df_irow[['xpos', 'logpval', 'target', 'beta']].values:
-                c = Plot.PAL_DTRACE[0] if t == 'T' else Plot.PAL_DTRACE[2]
+                c = DTracePlot.PAL_DTRACE[0] if t == 'T' else DTracePlot.PAL_DTRACE[2]
 
                 axs[irow].text(x, y + 0.25, t, color=c, ha='center', fontsize=6, zorder=10)
                 axs[irow].text(x, -3, f'{b:.1f}', color=c, ha='center', fontsize=6, rotation='vertical', zorder=10)
@@ -247,13 +247,13 @@ class TargetBenchmark:
 
             # Plot non-significant
             df_nonsignif = df_group.query(f'fdr >= {self.fdr}')
-            axs[i].scatter(df_nonsignif['pos'], -np.log10(df_nonsignif['pval']), c=Plot.PAL_DTRACE[(i % 2) + 1], s=2)
+            axs[i].scatter(df_nonsignif['pos'], -np.log10(df_nonsignif['pval']), c=DTracePlot.PAL_DTRACE[(i % 2) + 1], s=2)
 
             # Plot significant
             df_signif = df_group.query(f'fdr < {self.fdr}')
             df_signif = df_signif[~df_signif['GeneSymbol'].isin(top_genes.index)]
             axs[i].scatter(
-                df_signif['pos'], -np.log10(df_signif['pval']), c=Plot.PAL_DTRACE[0], s=2, zorder=3, label=label_fdr
+                df_signif['pos'], -np.log10(df_signif['pval']), c=DTracePlot.PAL_DTRACE[0], s=2, zorder=3, label=label_fdr
             )
 
             # Plot significant associations of top frequent genes
@@ -348,9 +348,9 @@ if __name__ == '__main__':
             trg.datasets.crispr_obj.institute.rename('Institute'),
         ], axis=1, sort=False).dropna()
 
-        g = Plot.plot_corrplot('crispr', 'drug', 'Institute', plot_df, add_hline=True, annot_text=annot_text)
+        g = DTracePlot.plot_corrplot('crispr', 'drug', 'Institute', plot_df, add_hline=True, annot_text=annot_text)
 
-        g.ax_joint.axhline(y=dmax, linewidth=.3, color=Plot.PAL_DTRACE[2], ls=':', zorder=0)
+        g.ax_joint.axhline(y=dmax, linewidth=.3, color=DTracePlot.PAL_DTRACE[2], ls=':', zorder=0)
 
         g.set_axis_labels(f'{dg[1]} (scaled log2 FC)', f'{dg[0]} (ln IC50)')
 
@@ -366,7 +366,7 @@ if __name__ == '__main__':
             trg.datasets.crispr_obj.institute.rename('Institute'),
         ], axis=1, sort=False).dropna()
 
-        g = Plot().plot_corrplot(gene_x, gene_y, 'Institute', plot_df, add_hline=True)
+        g = DTracePlot().plot_corrplot(gene_x, gene_y, 'Institute', plot_df, add_hline=True)
 
         g.set_axis_labels(f'{gene_x} (scaled log2 FC)', f'{gene_y} (scaled log2 FC)')
 

@@ -7,7 +7,7 @@ import warnings
 import numpy as np
 import pandas as pd
 import crispy as cy
-from dtrace.DTracePlot import Plot
+from dtrace.DTracePlot import DTracePlot
 
 
 class DrugResponse:
@@ -49,7 +49,7 @@ class DrugResponse:
         ], sort=False).sort_values()
 
     @staticmethod
-    def get_drugsheet(drugsheet_file='data/meta/drugsheet_20181119.xlsx'):
+    def get_drugsheet(drugsheet_file='data/meta/drugsheet_20190109.xlsx'):
         return pd.read_excel(drugsheet_file, index_col=0)
 
     @classmethod
@@ -688,23 +688,23 @@ class PPI:
         graph = pydot.Dot(graph_type='graph', pagedir='TR')
 
         kws_nodes = dict(
-            style='"rounded,filled"', shape='rect', color=Plot.PAL_DTRACE[1], penwidth=2, fontcolor='white'
+            style='"rounded,filled"', shape='rect', color=DTracePlot.PAL_DTRACE[1], penwidth=2, fontcolor='white'
         )
 
         kws_edges = dict(
-            fontsize=9, fontcolor=Plot.PAL_DTRACE[2], color=Plot.PAL_DTRACE[2]
+            fontsize=9, fontcolor=DTracePlot.PAL_DTRACE[2], color=DTracePlot.PAL_DTRACE[2]
         )
 
         for s, t, r in d_ppi_df[['source', 'target', 'r']].values:
             # Add source node
             fs = 15 if s in d_signif['GeneSymbol'].values else 9
-            fc = Plot.PAL_DTRACE[0 if drug_name in d_targets and s in d_targets[drug_name] else 2]
+            fc = DTracePlot.PAL_DTRACE[0 if drug_name in d_targets and s in d_targets[drug_name] else 2]
 
             source = pydot.Node(s, fillcolor=fc, fontsize=fs, **kws_nodes)
             graph.add_node(source)
 
             # Add target node
-            fc = Plot.PAL_DTRACE[0 if drug_name in d_targets and t in d_targets[drug_name] else 2]
+            fc = DTracePlot.PAL_DTRACE[0 if drug_name in d_targets and t in d_targets[drug_name] else 2]
             fs = 15 if t in d_signif['GeneSymbol'].values else 9
 
             target = pydot.Node(t, fillcolor=fc, fontsize=fs, **kws_nodes)
@@ -765,6 +765,15 @@ class Apoptosis:
         smatrix = self.screen[self.screen['DRUG'] == drug]
         smatrix = pd.pivot_table(smatrix, index='PEPTIDE', columns='model_id', values=values)
         return smatrix
+
+    def filter(self, subset=None):
+        df = self.get_data()
+
+        # Subset matrices
+        if subset is not None:
+            df = df.loc[:, df.columns.isin(subset)]
+
+        return df
 
 
 if __name__ == '__main__':

@@ -21,7 +21,7 @@ class MidpointNormalize(colors.Normalize):
         return np.ma.masked_array(np.interp(value, x, y))
 
 
-class Plot(CrispyPlot):
+class DTracePlot(CrispyPlot):
     # - DEFAULT AESTHETICS
     SNS_RC = {
         'axes.linewidth': .3,
@@ -162,7 +162,7 @@ class Plot(CrispyPlot):
 
         return grid
 
-    def plot_multiple(self, x, y, style, dataframe, order=None, ax=None):
+    def plot_multiple(self, x, y, style, dataframe, order=None, ax=None, notch=False, n_offset=1.15, n_fontsize=3.5):
         if ax is None:
             ax = plt.gca()
 
@@ -175,16 +175,28 @@ class Plot(CrispyPlot):
 
         sns.boxplot(
             x=x, y=y, data=dataframe, orient='h', palette=pal.to_dict(), sym='', saturation=1., showcaps=False,
-            order=order, ax=ax
+            order=order, notch=notch, ax=ax
         )
 
-        for t, df in dataframe.groupby(style):
-            sns.stripplot(
-                x=x, y=y, data=df, orient='h', palette=pal.to_dict(), size=2, edgecolor='white',
-                linewidth=.1, order=order, marker=self.MARKERS[t], label=t, jitter=.3, ax=ax
-            )
+        # for t, df in dataframe.groupby(style):
+        #     sns.stripplot(
+        #         x=x, y=y, data=df, orient='h', palette=pal.to_dict(), size=2, edgecolor='white',
+        #         linewidth=.1, order=order, marker=self.MARKERS[t], label=t, jitter=.3, ax=ax
+        #     )
+        #
+        # handles, labels = ax.get_legend_handles_labels()
+        # legend_by_label = dict(zip(list(reversed(labels)), list(reversed(handles))))
+        #
+        # ax.legend(legend_by_label.values(), legend_by_label.keys(), prop=dict(size=4), frameon=False, loc=4)
 
-        handles, labels = ax.get_legend_handles_labels()
-        legend_by_label = dict(zip(list(reversed(labels)), list(reversed(handles))))
+        #
+        text_x = min(dataframe[x]) * n_offset
 
-        ax.legend(legend_by_label.values(), legend_by_label.keys(), prop=dict(size=4), frameon=False, loc=4)
+        for i, c in enumerate(order):
+            n = np.sum(dataframe[y] == c)
+            ax.text(text_x, i, f'N={n}', ha='left', va='center', fontsize=n_fontsize)
+
+        x_lim = ax.get_xlim()
+        ax.set_xlim(text_x, x_lim[1])
+
+        return ax
