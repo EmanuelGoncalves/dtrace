@@ -7,11 +7,12 @@ import warnings
 import numpy as np
 import pandas as pd
 import crispy as cy
-from dtrace.plot import Plot
+from dtrace.DTracePlot import Plot
 
 
 class DrugResponse:
     SAMPLE_COLUMNS = ['model_id']
+
     DRUG_COLUMNS = ['DRUG_ID', 'DRUG_NAME', 'VERSION']
 
     DRUG_OWNERS = ['AZ', 'GDSC', 'MGH', 'NCI.Pommier', 'Nathaneal.Gray']
@@ -761,7 +762,7 @@ class Apoptosis:
         self.screen = self.screen.assign(model_id=model_id.loc[self.screen['CELL_LINE']].values)
 
     def get_data(self, drug='DMSO', values='AUC'):
-        smatrix = self.screen.query(f"DRUG == '{drug}'")
+        smatrix = self.screen[self.screen['DRUG'] == drug]
         smatrix = pd.pivot_table(smatrix, index='PEPTIDE', columns='model_id', values=values)
         return smatrix
 
@@ -785,11 +786,11 @@ if __name__ == '__main__':
     drug_respo = drug_response.filter(subset=samples, min_meas=0.75)
     print(f'Spaseness={(1 - drug_respo.count().sum() / np.prod(drug_respo.shape)) * 100:.1f}%')
 
-    ap = apoptosis.get_data()
-    prot = proteomics.get_data()
+    #
+    plot_df = pd.concat([
+        (crispr.get_data().loc[['MARCH5', 'MCL1']] < -0.5).astype(int).T,
+        apoptosis.get_data(drug='Afatinib', values='DELTA_AUC').T
+    ], axis=1, sort=False).dropna()
+    plot_df['essential'] = plot_df[['MARCH5', 'MCL1']].sum(1)
 
-    samples = list(set(ap).intersection(prot))
-
-    ap_corr = pd.DataFrame({i: prot[samples].corrwith(ap.loc[i, samples], axis=1) for i in ap.index})
-
-    ap_corr.loc['MCL1']
+    plot_df.groupby('essential').mean()

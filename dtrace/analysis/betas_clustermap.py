@@ -7,7 +7,7 @@ import seaborn as sns
 import scipy.stats as st
 import matplotlib.pyplot as plt
 from dtrace.analysis import PAL_DTRACE
-from dtrace.associations import DRUG_INFO_COLUMNS
+from dtrace.Associations import DRUG_INFO_COLUMNS
 
 
 if __name__ == '__main__':

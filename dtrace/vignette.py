@@ -5,9 +5,9 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
-from plot import Plot
+from DTracePlot import Plot
 import statsmodels.api as sm
-from associations import Association
+from Associations import Association
 from DataImporter import DrugResponse
 from sklearn.linear_model import LinearRegression
 

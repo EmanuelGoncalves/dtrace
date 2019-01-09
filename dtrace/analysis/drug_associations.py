@@ -17,7 +17,7 @@ from dtrace.analysis import PAL_DTRACE
 from sklearn.preprocessing import StandardScaler
 from analysis.plot.corrplot import plot_corrplot_discrete
 from dtrace.assemble.assemble_ppi import build_string_ppi
-from dtrace.associations import ppi_annotation, DRUG_INFO_COLUMNS, multipletests_per_drug
+from dtrace.Associations import ppi_annotation, DRUG_INFO_COLUMNS, multipletests_per_drug
 
 DRUG_TARGETS_HUE = [
         ('#3182bd', [{'RAF1', 'BRAF'}, {'MAPK1', 'MAPK3'}, {'MAP2K1', 'MAP2K2'}]),

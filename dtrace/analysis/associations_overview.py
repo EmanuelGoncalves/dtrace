@@ -5,10 +5,10 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
-from plot import Plot
+from DTracePlot import Plot
 from natsort import natsorted
 from crispy.utils import Utils
-from associations import Association
+from Associations import Association
 from DataImporter import PPI, DrugResponse, CRISPR
 
 

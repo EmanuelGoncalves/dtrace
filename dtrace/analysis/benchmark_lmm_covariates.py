@@ -7,10 +7,10 @@ import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 from dtrace.analysis import PAL_DTRACE
-from dtrace.associations.lmm_drug import lmm_association
+from dtrace.Associations.lmm_drug import lmm_association
 from dtrace.assemble.assemble_ppi import build_string_ppi
 from dtrace.analysis.drug_associations import boxplot_kinobead, drug_aurc
-from dtrace.associations import multipletests_per_drug, ppi_annotation, DRUG_INFO_COLUMNS, corr_drugtarget_gene
+from dtrace.Associations import multipletests_per_drug, ppi_annotation, DRUG_INFO_COLUMNS, corr_drugtarget_gene
 
 
 def corrplot_betas(lmm_w_cov, lmm_n_cov):

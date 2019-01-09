@@ -6,11 +6,11 @@ import pandas as pd
 import seaborn as sns
 import itertools as it
 import matplotlib.pyplot as plt
-from plot import Plot
+from DTracePlot import Plot
 from crispy import QCplot
 from DataImporter import CRISPR, Sample
 from crispy.utils import Utils
-from associations import Association
+from Associations import Association
 
 
 def combination_tostring(df, n_features=2):

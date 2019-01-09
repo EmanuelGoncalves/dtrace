@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from dtrace.analysis import PAL_DTRACE
 from sklearn.linear_model import ElasticNetCV
 from sklearn.model_selection import ShuffleSplit
-from dtrace.associations import DRUG_INFO_COLUMNS
+from dtrace.Associations import DRUG_INFO_COLUMNS
 
 
 def growht_by_cancer_type(growth, ctype):

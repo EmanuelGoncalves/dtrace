@@ -4,8 +4,8 @@
 import dtrace
 import pandas as pd
 import analysis.ctrp as ctrp
-from associations import multipletests_per_drug
-from associations.lmm_drug import lmm_association
+from Associations import multipletests_per_drug
+from Associations.lmm_drug import lmm_association
 
 if __name__ == '__main__':
     # - Imports

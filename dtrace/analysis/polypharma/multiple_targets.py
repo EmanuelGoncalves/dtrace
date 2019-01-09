@@ -15,7 +15,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LinearRegression
 from analysis.plot.corrplot import plot_corrplot
 from dtrace.assemble.assemble_ppi import build_string_ppi
-from dtrace.associations import ppi_annotation, DRUG_INFO_COLUMNS
+from dtrace.Associations import ppi_annotation, DRUG_INFO_COLUMNS
 
 
 def log_likelihood(y_true, y_pred):

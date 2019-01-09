@@ -4,10 +4,10 @@
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
-from plot import Plot
+from DTracePlot import Plot
 from scipy.stats import pearsonr
 from DataImporter import DrugResponse
-from associations import Association
+from Associations import Association
 from sklearn.decomposition import PCA
 
 

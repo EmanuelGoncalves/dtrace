@@ -17,7 +17,7 @@ from analysis.plot.corrplot import plot_corrplot
 from statsmodels.stats.multitest import multipletests
 from dtrace.analysis import PAL_DTRACE, MidpointNormalize
 from dtrace.assemble.assemble_ppi import build_string_ppi
-from dtrace.associations import ppi_annotation, DRUG_INFO_COLUMNS
+from dtrace.Associations import ppi_annotation, DRUG_INFO_COLUMNS
 
 
 def log_likelihood(y_true, y_pred):

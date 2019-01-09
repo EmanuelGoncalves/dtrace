@@ -5,12 +5,12 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
-from plot import Plot
+from DTracePlot import Plot
 from natsort import natsorted
 from scipy.stats import ttest_ind
 from sklearn.manifold import TSNE
 from DataImporter import DrugResponse
-from associations import Association
+from Associations import Association
 from sklearn.preprocessing import StandardScaler
 
 

@@ -14,7 +14,7 @@ from analysis.plot.corrplot import plot_corrplot
 from dtrace.assemble.assemble_ppi import build_string_ppi
 from statsmodels.distributions.empirical_distribution import ECDF
 from analysis.drug_associations import MEDIANPROPS, FLIERPROPS, WHISKERPROPS, BOXPROPS
-from dtrace.associations import ppi_annotation, ppi_corr, multipletests_per_drug, DRUG_INFO_COLUMNS
+from dtrace.Associations import ppi_annotation, ppi_corr, multipletests_per_drug, DRUG_INFO_COLUMNS
 
 
 def get_edges(ppi, nodes, corr_thres, norder):

@@ -5,9 +5,9 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
-from plot import Plot
+from DTracePlot import Plot
 from DataImporter import PPI
-from associations import Association
+from Associations import Association
 
 if __name__ == '__main__':
     # - Import

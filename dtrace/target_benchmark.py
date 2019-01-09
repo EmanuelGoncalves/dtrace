@@ -6,12 +6,12 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
-from plot import Plot
+from DTracePlot import Plot
 from natsort import natsorted
 from crispy.utils import Utils
 from crispy.qc_plot import QCplot
 from scipy.stats import ttest_ind
-from associations import Association
+from Associations import Association
 from DataImporter import DrugResponse, PPI
 
 
@@ -333,7 +333,7 @@ if __name__ == '__main__':
     # Single feature examples
     dgs = [('Alpelisib', 'PIK3CA'), ('Nutlin-3a (-)', 'MDM2'), ('MCL1_1284', 'MCL1'), ('MCL1_1284', 'MARCH5')]
 
-    # dg = ('696119', 'FLI1')
+    # dg = ('AZD6738', 'HUS1')
     for dg in dgs:
         assoc = trg.lmm_drug[(trg.lmm_drug['DRUG_NAME'] == dg[0]) & (trg.lmm_drug['GeneSymbol'] == dg[1])].iloc[0]
 

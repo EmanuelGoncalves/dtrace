@@ -10,7 +10,7 @@ from sklearn.manifold import TSNE
 from sklearn.decomposition import PCA
 from dtrace.analysis import PAL_DTRACE
 from sklearn.preprocessing import StandardScaler
-from dtrace.associations import DRUG_INFO_COLUMNS
+from dtrace.Associations import DRUG_INFO_COLUMNS
 from analysis.drug_associations import drug_beta_tsne, DRUG_TARGETS_HUE
 
 

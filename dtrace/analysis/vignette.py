@@ -7,10 +7,10 @@ import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 from dtrace.analysis import PAL_DTRACE
-from dtrace.associations import DRUG_INFO_COLUMNS
+from dtrace.Associations import DRUG_INFO_COLUMNS
 from dtrace.assemble.assemble_ppi import build_string_ppi
 from dtrace.analysis.plot.corrplot import plot_corrplot_discrete
-from dtrace.associations import ppi_annotation, corr_drugtarget_gene, DRUG_INFO_COLUMNS
+from dtrace.Associations import ppi_annotation, corr_drugtarget_gene, DRUG_INFO_COLUMNS
 
 
 def _get_id(d_name_ext):

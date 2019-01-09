@@ -7,8 +7,8 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
 import matplotlib.patches as mpatches
+from crispy import CrispyPlot
 from scipy.stats import pearsonr
-from crispy.qc_plot import QCplot
 
 
 class MidpointNormalize(colors.Normalize):
@@ -21,7 +21,7 @@ class MidpointNormalize(colors.Normalize):
         return np.ma.masked_array(np.interp(value, x, y))
 
 
-class Plot(object):
+class Plot(CrispyPlot):
     # - DEFAULT AESTHETICS
     SNS_RC = {
         'axes.linewidth': .3,
@@ -171,7 +171,7 @@ class Plot(object):
 
         dataframe = dataframe.dropna(subset=[x, y, style])
 
-        pal = pd.Series(QCplot.get_palette_continuous(len(order), self.PAL_DTRACE[2]), index=order)
+        pal = pd.Series(self.get_palette_continuous(len(order), self.PAL_DTRACE[2]), index=order)
 
         sns.boxplot(
             x=x, y=y, data=dataframe, orient='h', palette=pal.to_dict(), sym='', saturation=1., showcaps=False,

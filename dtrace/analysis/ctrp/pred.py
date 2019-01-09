@@ -11,7 +11,7 @@ import analysis.ctrp as ctrp
 import matplotlib.pyplot as plt
 from sklearn.metrics.ranking import auc
 from statsmodels.stats.weightstats import ztest
-from dtrace.associations import DRUG_INFO_COLUMNS
+from dtrace.Associations import DRUG_INFO_COLUMNS
 from scipy.stats import pearsonr, gaussian_kde, spearmanr, rankdata
 
 
