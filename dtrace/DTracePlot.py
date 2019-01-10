@@ -174,29 +174,18 @@ class DTracePlot(CrispyPlot):
         pal = pd.Series(self.get_palette_continuous(len(order), self.PAL_DTRACE[2]), index=order)
 
         sns.boxplot(
-            x=x, y=y, data=dataframe, orient='h', palette=pal.to_dict(), sym='', saturation=1., showcaps=False,
-            order=order, notch=notch, ax=ax
+            x=x, y=y, data=dataframe, orient='h', palette=pal, saturation=1., showcaps=False,
+            order=order, notch=notch, flierprops=self.FLIERPROPS, ax=ax
         )
 
-        # for t, df in dataframe.groupby(style):
-        #     sns.stripplot(
-        #         x=x, y=y, data=df, orient='h', palette=pal.to_dict(), size=2, edgecolor='white',
-        #         linewidth=.1, order=order, marker=self.MARKERS[t], label=t, jitter=.3, ax=ax
-        #     )
         #
-        # handles, labels = ax.get_legend_handles_labels()
-        # legend_by_label = dict(zip(list(reversed(labels)), list(reversed(handles))))
-        #
-        # ax.legend(legend_by_label.values(), legend_by_label.keys(), prop=dict(size=4), frameon=False, loc=4)
-
-        #
-        text_x = min(dataframe[x]) * n_offset
+        text_x = max(dataframe[x]) * n_offset
 
         for i, c in enumerate(order):
             n = np.sum(dataframe[y] == c)
             ax.text(text_x, i, f'N={n}', ha='left', va='center', fontsize=n_fontsize)
 
         x_lim = ax.get_xlim()
-        ax.set_xlim(text_x, x_lim[1])
+        ax.set_xlim(x_lim[0], text_x)
 
         return ax
