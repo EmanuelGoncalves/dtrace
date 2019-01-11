@@ -15,13 +15,16 @@ from Associations import Association
 from DataImporter import DrugResponse, PPI
 
 
-class TargetBenchmark:
-    def __init__(self, fdr=.1):
+class TargetBenchmark(DTracePlot):
+    def __init__(self, fdr=.1, dtype='ic50'):
         self.fdr = fdr
+        self.dtype = dtype
 
         # Imports
-        self.datasets = Association(dtype_drug='ic50')
-        self.lmm_drug = pd.read_csv('data/drug_lmm_regressions_ic50.csv.gz')
+        self.datasets = Association(dtype_drug=dtype)
+
+        self.lmm_drug = pd.read_csv(f'data/drug_lmm_regressions_{dtype}.csv.gz')
+        self.lmm_drug_gexp = pd.read_csv(f'data/drug_lmm_regressions_{dtype}_gexp.csv.gz')
 
         # Define sets of drugs
         self.df_genes = set(self.lmm_drug['GeneSymbol'])
@@ -36,6 +39,8 @@ class TargetBenchmark:
         self.drugs_tested_correct = {
             d for d in self.lmm_drug.query(f"fdr < {self.fdr} & target == 'T'")['DRUG_NAME'] if d in self.drugs_tested_signif
         }
+
+        super().__init__()
 
     def boxplot_kinobead(self):
         drugs_correct = set(self.lmm_drug.query(f"(fdr < {self.fdr}) & (target == 'T')")['DRUG_ID'].apply(str))
@@ -63,11 +68,11 @@ class TargetBenchmark:
         ax = plt.gca()
 
         order = ['No', 'Yes', 'NA']
-        pal = {'No': DTracePlot.PAL_DTRACE[2], 'Yes': DTracePlot.PAL_DTRACE[0], 'NA': DTracePlot.PAL_DTRACE[1]}
+        pal = {'No': self.PAL_DTRACE[2], 'Yes': self.PAL_DTRACE[0], 'NA': self.PAL_DTRACE[1]}
 
         sns.boxplot(catds['signif'], catds['CATDS_most_potent'], notch=True, palette=pal, linewidth=.3, fliersize=1.5, order=order, ax=ax)
         sns.swarmplot(catds['signif'], catds['CATDS_most_potent'], palette=pal, linewidth=.3, size=2, order=order, ax=ax)
-        ax.axhline(0.5, lw=.3, c=DTracePlot.PAL_DTRACE[1], ls='-', alpha=.8, zorder=0)
+        ax.axhline(0.5, lw=.3, c=self.PAL_DTRACE[1], ls='-', alpha=.8, zorder=0)
 
         sns.despine(top=True, right=True, ax=ax)
 
@@ -81,18 +86,18 @@ class TargetBenchmark:
         hist_kws = dict(alpha=.4, zorder=1, linewidth=0)
 
         sns.distplot(
-            self.lmm_drug.query("target != 'T'")['beta'], color=DTracePlot.PAL_DTRACE[2], kde_kws=kde_kws, hist_kws=hist_kws,
+            self.lmm_drug.query("target != 'T'")['beta'], color=self.PAL_DTRACE[2], kde_kws=kde_kws, hist_kws=hist_kws,
             label='All', bins=30
         )
 
         sns.distplot(
-            self.lmm_drug.query("target == 'T'")['beta'], color=DTracePlot.PAL_DTRACE[0], kde_kws=kde_kws, hist_kws=hist_kws,
+            self.lmm_drug.query("target == 'T'")['beta'], color=self.PAL_DTRACE[0], kde_kws=kde_kws, hist_kws=hist_kws,
             label='Target', bins=30
         )
 
         sns.despine(right=True, top=True)
 
-        plt.axvline(0, c=DTracePlot.PAL_DTRACE[1], lw=.3, ls='-', zorder=0)
+        plt.axvline(0, c=self.PAL_DTRACE[1], lw=.3, ls='-', zorder=0)
 
         plt.xlabel('Association beta')
         plt.ylabel('Density')
@@ -104,12 +109,12 @@ class TargetBenchmark:
 
         sns.distplot(
             self.lmm_drug.query("target != 'T'")['pval'], hist_kws=hist_kws, bins=30, kde=False, label='All',
-            color=DTracePlot.PAL_DTRACE[2]
+            color=self.PAL_DTRACE[2]
         )
 
         sns.distplot(
             self.lmm_drug.query("target == 'T'")['pval'], hist_kws=hist_kws, bins=30, kde=False, label='Target',
-            color=DTracePlot.PAL_DTRACE[0]
+            color=self.PAL_DTRACE[0]
         )
 
         sns.despine()
@@ -130,25 +135,29 @@ class TargetBenchmark:
         plot_df = plot_df.assign(y=range(plot_df.shape[0]))
 
         # Plot
-        plt.barh(plot_df['y'], plot_df['count'], color=DTracePlot.PAL_DTRACE[2], linewidth=0)
+        plt.barh(plot_df['y'], plot_df['count'], color=self.PAL_DTRACE[2], linewidth=0)
 
         sns.despine(right=True, top=True)
 
         for c, y in plot_df[['count', 'y']].values:
-            plt.text(c + 3, y, str(c), va='center', fontsize=5, zorder=10, color=DTracePlot.PAL_DTRACE[2])
+            plt.text(c + 3, y, str(c), va='center', fontsize=5, zorder=10, color=self.PAL_DTRACE[2])
 
         plt.yticks(plot_df['y'], plot_df['names'])
         plt.xlabel('Number of drugs')
         plt.ylabel('')
 
-    def drugs_ppi(self):
-        df = self.lmm_drug[self.lmm_drug['DRUG_NAME'].isin(self.drugs_tested)]
+    def drugs_ppi(self, dtype='crispr'):
+        if dtype == 'crispr':
+            df = self.lmm_drug[self.lmm_drug['DRUG_NAME'].isin(self.drugs_tested)]
+
+        elif dtype == 'gexp':
+            df = self.lmm_drug_gexp[self.lmm_drug['DRUG_NAME'].isin(self.drugs_tested)]
 
         order = ['T', '1', '2', '3', '4', '5+', '-']
 
         pal = dict(zip(*(
             order,
-            [DTracePlot.PAL_DTRACE[1]] + QCplot.get_palette_continuous(len(order) - 2, color=DTracePlot.PAL_DTRACE[2]) + [DTracePlot.PAL_DTRACE[3]]
+            [self.PAL_DTRACE[0]] + QCplot.get_palette_continuous(len(order) - 2, color=self.PAL_DTRACE[2]) + [self.PAL_DTRACE[3]]
         )))
 
         QCplot.bias_boxplot(
@@ -159,6 +168,31 @@ class TargetBenchmark:
 
         plt.xlabel('Associated gene position in PPI')
         plt.ylabel('Bonferroni adj. p-value')
+
+        plt.title('Significant associations\n(adj. p-value < 10%)')
+
+    def drugs_ppi_countplot(self, dtype='crispr'):
+        if dtype == 'crispr':
+            df = self.lmm_drug[self.lmm_drug['DRUG_NAME'].isin(self.drugs_tested)]
+
+        elif dtype == 'gexp':
+            df = self.lmm_drug_gexp[self.lmm_drug['DRUG_NAME'].isin(self.drugs_tested)]
+
+        order = ['T', '1', '2', '3', '4', '5+', '-']
+
+        pal = dict(zip(*(
+            order,
+            [self.PAL_DTRACE[0]] + QCplot.get_palette_continuous(len(order) - 2, color=self.PAL_DTRACE[2]) + [self.PAL_DTRACE[3]]
+        )))
+
+        plot_df = df.query(f'fdr < {self.fdr}')['target'].value_counts().rename('count').reset_index()
+
+        sns.barplot('index', 'count', data=plot_df, order=order, palette=pal)
+
+        sns.despine()
+
+        plt.xlabel('Associated gene position in PPI')
+        plt.ylabel('Number of associations')
 
         plt.title('Significant associations\n(adj. p-value < 10%)')
 
@@ -200,19 +234,19 @@ class TargetBenchmark:
             df_irow = df[df['irow'] == irow]
 
             df_irow_ = df_irow.query("target != 'T'")
-            axs[irow].bar(df_irow_['xpos'], df_irow_['logpval'], .8, color=DTracePlot.PAL_DTRACE[2], align='center', zorder=5, linewidth=0)
+            axs[irow].bar(df_irow_['xpos'], df_irow_['logpval'], .8, color=self.PAL_DTRACE[2], align='center', zorder=5, linewidth=0)
 
             df_irow_ = df_irow.query("target == 'T'")
-            axs[irow].bar(df_irow_['xpos'], df_irow_['logpval'], .8, color=DTracePlot.PAL_DTRACE[0], align='center', zorder=5, linewidth=0)
+            axs[irow].bar(df_irow_['xpos'], df_irow_['logpval'], .8, color=self.PAL_DTRACE[0], align='center', zorder=5, linewidth=0)
 
             for k, v in df_irow.groupby('DRUG_NAME')['xpos'].min().sort_values().to_dict().items():
-                axs[irow].text(v - 1.2, 0.1, textwrap.fill(k, 15), va='bottom', fontsize=7, zorder=10, rotation='vertical', color=DTracePlot.PAL_DTRACE[2])
+                axs[irow].text(v - 1.2, 0.1, textwrap.fill(k, 15), va='bottom', fontsize=7, zorder=10, rotation='vertical', color=self.PAL_DTRACE[2])
 
             for g, p in df_irow[['GeneSymbol', 'xpos']].values:
                 axs[irow].text(p, 0.1, g, ha='center', va='bottom', fontsize=5, zorder=10, rotation='vertical', color='white')
 
             for x, y, t, b in df_irow[['xpos', 'logpval', 'target', 'beta']].values:
-                c = DTracePlot.PAL_DTRACE[0] if t == 'T' else DTracePlot.PAL_DTRACE[2]
+                c = self.PAL_DTRACE[0] if t == 'T' else self.PAL_DTRACE[2]
 
                 axs[irow].text(x, y + 0.25, t, color=c, ha='center', fontsize=6, zorder=10)
                 axs[irow].text(x, -3, f'{b:.1f}', color=c, ha='center', fontsize=6, rotation='vertical', zorder=10)
@@ -247,13 +281,13 @@ class TargetBenchmark:
 
             # Plot non-significant
             df_nonsignif = df_group.query(f'fdr >= {self.fdr}')
-            axs[i].scatter(df_nonsignif['pos'], -np.log10(df_nonsignif['pval']), c=DTracePlot.PAL_DTRACE[(i % 2) + 1], s=2)
+            axs[i].scatter(df_nonsignif['pos'], -np.log10(df_nonsignif['pval']), c=self.PAL_DTRACE[(i % 2) + 1], s=2)
 
             # Plot significant
             df_signif = df_group.query(f'fdr < {self.fdr}')
             df_signif = df_signif[~df_signif['GeneSymbol'].isin(top_genes.index)]
             axs[i].scatter(
-                df_signif['pos'], -np.log10(df_signif['pval']), c=DTracePlot.PAL_DTRACE[0], s=2, zorder=3, label=label_fdr
+                df_signif['pos'], -np.log10(df_signif['pval']), c=self.PAL_DTRACE[0], s=2, zorder=3, label=label_fdr
             )
 
             # Plot significant associations of top frequent genes
@@ -325,10 +359,16 @@ if __name__ == '__main__':
     plt.savefig('reports/target_benchmark_pval_histogram.pdf', bbox_inches='tight', transparent=True)
     plt.close('all')
 
-    trg.drugs_ppi()
-    plt.gcf().set_size_inches(2.5, 2.5)
-    plt.savefig('reports/target_benchmark_ppi_distance.pdf', bbox_inches='tight', transparent=True)
-    plt.close('all')
+    for dtype in ['crispr', 'gexp']:
+        trg.drugs_ppi(dtype)
+        plt.gcf().set_size_inches(2.5, 2.5)
+        plt.savefig(f'reports/target_benchmark_ppi_distance_{dtype}.pdf', bbox_inches='tight', transparent=True)
+        plt.close('all')
+
+        trg.drugs_ppi_countplot(dtype)
+        plt.gcf().set_size_inches(2.5, 2.5)
+        plt.savefig(f'reports/target_benchmark_ppi_distance_{dtype}_countplot.pdf', bbox_inches='tight', transparent=True)
+        plt.close('all')
 
     # Single feature examples
     dgs = [('Alpelisib', 'PIK3CA'), ('Nutlin-3a (-)', 'MDM2'), ('MCL1_1284', 'MCL1'), ('MCL1_1284', 'MARCH5')]
