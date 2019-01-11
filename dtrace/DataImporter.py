@@ -428,6 +428,23 @@ class Proteomics:
         return df
 
 
+class PhosphoProteomics:
+    def __init__(self, phosphoproteomics_file='data/genomic/phosphoproteomics_coread.csv.gz'):
+        self.phosphoproteomics = pd.read_csv(phosphoproteomics_file, index_col=0)
+
+    def get_data(self):
+        return self.phosphoproteomics.copy()
+
+    def filter(self, subset=None):
+        df = self.get_data()
+
+        # Subset matrices
+        if subset is not None:
+            df = df.loc[:, df.columns.isin(subset)]
+
+        return df
+
+
 class CopyNumber:
     def __init__(self, cnv_file='data/genomic/copynumber_total_new_map.csv.gz'):
         self.copynumber = pd.read_csv(cnv_file, index_col=0)

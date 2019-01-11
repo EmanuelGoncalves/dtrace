@@ -8,7 +8,8 @@ from limix.qtl import scan
 from limix.stats import lrt_pvalues
 from sklearn.preprocessing import StandardScaler
 from statsmodels.stats.multitest import multipletests
-from dtrace.DataImporter import DrugResponse, CRISPR, Genomic, Sample, PPI, GeneExpression, Proteomics, CopyNumber, Apoptosis
+from dtrace.DataImporter import DrugResponse, CRISPR, Genomic, Sample, PPI, GeneExpression, Proteomics, \
+    PhosphoProteomics, CopyNumber, Apoptosis
 
 
 class Association:
@@ -23,6 +24,7 @@ class Association:
         self.genomic_obj = Genomic()
         self.gexp_obj = GeneExpression()
         self.prot_obj = Proteomics()
+        self.phospho_obj = PhosphoProteomics()
         self.cn_obj = CopyNumber()
         self.apoptosis_obj = Apoptosis()
 
@@ -38,6 +40,7 @@ class Association:
         self.genomic = self.genomic_obj.filter(subset=self.samples, min_events=5)
         self.gexp = self.gexp_obj.filter(subset=self.samples)
         self.prot = self.prot_obj.filter(subset=self.samples)
+        self.phospho = self.phospho_obj.filter(subset=self.samples)
         self.cn = self.cn_obj.filter(subset=self.samples)
         self.apoptosis = self.apoptosis_obj.filter(subset=self.samples)
         print(f'#(Drugs)={self.drespo.shape[0]}; #(Genes)={self.crispr.shape[0]}; #(Genomic)={self.genomic.shape[0]}')
@@ -243,6 +246,12 @@ class Association:
         lmmrobust = self.multipletests_per_drug(lmmrobust, field='pval_drug', fdr_field=f'fdr_drug')
         lmmrobust = self.multipletests_per_drug(lmmrobust, field='pval_crispr', fdr_field='fdr_crispr')
 
+        lmmrobust = self.annotate_drug_target(lmmrobust)
+
+        lmmrobust = self.ppi.ppi_annotation(
+            lmmrobust, ppi_type='string', ppi_kws=dict(score_thres=900), target_thres=5
+        )
+
         return lmmrobust
 
     def get_drug_top(self, lmm_associations, drug, top_features):
@@ -309,7 +318,7 @@ class Association:
 
         return mlmm_res
 
-    def lmm_gexp(self, y_features, method='bonferroni'):
+    def lmm_gexp_drug(self, method='bonferroni'):
         # Samples with gene-expression
         samples = list(self.gexp)
 
@@ -318,23 +327,27 @@ class Association:
         m = self.get_covariates().loc[samples]
 
         # Association
-        lmm_single = pd.concat([
+        lmm_dgexp = pd.concat([
             self.lmm_single_association(
-                self.crispr.loc[[f], samples].T, self.gexp.T, k=k, m=m, expand_drug_id=False
-            ) for f in y_features
+                self.drespo.loc[[d], samples].T, self.gexp.T.loc[samples], k=k.loc[samples, samples], m=m.loc[samples]
+            ) for d in self.drespo.index
         ])
 
-        lmm_single = lmm_single.rename(columns={
-            'DRUG_ID': 'GeneEss', 'GeneSymbol': 'GeneExp'
-        })
-
         # Multiple p-value correction
-        lmm_single = self.multipletests_per_drug(lmm_single, field='pval', method=method, index_cols=['GeneEss'])
+        lmm_dgexp = self.multipletests_per_drug(lmm_dgexp, field='pval', method=method)
+
+        # Annotate drug target
+        lmm_dgexp = self.annotate_drug_target(lmm_dgexp)
+
+        # Annotate association distance to target
+        lmm_dgexp = self.ppi.ppi_annotation(
+            lmm_dgexp, ppi_type='string', ppi_kws=dict(score_thres=900), target_thres=5
+        )
 
         # Sort p-values
-        lmm_single = lmm_single.sort_values(['fdr', 'pval'])
+        lmm_dgexp = lmm_dgexp.sort_values(['fdr', 'pval'])
 
-        return lmm_single
+        return lmm_dgexp
 
 
 if __name__ == '__main__':
@@ -347,6 +360,11 @@ if __name__ == '__main__':
         .sort_values(['pval', 'fdr'])\
         .to_csv(f'data/drug_lmm_regressions_{dtype}.csv.gz', index=False, compression='gzip')
 
+    lmm_dgexp = assoc.lmm_gexp_drug()
+    lmm_dgexp\
+        .sort_values(['pval', 'fdr'])\
+        .to_csv(f'data/drug_lmm_regressions_{dtype}_gexp.csv.gz', index=False, compression='gzip')
+
     lmm_robust = assoc.lmm_robust_association(lmm_dsingle)
     lmm_robust\
         .sort_values(['fdr_drug', 'pval_drug'])\
@@ -356,6 +374,3 @@ if __name__ == '__main__':
     lmm_multi \
         .sort_values(['pval', 'fdr']) \
         .to_csv(f'data/drug_lmm_regressions_multiple_{dtype}.csv.gz', index=False, compression='gzip')
-
-    lmm_cgexp = assoc.lmm_gexp(set(lmm_dsingle.query('fdr < .1')['GeneSymbol']))
-    lmm_cgexp.to_csv(f'data/drug_lmm_regressions_gexp_{dtype}.csv.gz', index=False, compression='gzip')
