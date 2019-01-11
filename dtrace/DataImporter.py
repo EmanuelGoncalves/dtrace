@@ -7,6 +7,8 @@ import warnings
 import numpy as np
 import pandas as pd
 import crispy as cy
+import seaborn as sns
+import matplotlib.pyplot as plt
 from dtrace.DTracePlot import DTracePlot
 
 
@@ -793,16 +795,67 @@ class Apoptosis:
         return df
 
 
-if __name__ == '__main__':
-    crispr = CRISPR()
-    samples = Sample()
-    genomic = Genomic()
-    drug_response = DrugResponse()
-    gexp = GeneExpression()
-    cn = CopyNumber()
-    apoptosis = Apoptosis()
-    proteomics = Proteomics()
+class CTDR2:
+    def __init__(self, data_dir='data/CTRPv2.2/'):
+        self.data_dir = data_dir
+        self.samplesheet = self.import_samplesheet()
+        self.drugsheet = self.import_compound_sheet()
+        self.drespo = self.import_ctrp_aucs()
 
+    def import_samplesheet(self):
+        return pd.read_csv(f'{self.data_dir}/v22.meta.per_cell_line.txt', sep='\t')
+
+    def import_compound_sheet(self):
+        return pd.read_csv(f'{self.data_dir}/v22.meta.per_compound.txt', sep='\t', index_col=0)
+
+    def import_depmap18q4_samplesheet(self):
+        ss = pd.read_csv(f'{self.data_dir}/sample_info.csv')
+        ss['CCLE_ID'] = ss['CCLE_name'].apply(lambda v: v.split('_')[0])
+        return ss
+
+    def import_ctrp_aucs(self):
+        ctrp_samples = self.import_samplesheet()
+
+        ctrp_aucs = pd.read_csv(f'{self.data_dir}/v22.data.auc_sensitivities.txt', sep='\t')
+        ctrp_aucs = pd.pivot_table(ctrp_aucs, index='index_cpd', columns='index_ccl', values='area_under_curve')
+        ctrp_aucs = ctrp_aucs.rename(columns=ctrp_samples.set_index('index_ccl')['ccl_name'])
+
+        return ctrp_aucs
+
+    def import_ceres(self):
+        ss = self.import_depmap18q4_samplesheet().set_index('Broad_ID')
+
+        ceres = pd.read_csv(f'{self.data_dir}/gene_effect.csv', index_col=0).T
+        ceres = ceres.rename(columns=ss['CCLE_ID'])
+        ceres.index = [i.split(' ')[0] for i in ceres.index]
+
+        return ceres
+
+    def get_compound_by_target(self, target, target_field='gene_symbol_of_protein_target'):
+        ss = self.drugsheet.dropna(subset=[target_field])
+        ss = ss[[target in t.split(';') for t in ss[target_field]]]
+        return ss
+
+    def get_data(self):
+        return self.drespo.copy()
+
+    def filter(self, subset=None):
+        df = self.get_data()
+
+        if subset is not None:
+            df = df.loc[:, df.columns.isin(subset)]
+            assert df.shape[1] != 0, 'No columns after filter by subset'
+
+        return df
+
+
+if __name__ == '__main__':
+    # -
+    crispr = CRISPR()
+    drug_response = DrugResponse()
+    ctr2 = CTDR2()
+
+    # -
     samples = list(set.intersection(
         set(drug_response.get_data().columns),
         set(crispr.get_data().columns)
@@ -811,12 +864,3 @@ if __name__ == '__main__':
 
     drug_respo = drug_response.filter(subset=samples, min_meas=0.75)
     print(f'Spaseness={(1 - drug_respo.count().sum() / np.prod(drug_respo.shape)) * 100:.1f}%')
-
-    #
-    plot_df = pd.concat([
-        (crispr.get_data().loc[['MARCH5', 'MCL1']] < -0.5).astype(int).T,
-        apoptosis.get_data(drug='Afatinib', values='DELTA_AUC').T
-    ], axis=1, sort=False).dropna()
-    plot_df['essential'] = plot_df[['MARCH5', 'MCL1']].sum(1)
-
-    plot_df.groupby('essential').mean()

@@ -162,14 +162,14 @@ class DTracePlot(CrispyPlot):
 
         return grid
 
-    def plot_multiple(self, x, y, style, dataframe, order=None, ax=None, notch=False, n_offset=1.15, n_fontsize=3.5):
+    def plot_multiple(self, x, y, dataframe, order=None, ax=None, notch=False, n_offset=1.15, n_fontsize=3.5):
         if ax is None:
             ax = plt.gca()
 
         if order is None:
             order = list(dataframe.groupby(y)[x].mean().sort_values(ascending=False).index)
 
-        dataframe = dataframe.dropna(subset=[x, y, style])
+        dataframe = dataframe.dropna(subset=[x, y])
 
         pal = pd.Series(self.get_palette_continuous(len(order), self.PAL_DTRACE[2]), index=order)
 
