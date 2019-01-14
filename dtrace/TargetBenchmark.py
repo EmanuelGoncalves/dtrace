@@ -373,7 +373,6 @@ if __name__ == '__main__':
     # Single feature examples
     dgs = [('Alpelisib', 'PIK3CA'), ('Nutlin-3a (-)', 'MDM2'), ('MCL1_1284', 'MCL1'), ('MCL1_1284', 'MARCH5')]
 
-    # dg = ('AZD6738', 'HUS1')
     for dg in dgs:
         assoc = trg.lmm_drug[(trg.lmm_drug['DRUG_NAME'] == dg[0]) & (trg.lmm_drug['GeneSymbol'] == dg[1])].iloc[0]
 
@@ -396,6 +395,32 @@ if __name__ == '__main__':
 
         plt.gcf().set_size_inches(1.5, 1.5)
         plt.savefig(f'reports/association_drug_scatter_{dg[0]}_{dg[1]}.pdf', bbox_inches='tight', transparent=True)
+        plt.close('all')
+
+    # Drug ~ Gexp
+    dgs = [('Nutlin-3a (-)', 'MDM2'), ('Poziotinib', 'ERBB2'), ('Afatinib', 'ERBB2'), ('WEHI-539', 'BCL2L1')]
+    for dg in dgs:
+        assoc = trg.lmm_drug[(trg.lmm_drug['DRUG_NAME'] == dg[0]) & (trg.lmm_drug['GeneSymbol'] == dg[1])].iloc[0]
+
+        drug = tuple(assoc[DrugResponse.DRUG_COLUMNS])
+
+        dmax = np.log(trg.datasets.drespo_obj.maxconcentration[drug])
+        annot_text = f"Beta={assoc['beta']:.2g}, FDR={assoc['fdr']:.1e}"
+
+        plot_df = pd.concat([
+            trg.datasets.drespo.loc[drug].rename('drug'),
+            trg.datasets.gexp.loc[dg[1]].rename('crispr'),
+        ], axis=1, sort=False).dropna()
+        plot_df['Institute'] = 'Sanger'
+
+        g = DTracePlot.plot_corrplot('crispr', 'drug', 'Institute', plot_df, add_hline=True, annot_text=annot_text)
+
+        g.ax_joint.axhline(y=dmax, linewidth=.3, color=DTracePlot.PAL_DTRACE[2], ls=':', zorder=0)
+
+        g.set_axis_labels(f'{dg[1]} (voom)', f'{dg[0]} (ln IC50)')
+
+        plt.gcf().set_size_inches(1.5, 1.5)
+        plt.savefig(f'reports/association_drug_gexp_scatter_{dg[0]}_{dg[1]}.pdf', bbox_inches='tight', transparent=True)
         plt.close('all')
 
     # CRISPR gene pair corr

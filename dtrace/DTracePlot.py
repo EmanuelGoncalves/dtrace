@@ -68,7 +68,7 @@ class DTracePlot(CrispyPlot):
         )
 
         # Annotation
-        if annot_text is None:
+        if annot_text == '':
             cor, pval = pearsonr(dataframe[x], dataframe[y])
             annot_text = f'R={cor:.2g}, p={pval:.1e}'
 

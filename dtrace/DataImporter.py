@@ -849,6 +849,35 @@ class CTDR2:
         return df
 
 
+class RPPA:
+    def __init__(self, rppa_file='data/genomic/CCLE_MDAnderson_RPPA_combined.csv'):
+        self.info = [
+            'model_id', 'model_name', 'synonyms', 'model_type', 'growth_properties', 'doi', 'pmed', 'model_treatment',
+            'model_comments', 'msi_status', 'mutational_burden', 'ploidy', 'parent_id', 'mutation_data',
+            'methylation_data', 'expression_data', 'cnv_data', 'drug_data', 'sample_id', 'tissue', 'cancer_type',
+            'cancer_type_detail', 'age_at_sampling', 'sampling_day', 'sampling_month', 'sampling_year',
+            'sample_treatment', 'sample_treatment_details', 'sample_site', 'tnm_t', 'tnm_n', 'tnm_m', 'tnm_integrated',
+            'tumour_grade', 'patient_id', 'species', 'gender', 'ethnicity', 'smoking_status',
+            'model_relations_comment', 'COSMIC_ID', 'BROAD_ID', 'RRID', 'suppliers', 'Cell.Line.Name', 'Order',
+            'Sample.Source', 'Category_1', 'Category_2', 'Category_3', 'Sample', 'Sample.Name', 'Sample.description',
+            'Sample.Number', 'CCLE_ID'
+        ]
+
+        self.rppa_matrix = pd.read_csv(rppa_file).groupby('model_id').mean().drop(columns=self.info, errors='ignore').T
+
+    def get_data(self):
+        return self.rppa_matrix.copy()
+
+    def filter(self, subset=None):
+        df = self.get_data()
+
+        if subset is not None:
+            df = df.loc[:, df.columns.isin(subset)]
+            assert df.shape[1] != 0, 'No columns after filter by subset'
+
+        return df
+
+
 if __name__ == '__main__':
     # -
     crispr = CRISPR()

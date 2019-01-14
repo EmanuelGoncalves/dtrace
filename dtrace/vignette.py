@@ -19,12 +19,15 @@ if __name__ == '__main__':
     datasets = Association(dtype_drug='ic50')
 
     lmm_drug = pd.read_csv('data/drug_lmm_regressions_ic50.csv.gz')
-    lmm_cgexp = pd.read_csv(f'data/drug_lmm_regressions_gexp_ic50.csv.gz')
+    lmm_gexp = pd.read_csv('data/drug_lmm_regressions_ic50_gexp.csv.gz')
 
     # -
     gene_assoc, gene_extra = 'MARCH5', 'MCL1'
 
-    drugs = [(1956, 'MCL1_1284', 'RS'), (2354, 'MCL1_8070', 'RS'), (1946, 'MCL1_5526', 'RS'), (2127, 'Mcl1_6386', 'RS')]
+    drugs = [
+        (1956, 'MCL1_1284', 'RS'), (2354, 'MCL1_8070', 'RS'), (1946, 'MCL1_5526', 'RS'), (2127, 'Mcl1_6386', 'RS'),
+        (1720, 'AZD5991', 'RS'), (2235, 'AZD5991', 'RS')
+    ]
 
     # drug = (1956, 'MCL1_1284', 'RS')
     for drug in drugs:
@@ -77,7 +80,19 @@ if __name__ == '__main__':
             resistant = list(df[df['essentiality'] != f'{gene_assoc} + {gene_extra}'].index)
             sensitive = list(df[df['essentiality'] == f'{gene_assoc} + {gene_extra}'].index)
 
-            gexp_delta = (datasets.gexp.loc[:, sensitive].median(1) - datasets.gexp.loc[:, resistant].median(1)).sort_values()
+            fcs = {}
+            # [('RPPA', datasets.rppa), ('Gexp', datasets.gexp), ('CRISPR', datasets.rppa)]
+            for name, data in [('RPPA', datasets.rppa)]:
+                fcs[name] = {}
+
+                for i in data.index:
+                    data_resistant = data.loc[i, sensitive].dropna()
+                    data_sensitive = data.loc[i, resistant].dropna()
+
+                    if len(data_resistant) >= 3 and len(data_sensitive) >= 3:
+                        fcs[name][i] = data_resistant.median() - data_sensitive.median()
+
+            fcs = pd.DataFrame(fcs).sort_values('RPPA')
 
             # -
             gmt_file = 'c2.cp.kegg.v6.2.symbols.gmt'
@@ -108,59 +123,114 @@ if __name__ == '__main__':
 
                 print(score)
     # -
+    bcl_abs = [
+        'Bad_pS112', 'Bak_Caution', 'Bap1.c.4', 'Bax', 'Bcl.2', 'Bcl.xL', 'Bid_Caution', 'Bim.CST2933.', 'Bim.EP1036.',
+        'PARP_cleaved_Caution', 'BCL2A1', 'Bim', 'Mcl.1'
+    ]
+
     plot_df = pd.concat([
         datasets.drespo.loc[drugs].T,
-        datasets.samplesheet.samplesheet['cancer_type'],
-        datasets.crispr_obj.institute.rename('Institute'),
-        datasets.samplesheet.samplesheet['model_name'],
-    ], axis=1, sort=False).dropna()
-    plot_df = plot_df[plot_df['cancer_type'].isin(['Colorectal Carcinoma', 'Breast Carcinoma'])]
 
-    #
+        datasets.crispr_obj.institute.rename('Institute'),
+
+        datasets.samplesheet.samplesheet['cancer_type'],
+        datasets.samplesheet.samplesheet['model_name'],
+
+        datasets.crispr.loc['MCL1'].rename('CRISPR_MCL1'),
+        datasets.crispr.loc['BCL2L1'].rename('CRISPR_BCL2L1'),
+        datasets.crispr.loc['MARCH5'].rename('CRISPR_MARCH5'),
+
+        datasets.crispr.T.eval('MCL1 / BCL2L1').rename('CRISPR MCL1/BCL2L1 ratio'),
+        datasets.crispr.T.eval('MCL1 / MARCH5').rename('CRISPR MCL1/MARCH5 ratio'),
+
+        datasets.gexp.loc['MCL1'].rename('Gexp_MCL1'),
+        datasets.gexp.loc['BCL2L1'].rename('Gexp_BCL2L1'),
+        datasets.gexp.loc['MARCH5'].rename('Gexp_MARCH5'),
+
+        datasets.gexp.T.eval('MCL1 / BCL2L1').rename('Gexp MCL1/BCL2L1 ratio'),
+        datasets.gexp.T.eval('MCL1 / MARCH5').rename('Gexp MCL1/MARCH5 ratio'),
+
+        datasets.cn.loc['MCL1'].rename('CN_MCL1'),
+
+        datasets.rppa.loc[bcl_abs].T.add_prefix('RPPA '),
+        (datasets.rppa.loc['Mcl.1'] / datasets.rppa.loc['Bcl.xL']).rename('RPPA MCL1/BCL2L1 ratio'),
+    ], axis=1, sort=False)
+
     cbin = pd.concat([
         datasets.crispr.loc[g, plot_df.index].apply(lambda v: g if v < -.5 else '') for g in [gene_assoc, gene_extra]
     ], axis=1)
     plot_df['ess'] = cbin.apply(lambda v: ' + '.join([i for i in v if i != '']), axis=1).replace('', 'None').values
 
+    # plot_df = plot_df[plot_df['cancer_type'].isin(['Colorectal Carcinoma', 'Breast Carcinoma'])]
+    # plot_df = plot_df[plot_df['cancer_type'].isin(['Lung Adenocarcinoma'])]
+    # plot_df = plot_df[plot_df['cancer_type'].isin(['Lung Adenocarcinoma', 'Small Cell Lung Carcinoma'])]
+
     #
-    order_ess = ['None', 'MCL1', 'MARCH5', 'MARCH5 + MCL1']
+    feature = 'CRISPR_MCL1'
+    drug = (1956, 'MCL1_1284', 'RS')
+    dmax = np.log(datasets.drespo_obj.maxconcentration[drug])
+    dmax_thres = np.log(datasets.drespo_obj.maxconcentration[drug] * 0.5)
 
-    pal_tissue = pd.Series(list(DTracePlot.PAL_DBGD.values())[:2], index=plot_df['cancer_type'].unique())
-    pal_ess = pd.Series(
-        DTracePlot.get_palette_continuous(len(plot_df['ess'].unique()), DTracePlot.PAL_DTRACE[2]), index=order_ess
-    )
+    #
+    g = DTracePlot.plot_corrplot(feature, drug, 'Institute', plot_df, add_hline=True)
 
-    row_colors = [plot_df['ess'].map(pal_ess), plot_df['cancer_type'].map(pal_tissue)]
+    g.ax_joint.axhline(y=dmax, linewidth=.3, color=DTracePlot.PAL_DTRACE[2], ls=':', zorder=0)
 
-    sns.clustermap(plot_df.drop(columns=['cancer_type', 'ess']), cmap='RdYlBu', center=0, row_colors=row_colors)
+    g.set_axis_labels(f'{feature} (scaled log2 FC)', f'{drug[1]} (ln IC50)')
 
-    plt.savefig(f"reports/boxplot_mcl1_clustermap.pdf", bbox_inches='tight', transparent=True)
+    plt.gcf().set_size_inches(1.5, 1.5)
+    plt.savefig(f'reports/vignette_drug_scatter.pdf', bbox_inches='tight', transparent=True)
     plt.close('all')
 
     #
-    resistant = list(plot_df[plot_df['ess'] == f'{gene_extra}'].index)
-    sensitive = list(plot_df[plot_df['ess'] == f'{gene_assoc} + {gene_extra}'].index)
+    # resistant = list(plot_df[plot_df['ess'] != f'{gene_assoc} + {gene_extra}'].index)
+    # sensitive = list(plot_df[plot_df['ess'] == f'{gene_assoc} + {gene_extra}'].index)
+    resistant = list(plot_df[((plot_df[drug] > dmax) & (plot_df['CRISPR_MCL1'] < -0.5))].index)
+    sensitive = list(plot_df[((plot_df[drug] < dmax_thres) & (plot_df['CRISPR_MCL1'] < -0.5))].index)
 
-    gexp_delta = (datasets.gexp.loc[:, sensitive].median(1) - datasets.gexp.loc[:, resistant].median(1)).sort_values()
-    crispr_delta = (datasets.crispr.loc[:, sensitive].mean(1) - datasets.crispr.loc[:, resistant].mean(1)).sort_values()
+    fcs = {}
+    for name, data in [('RPPA', datasets.rppa), ('Gexp', datasets.gexp), ('CRISPR', datasets.crispr)]:
+        fcs[name] = {}
+
+        for i in data.index:
+            data_resistant = data.loc[i, sensitive].dropna()
+            data_sensitive = data.loc[i, resistant].dropna()
+
+            if len(data_resistant) > 3 and len(data_sensitive) > 3:
+                fcs[name][i] = data_resistant.median() - data_sensitive.median()
+
+    fcs = pd.DataFrame(fcs).sort_values('RPPA')
+
+    fcs.dropna(subset=['Gexp']).sort_values('Gexp')
+
+    #
+    name, data, index = 'RPPA', datasets.rppa, 'Caveolin.1'
+
+    df = data.loc[index].reset_index()
+    df.columns = ['model_id', index]
+    df['ess'] = ['Resistant' if index in resistant else ('Sensitive' if index in sensitive else 'None') for index in df['model_id']]
+
+    sns.boxplot(index, 'ess', data=df, color=DTracePlot.PAL_DBGD[2], orient='h', notch=True)
+    plt.gcf().set_size_inches(2, 1)
+    plt.savefig(f'reports/fcs_boxplots_{name}.pdf', bbox_inches='tight', transparent=True)
+    plt.close('all')
 
     #
     gmt_file = 'c5.bp.v6.2.symbols.gmt'
 
-    ssgsea = DTraceEnrichment().gsea_enrichments(crispr_delta, gmt_file)
+    ssgsea = DTraceEnrichment().gsea_enrichments(fcs['Gexp'].dropna(), gmt_file)
 
     #
-    signature = DTraceEnrichment().get_signature(gmt_file, 'GO_RESPIRATORY_CHAIN_COMPLEX_IV_ASSEMBLY')
+    signature = DTraceEnrichment().get_signature(gmt_file, 'GO_ALKALOID_METABOLIC_PROCESS')
 
     #
     x = pd.concat([
         datasets.gexp.loc[signature, plot_df.index].dropna(how='all', axis=1).dropna().T,
-        datasets.crispr.loc[signature, plot_df.index].dropna(how='all', axis=1).dropna().T
+        # datasets.crispr.loc[signature, plot_df.index].dropna(how='all', axis=1).dropna().T
     ], axis=1, sort=False).dropna()
 
-    x = datasets.crispr.loc[['MARCH5', 'MCL1'], plot_df.index].T
-
-    y = plot_df.loc[x.index, [drug]].iloc[:, 0]
+    y = plot_df.loc[x.index, [drug]].iloc[:, 0].dropna()
+    x = x.loc[y.index]
 
     pred_scores = []
 
