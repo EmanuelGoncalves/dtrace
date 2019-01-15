@@ -19,7 +19,6 @@ if __name__ == '__main__':
     datasets = Association(dtype_drug='ic50')
 
     lmm_drug = pd.read_csv('data/drug_lmm_regressions_ic50.csv.gz')
-    lmm_gexp = pd.read_csv('data/drug_lmm_regressions_ic50_gexp.csv.gz')
 
     # -
     gene_assoc, gene_extra = 'MARCH5', 'MCL1'
@@ -58,7 +57,7 @@ if __name__ == '__main__':
             print(drug, tissue)
 
             # -
-            g = DTracePlot().plot_multiple('drug', 'essentiality', 'Institute', df, n_offset=1.1)
+            g = DTracePlot().plot_multiple('drug', 'essentiality', df, n_offset=1.1)
 
             sns.despine()
 
