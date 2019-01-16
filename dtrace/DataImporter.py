@@ -878,6 +878,23 @@ class RPPA:
         return df
 
 
+class WES:
+    def __init__(self, wes_file='data/genomic/WES_variants.csv.gz'):
+        self.wes = pd.read_csv(wes_file)
+
+    def get_data(self):
+        return self.wes.copy()
+
+    def filter(self, subset=None):
+        df = self.get_data()
+
+        if subset is not None:
+            df = df[df['model_id'].isin(subset)]
+            assert df.shape[1] != 0, 'No columns after filter by subset'
+
+        return df
+
+
 if __name__ == '__main__':
     # -
     crispr = CRISPR()

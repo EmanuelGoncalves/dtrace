@@ -51,7 +51,8 @@ class DTracePlot(CrispyPlot):
 
     @classmethod
     def plot_corrplot(
-            cls, x, y, style, dataframe, add_hline=True, add_vline=True, annot_text=None, lowess=False
+            cls, x, y, style, dataframe, add_hline=True, add_vline=True, diag_line=False, annot_text=None, lowess=False,
+            fit_reg=True
     ):
         grid = sns.JointGrid(x, y, data=dataframe, space=0)
 
@@ -62,10 +63,11 @@ class DTracePlot(CrispyPlot):
                 alpha=.8
             )
 
-        grid.plot_joint(
-            sns.regplot, data=dataframe, line_kws=dict(lw=1., color=cls.PAL_DTRACE[0]), marker='', lowess=lowess,
-            truncate=True
-        )
+        if fit_reg:
+            grid.plot_joint(
+                sns.regplot, data=dataframe, line_kws=dict(lw=1., color=cls.PAL_DTRACE[0]), marker='', lowess=lowess,
+                truncate=True
+            )
 
         # Annotation
         if annot_text == '':
@@ -83,6 +85,11 @@ class DTracePlot(CrispyPlot):
 
         if add_vline:
             grid.ax_joint.axvline(0, ls='-', lw=0.1, c=cls.PAL_DTRACE[1], zorder=0)
+
+        if diag_line:
+            (x0, x1), (y0, y1) = grid.ax_joint.get_xlim(), grid.ax_joint.get_ylim()
+            lims = [max(x0, y0), min(x1, y1)]
+            grid.ax_joint.plot(lims, lims, ls='--', lw=.3, zorder=0, c=cls.PAL_DTRACE[1])
 
         grid.ax_joint.legend(prop=dict(size=4), frameon=False, loc=2)
 

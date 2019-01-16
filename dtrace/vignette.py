@@ -6,19 +6,23 @@ import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 import statsmodels.api as sm
+from limix.qtl import scan
+from scipy.stats import spearmanr
 from DTracePlot import DTracePlot
 from Associations import Association
 from DataImporter import DrugResponse
 from DTraceEnrichment import DTraceEnrichment
 from sklearn.model_selection import ShuffleSplit
+from statsmodels.stats.multitest import multipletests
 from sklearn.linear_model import LinearRegression, Ridge, ElasticNet
 
 
 if __name__ == '__main__':
     # - Import
-    datasets = Association(dtype_drug='ic50')
+    data = Association(dtype_drug='ic50')
 
     lmm_drug = pd.read_csv('data/drug_lmm_regressions_ic50.csv.gz')
+    lmm_gexp = pd.read_csv('data/drug_lmm_regressions_ic50_gexp.csv.gz')
 
     # -
     gene_assoc, gene_extra = 'MARCH5', 'MCL1'
@@ -30,19 +34,19 @@ if __name__ == '__main__':
 
     # drug = (1956, 'MCL1_1284', 'RS')
     for drug in drugs:
-        dmax = np.log(datasets.drespo_obj.maxconcentration[drug])
+        dmax = np.log(data.drespo_obj.maxconcentration[drug])
 
         # Data-frame
         plot_df = pd.concat([
-            datasets.drespo.loc[drug].rename('drug'),
+            data.drespo.loc[drug].rename('drug'),
 
-            datasets.crispr.loc[gene_assoc].rename(f'CRISPR {gene_assoc}'),
-            datasets.crispr.loc[gene_extra].rename(f'CRISPR {gene_extra}'),
+            data.crispr.loc[gene_assoc].rename(f'CRISPR {gene_assoc}'),
+            data.crispr.loc[gene_extra].rename(f'CRISPR {gene_extra}'),
 
-            datasets.crispr_obj.institute.rename('Institute'),
+            data.crispr_obj.institute.rename('Institute'),
 
-            datasets.samplesheet.samplesheet['model_name'],
-            datasets.samplesheet.samplesheet['cancer_type'],
+            data.samplesheet.samplesheet['model_name'],
+            data.samplesheet.samplesheet['cancer_type'],
         ], axis=1, sort=False).dropna()
 
         # Aggregate essentiality
@@ -81,7 +85,7 @@ if __name__ == '__main__':
 
             fcs = {}
             # [('RPPA', datasets.rppa), ('Gexp', datasets.gexp), ('CRISPR', datasets.rppa)]
-            for name, data in [('RPPA', datasets.rppa)]:
+            for name, data in [('RPPA', data.rppa)]:
                 fcs[name] = {}
 
                 for i in data.index:
@@ -108,7 +112,7 @@ if __name__ == '__main__':
             top_sigs_genes = pd.Series([g for s in ssgsea.index[-5:] for g in DTraceEnrichment().get_signature(gmt_file, s)])
 
             #
-            x = datasets.prot.loc[signature, df.index].dropna(how='all', axis=1).dropna().T
+            x = data.prot.loc[signature, df.index].dropna(how='all', axis=1).dropna().T
             y = df.loc[x.index, 'drug']
 
             pred_scores = []
@@ -127,38 +131,48 @@ if __name__ == '__main__':
         'PARP_cleaved_Caution', 'BCL2A1', 'Bim', 'Mcl.1'
     ]
 
+    proteins = ['MARCH5', 'MCL1', 'BCL2', 'BCL2L1']
+
     plot_df = pd.concat([
-        datasets.drespo.loc[drugs].T,
+        data.drespo.loc[drugs].T,
 
-        datasets.crispr_obj.institute.rename('Institute'),
+        data.crispr_obj.institute.rename('Institute'),
 
-        datasets.samplesheet.samplesheet['cancer_type'],
-        datasets.samplesheet.samplesheet['model_name'],
+        data.samplesheet.samplesheet['cancer_type'],
+        data.samplesheet.samplesheet['model_name'],
+        data.samplesheet.samplesheet['growth'],
 
-        datasets.crispr.loc['MCL1'].rename('CRISPR_MCL1'),
-        datasets.crispr.loc['BCL2L1'].rename('CRISPR_BCL2L1'),
-        datasets.crispr.loc['MARCH5'].rename('CRISPR_MARCH5'),
+        data.crispr.loc['MCL1'].rename('CRISPR_MCL1'),
+        data.crispr.loc['BCL2L1'].rename('CRISPR_BCL2L1'),
+        data.crispr.loc['MARCH5'].rename('CRISPR_MARCH5'),
 
-        datasets.crispr.T.eval('MCL1 / BCL2L1').rename('CRISPR MCL1/BCL2L1 ratio'),
-        datasets.crispr.T.eval('MCL1 / MARCH5').rename('CRISPR MCL1/MARCH5 ratio'),
+        data.crispr.T.eval('MCL1 - BCL2L1').rename('CRISPR MCL1/BCL2L1 ratio'),
+        data.crispr.T.eval('MCL1 - MARCH5').rename('CRISPR MCL1/MARCH5 ratio'),
 
-        datasets.gexp.loc['MCL1'].rename('Gexp_MCL1'),
-        datasets.gexp.loc['BCL2L1'].rename('Gexp_BCL2L1'),
-        datasets.gexp.loc['MARCH5'].rename('Gexp_MARCH5'),
+        data.gexp.loc['MCL1'].rename('Gexp_MCL1'),
+        data.gexp.loc['BCL2L1'].rename('Gexp_BCL2L1'),
+        data.gexp.loc['MARCH5'].rename('Gexp_MARCH5'),
 
-        datasets.gexp.T.eval('MCL1 / BCL2L1').rename('Gexp MCL1/BCL2L1 ratio'),
-        datasets.gexp.T.eval('MCL1 / MARCH5').rename('Gexp MCL1/MARCH5 ratio'),
+        data.gexp.T.eval('MCL1 / BCL2L1').rename('Gexp MCL1/BCL2L1 ratio'),
+        data.gexp.T.eval('MCL1 / MARCH5').rename('Gexp MCL1/MARCH5 ratio'),
 
-        datasets.cn.loc['MCL1'].rename('CN_MCL1'),
+        data.cn.loc['MCL1'].rename('CN_MCL1'),
 
-        datasets.rppa.loc[bcl_abs].T.add_prefix('RPPA '),
-        (datasets.rppa.loc['Mcl.1'] / datasets.rppa.loc['Bcl.xL']).rename('RPPA MCL1/BCL2L1 ratio'),
+        data.rppa.loc[bcl_abs].T.add_prefix('RPPA '),
+        (data.rppa.loc['Mcl.1'] / data.rppa.loc['Bcl.xL']).rename('RPPA MCL1/BCL2L1 ratio'),
+
+        data.apoptosis.T,
+
+        data.prot.loc[proteins].T.add_prefix('Prot '),
+
+        data.prot.T.eval('MCL1 / BCL2L1').rename('Prot MCL1/BCL2L1 ratio'),
     ], axis=1, sort=False)
 
     cbin = pd.concat([
-        datasets.crispr.loc[g, plot_df.index].apply(lambda v: g if v < -.5 else '') for g in [gene_assoc, gene_extra]
+        data.crispr.loc[g, plot_df.index].apply(lambda v: g if v < -.5 else '') for g in [gene_assoc, gene_extra]
     ], axis=1)
     plot_df['ess'] = cbin.apply(lambda v: ' + '.join([i for i in v if i != '']), axis=1).replace('', 'None').values
+    plot_df['ess_num'] = plot_df['ess'].map({'None': 0, 'MCL1': 1, 'MARCH5': 1, 'MARCH5 + MCL1': 2})
 
     # plot_df = plot_df[plot_df['cancer_type'].isin(['Colorectal Carcinoma', 'Breast Carcinoma'])]
     # plot_df = plot_df[plot_df['cancer_type'].isin(['Lung Adenocarcinoma'])]
@@ -167,8 +181,8 @@ if __name__ == '__main__':
     #
     feature = 'CRISPR_MCL1'
     drug = (1956, 'MCL1_1284', 'RS')
-    dmax = np.log(datasets.drespo_obj.maxconcentration[drug])
-    dmax_thres = np.log(datasets.drespo_obj.maxconcentration[drug] * 0.5)
+    dmax = np.log(data.drespo_obj.maxconcentration[drug])
+    dmax_thres = np.log(data.drespo_obj.maxconcentration[drug] * 0.5)
 
     #
     g = DTracePlot.plot_corrplot(feature, drug, 'Institute', plot_df, add_hline=True)
@@ -188,7 +202,7 @@ if __name__ == '__main__':
     sensitive = list(plot_df[((plot_df[drug] < dmax_thres) & (plot_df['CRISPR_MCL1'] < -0.5))].index)
 
     fcs = {}
-    for name, data in [('RPPA', datasets.rppa), ('Gexp', datasets.gexp), ('CRISPR', datasets.crispr)]:
+    for name, data in [('RPPA', data.rppa), ('Gexp', data.gexp), ('CRISPR', data.crispr)]:
         fcs[name] = {}
 
         for i in data.index:
@@ -203,7 +217,7 @@ if __name__ == '__main__':
     fcs.dropna(subset=['Gexp']).sort_values('Gexp')
 
     #
-    name, data, index = 'RPPA', datasets.rppa, 'Caveolin.1'
+    name, data, index = 'RPPA', data.rppa, 'Caveolin.1'
 
     df = data.loc[index].reset_index()
     df.columns = ['model_id', index]
@@ -224,7 +238,7 @@ if __name__ == '__main__':
 
     #
     x = pd.concat([
-        datasets.gexp.loc[signature, plot_df.index].dropna(how='all', axis=1).dropna().T,
+        data.gexp.loc[signature, plot_df.index].dropna(how='all', axis=1).dropna().T,
         # datasets.crispr.loc[signature, plot_df.index].dropna(how='all', axis=1).dropna().T
     ], axis=1, sort=False).dropna()
 
@@ -241,3 +255,20 @@ if __name__ == '__main__':
         pred_scores.append(score)
 
     print(f'Mean score: {np.median(pred_scores)}')
+
+    #
+    # samples = list(datasets.samplesheet.samplesheet.query("cancer_type == 'Breast Carcinoma'").index)
+    samples = data.samplesheet.samplesheet
+    samples = set(samples[samples['cancer_type'].isin(['Colorectal Carcinoma'])].index)
+    samples = list(samples.intersection(data.crispr).intersection(data.prot))
+
+    y = data.crispr.loc[['MARCH5'], samples].T.dropna()
+    x = data.prot[y.index].dropna().T
+
+    k = Association.kinship(x)
+
+    m = pd.concat([data.get_covariates().loc[y.index], data.prot.loc['HNF4A', y.index]], axis=1).loc[y.index]
+
+    df = data.lmm_single_association(y=y, x=x, m=m, k=k, expand_drug_id=False)
+    df['fdr'] = multipletests(df['pval'], method='bonferroni')[1]
+    print(df.sort_values(['pval', 'fdr']).head(60))
