@@ -131,7 +131,7 @@ if __name__ == '__main__':
         'PARP_cleaved_Caution', 'BCL2A1', 'Bim', 'Mcl.1'
     ]
 
-    proteins = ['MARCH5', 'MCL1', 'BCL2', 'BCL2L1']
+    proteins = ['MARCH5', 'MCL1', 'BCL2', 'BCL2L1', 'BCL2L11']
 
     plot_df = pd.concat([
         data.drespo.loc[drugs].T,
@@ -141,27 +141,35 @@ if __name__ == '__main__':
         data.samplesheet.samplesheet['cancer_type'],
         data.samplesheet.samplesheet['model_name'],
         data.samplesheet.samplesheet['growth'],
+        pd.get_dummies(data.samplesheet.samplesheet['msi_status']),
 
+        data.crispr.loc['WRN'].rename('CRISPR_WRN'),
         data.crispr.loc['MCL1'].rename('CRISPR_MCL1'),
         data.crispr.loc['BCL2L1'].rename('CRISPR_BCL2L1'),
         data.crispr.loc['MARCH5'].rename('CRISPR_MARCH5'),
+        data.crispr.loc['PMAIP1'].rename('CRISPR_PMAIP1'),
+        data.crispr.loc['BCL2L11'].rename('CRISPR_BCL2L11'),
 
         data.crispr.T.eval('MCL1 - BCL2L1').rename('CRISPR MCL1/BCL2L1 ratio'),
         data.crispr.T.eval('MCL1 - MARCH5').rename('CRISPR MCL1/MARCH5 ratio'),
+        data.crispr.T.eval('PMAIP1 - MARCH5').rename('CRISPR PMAIP1/MARCH5 ratio'),
 
         data.gexp.loc['MCL1'].rename('Gexp_MCL1'),
         data.gexp.loc['BCL2L1'].rename('Gexp_BCL2L1'),
         data.gexp.loc['MARCH5'].rename('Gexp_MARCH5'),
+        data.gexp.loc['PMAIP1'].rename('Gexp_PMAIP1'),
+        data.gexp.loc['BCL2L11'].rename('Gexp_BCL2L11'),
 
         data.gexp.T.eval('MCL1 / BCL2L1').rename('Gexp MCL1/BCL2L1 ratio'),
         data.gexp.T.eval('MCL1 / MARCH5').rename('Gexp MCL1/MARCH5 ratio'),
+        data.gexp.T.eval('PMAIP1 / MARCH5').rename('Gexp PMAIP1/MARCH5 ratio'),
 
-        data.cn.loc['MCL1'].rename('CN_MCL1'),
-
-        data.rppa.loc[bcl_abs].T.add_prefix('RPPA '),
-        (data.rppa.loc['Mcl.1'] / data.rppa.loc['Bcl.xL']).rename('RPPA MCL1/BCL2L1 ratio'),
-
-        data.apoptosis.T,
+        # data.cn.loc['MCL1'].rename('CN_MCL1'),
+        #
+        # data.rppa.loc[bcl_abs].T.add_prefix('RPPA '),
+        # (data.rppa.loc['Mcl.1'] / data.rppa.loc['Bcl.xL']).rename('RPPA MCL1/BCL2L1 ratio'),
+        #
+        # data.apoptosis.T,
 
         data.prot.loc[proteins].T.add_prefix('Prot '),
 

@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # Copyright (C) 2019 Emanuel Goncalves
 
+import matplotlib
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -58,16 +59,9 @@ def features_barplot(df):
     return f, axs
 
 
-def pred_scatterplot(y, x, annot_text):
-    y = y[x.index].dropna()
-    x = x.loc[y.index]
-
-    lm = Ridge().fit(x, y)
-
-    y_pred = pd.Series(lm.predict(x), index=y.index)
-
+def pred_scatterplot(y_true, y_pred, annot_text):
     plot_df = pd.concat([
-        y.rename('observed'),
+        y_true.rename('observed'),
         y_pred.rename('predicted'),
         data.samplesheet.samplesheet['institute']
     ], axis=1, sort=False).dropna()
@@ -124,9 +118,9 @@ def lm_drug_train(y, x, drug, n_splits=1000, test_size=.3):
 if __name__ == '__main__':
     # - Import
     data = Association(dtype_drug='ic50')
+
     lmm_drug = pd.read_csv('data/drug_lmm_regressions_ic50.csv.gz')
 
-    # -
     d_target = 'MCL1'
 
     gene_products = ['MARCH5', 'MCL1', 'BCL2', 'BCL2L1']
@@ -135,24 +129,23 @@ if __name__ == '__main__':
         tuple(i) for i in lmm_drug[lmm_drug['DRUG_TARGETS'] == d_target][DRUG_INFO].values
     })
 
-    for ftype in ['CRISPR+GEXP', 'CRISPR', 'GEXP']:
+    # -
+    xss = {
+        'CRISPR+GEXP': pd.concat([
+            data.crispr.loc[gene_products].T.add_prefix('CRISPR_'),
+            data.gexp.loc[gene_products].T.add_prefix('GExp_')
+        ], axis=1, sort=False).dropna(),
+        'CRISPR': data.crispr.loc[gene_products].T.add_prefix('CRISPR_').dropna(),
+        'GEXP': data.gexp.loc[gene_products].T.add_prefix('GExp_').dropna()
+    }
+
+    # -
+    drug_lms = {}
+
+    for ftype in xss:
         print(f'ftype = {ftype}')
 
-        if ftype == 'CRISPR+GEXP':
-            xs = pd.concat([
-                data.crispr.loc[gene_products].T.add_prefix('CRISPR_'),
-                data.gexp.loc[gene_products].T.add_prefix('GExp_')
-            ], axis=1, sort=False).dropna()
-
-        elif ftype == 'CRISPR':
-            xs = data.crispr.loc[gene_products].T.add_prefix('CRISPR_').dropna()
-
-        elif ftype == 'GEXP':
-            xs = data.gexp.loc[gene_products].T.add_prefix('GExp_').dropna()
-
-        else:
-            assert True, 'xs not defined'
-
+        xs = xss[ftype]
         xs = pd.DataFrame(StandardScaler().fit_transform(xs), index=xs.index, columns=xs.columns)
 
         #
@@ -166,14 +159,62 @@ if __name__ == '__main__':
         plt.close('all')
 
         # -
-        # drug = (2235, 'AZD5991', 'RS')
+        drug_lms[ftype] = {}
         for drug in drugs:
+            y = data.drespo.loc[drug, xs.index].dropna()
+            x = xs.loc[y.index]
+
+            lm = Ridge().fit(x, y)
+
+            drug_lms[ftype][drug] = dict(
+                lm=lm, y=y, x=x, y_pred=pd.Series(lm.predict(x), index=y.index)
+            )
+
+            #
             drug_r2_mean = lm_df.groupby(DRUG_INFO)['r2'].median().loc[drug]
             drug_r2_std = lm_df.groupby(DRUG_INFO)['r2'].std().loc[drug]
             drug_annot = f"Median R-squared = {drug_r2_mean:.2f} (±{drug_r2_std:.2f})"
 
-            pred_scatterplot(data.drespo.loc[drug], xs, drug_annot)
+            pred_scatterplot(y, drug_lms[ftype][drug]['y_pred'], drug_annot)
             plt.gcf().set_size_inches(2, 2)
             plt_name = f'reports/predict_{d_target}_{ftype}_{drug[0]}_{drug[1]}_{drug[2]}_pred_scatter.pdf'
             plt.savefig(plt_name, bbox_inches='tight', transparent=True)
             plt.close('all')
+
+    # -
+    plot_df = pd.concat([
+        data.gexp.loc['MARCH5'].rename('gexp'),
+        data.prot.loc['MARCH5'].rename('prot')
+    ], axis=1, sort=False).dropna()
+
+    sns.regplot('gexp', 'prot', data=plot_df)
+    plt.show()
+
+    # -
+    drug = (1956, 'MCL1_1284', 'RS')
+
+    drug_pred = pd.concat([drug_lms[t][drug]['y_pred'].rename(f'y_pred_{t}') for t in xss], axis=1)
+    drug_pred = pd.concat([
+        drug_pred,
+        data.samplesheet.samplesheet[['institute', 'model_name', 'cancer_type']],
+        drug_lms['CRISPR+GEXP'][drug]['x']
+    ], axis=1).dropna()
+
+    drug_pred['y_true'] = data.drespo.loc[drug, drug_pred.index]
+    drug_pred['y_pred_diff'] = (drug_pred['y_pred_CRISPR+GEXP'] - drug_pred['y_pred_GEXP'])
+
+    drug_pred.sort_values('y_pred_diff')
+
+    #
+    plot_df = drug_lms['CRISPR+GEXP'][drug]['x']
+    plot_df = pd.DataFrame(StandardScaler().fit_transform(plot_df), index=plot_df.index, columns=plot_df.columns)
+
+    rowcols = pd.Series({
+        i: matplotlib.colors.rgb2hex(matplotlib.cm.get_cmap('PiYG')(v)) for i, v in drug_pred['y_pred_diff'].iteritems()
+    })[plot_df.index]
+
+    sns.clustermap(plot_df, cmap='RdYlBu', center=0, row_colors=rowcols)
+
+    plt_name = f'reports/predict_{d_target}_{ftype}_{drug[0]}_{drug[1]}_{drug[2]}_xs_clustermap.pdf'
+    plt.savefig(plt_name, bbox_inches='tight', transparent=True)
+    plt.close('all')
