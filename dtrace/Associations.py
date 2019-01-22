@@ -57,7 +57,7 @@ class Association:
         crispr_ess_qc = (crispr_ess_qc - crispr_ess_qc.mean()) / crispr_ess_qc.std()
 
         # CRISPR institute of origin PC
-        crispr_insitute = pd.read_csv('data/crispr_pca_column_pcs.csv', index_col=0)['PC1'].rename('crispr_qc_ess')
+        crispr_insitute = pd.read_csv('data/crispr_pca_column_pcs.csv', index_col=0)['PC1'].rename('institute')
 
         # Cell lines growth rate
         drug_growth = pd.read_csv('data/drug_pca_column_pcs.csv', index_col=0)['PC1'].rename('drug_growth')
@@ -355,6 +355,29 @@ class Association:
 
         return lmm_dgexp
 
+    def lmm_gexp_crispr(self, crispr_genes, method='bonferroni'):
+        # Samples with gene-expression
+        samples = list(self.gexp)
+
+        # Kinship matrix (random effects)
+        k = self.kinship(self.gexp.T)
+        m = self.get_covariates().loc[samples]
+
+        # Association
+        lmm_gexp_crispr = pd.concat([
+            self.lmm_single_association(
+                self.crispr.loc[[g], samples].T, self.gexp.T.loc[samples], k=k.loc[samples, samples], m=m.loc[samples], expand_drug_id=False
+            ) for g in crispr_genes
+        ])
+
+        # Multiple p-value correction
+        lmm_gexp_crispr = self.multipletests_per_drug(lmm_gexp_crispr, field='pval', method=method, index_cols=['DRUG_ID'])
+
+        # Sort p-values
+        lmm_gexp_crispr = lmm_gexp_crispr.sort_values(['fdr', 'pval'])
+
+        return lmm_gexp_crispr
+
 
 if __name__ == '__main__':
     dtype = 'ic50'
@@ -380,3 +403,10 @@ if __name__ == '__main__':
     lmm_multi \
         .sort_values(['pval', 'fdr']) \
         .to_csv(f'data/drug_lmm_regressions_multiple_{dtype}.csv.gz', index=False, compression='gzip')
+
+    genes = ['MARCH5', 'MCL1', 'BCL2', 'BCL2L1', 'BCL2L11', 'BAX', 'PMAIP1', 'CYCS']
+    lmm_gexp_crispr = assoc.lmm_gexp_crispr(crispr_genes=genes)
+    lmm_gexp_crispr \
+        .sort_values(['pval', 'fdr']) \
+        .to_csv(f'data/crispr_lmm_regressions_gexp.csv.gz', index=False, compression='gzip')
+

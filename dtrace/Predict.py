@@ -60,7 +60,7 @@ def features_barplot(df):
     return f, axs
 
 
-def pred_scatterplot(y_true, y_pred, annot_text):
+def pred_scatterplot(y_true, y_pred, annot_text, data):
     plot_df = pd.concat([
         y_true.rename('observed'),
         y_pred.rename('predicted'),
