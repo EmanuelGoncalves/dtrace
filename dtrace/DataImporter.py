@@ -895,6 +895,41 @@ class WES:
         return df
 
 
+class RNAi:
+    def __init__(self, rnai_file='data/rnai/D2_combined_gene_dep_scores.csv'):
+        self.sinfo = pd.read_csv('data/rnai/DepMap-2018q4-celllines.csv')
+
+        self.rnai = self.read_data(rnai_file)
+
+    def read_data(self, rnai_file):
+        rnai = pd.read_csv(rnai_file, index_col=0)
+        rnai.index = [i.split(' ')[0] for i in rnai.index]
+        rnai = rnai[['&' not in i for i in rnai.index]]
+
+        sinfo = self.sinfo[self.sinfo['CCLE_Name'].isin(rnai.columns)].set_index('CCLE_Name')['DepMap_ID']
+
+        rnai = rnai.loc[:, rnai.columns.isin(sinfo.index)]
+        rnai = rnai.rename(columns=sinfo)
+
+        cpass = Sample().samplesheet.dropna(subset=['BROAD_ID']).reset_index().set_index('BROAD_ID')['model_id']
+
+        rnai = rnai.rename(columns=cpass)
+
+        return rnai
+
+    def get_data(self):
+        return self.rnai.copy()
+
+    def filter(self, subset=None):
+        df = self.get_data()
+
+        if subset is not None:
+            df = df.loc[:, df.columns.isin(subset)]
+            assert df.shape[1] != 0, 'No columns after filter by subset'
+
+        return df
+
+
 if __name__ == '__main__':
     # -
     crispr = CRISPR()

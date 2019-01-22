@@ -128,10 +128,10 @@ if __name__ == '__main__':
     # -
     bcl_abs = [
         'Bad_pS112', 'Bak_Caution', 'Bap1.c.4', 'Bax', 'Bcl.2', 'Bcl.xL', 'Bid_Caution', 'Bim.CST2933.', 'Bim.EP1036.',
-        'PARP_cleaved_Caution', 'BCL2A1', 'Bim', 'Mcl.1'
+        'PARP_cleaved_Caution', 'BCL2A1', 'Bim', 'Mcl.1', 'Histone.H3'
     ]
 
-    proteins = ['MARCH5', 'MCL1', 'BCL2', 'BCL2L1', 'BCL2L11']
+    proteins = ['MARCH5', 'MCL1', 'BCL2', 'BCL2L1', 'BCL2L11', 'HUWE1']
 
     plot_df = pd.concat([
         data.drespo.loc[drugs].T,
@@ -159,16 +159,22 @@ if __name__ == '__main__':
         data.gexp.loc['MARCH5'].rename('Gexp_MARCH5'),
         data.gexp.loc['PMAIP1'].rename('Gexp_PMAIP1'),
         data.gexp.loc['BCL2L11'].rename('Gexp_BCL2L11'),
+        data.gexp.loc['HUWE1'].rename('Gexp_HUWE1'),
 
         data.gexp.T.eval('MCL1 / BCL2L1').rename('Gexp MCL1/BCL2L1 ratio'),
         data.gexp.T.eval('MCL1 / MARCH5').rename('Gexp MCL1/MARCH5 ratio'),
         data.gexp.T.eval('PMAIP1 / MARCH5').rename('Gexp PMAIP1/MARCH5 ratio'),
 
-        # data.cn.loc['MCL1'].rename('CN_MCL1'),
-        #
-        # data.rppa.loc[bcl_abs].T.add_prefix('RPPA '),
-        # (data.rppa.loc['Mcl.1'] / data.rppa.loc['Bcl.xL']).rename('RPPA MCL1/BCL2L1 ratio'),
-        #
+        data.genomic.loc['TP53_mut'],
+        data.genomic.loc[[i for i in data.genomic.index if 'MYC' in i]].T,
+
+        data.rnai.loc[proteins].T.add_prefix('RNAi '),
+
+        data.cn.loc['MCL1'].rename('CN_MCL1'),
+
+        data.rppa.loc[bcl_abs].T.add_prefix('RPPA '),
+        (data.rppa.loc['Mcl.1'] / data.rppa.loc['Bcl.xL']).rename('RPPA MCL1/BCL2L1 ratio'),
+
         # data.apoptosis.T,
 
         data.prot.loc[proteins].T.add_prefix('Prot '),

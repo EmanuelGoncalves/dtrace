@@ -12,6 +12,7 @@ from Associations import Association
 from sklearn.linear_model import Ridge
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import ShuffleSplit
+from statsmodels.stats.multitest import multipletests
 
 
 DRUG_INFO = ['DRUG_ID', 'DRUG_NAME', 'VERSION']
@@ -182,13 +183,107 @@ if __name__ == '__main__':
             plt.close('all')
 
     # -
-    plot_df = pd.concat([
-        data.gexp.loc['MARCH5'].rename('gexp'),
-        data.prot.loc['MARCH5'].rename('prot')
-    ], axis=1, sort=False).dropna()
+    for drug in drugs:
+        dmax = np.log(data.drespo_obj.maxconcentration[drug])
 
-    sns.regplot('gexp', 'prot', data=plot_df)
-    plt.show()
+        # Data-frame
+        plot_df = pd.concat([
+            data.drespo.loc[drug].rename('drug'),
+            data.crispr.loc['MCL1'].rename('CRISPR MCL1'),
+            data.crispr.loc['MARCH5'].rename('CRISPR MARCH5'),
+            data.samplesheet.samplesheet['cancer_type'],
+        ], axis=1, sort=False).dropna()
+
+        # Aggregate essentiality
+        cbin = pd.concat([plot_df[f'CRISPR {g}'].apply(lambda v: g if v < -.5 else '') for g in ['MCL1', 'MARCH5']], axis=1)
+        plot_df['essentiality'] = cbin.apply(lambda v: ' + '.join([i for i in v if i != '']), axis=1).replace('', 'None').values
+
+        # tissue = 'Colorectal Carcinoma' tissue = 'Breast Carcinoma'
+        for tissue in ['Colorectal Carcinoma', 'Breast Carcinoma']:
+            df = plot_df.query(f"cancer_type == '{tissue}'")
+            print(drug, tissue)
+
+            # -
+            g = DTracePlot().plot_multiple('drug', 'essentiality', df, n_offset=1.1)
+
+            sns.despine()
+
+            plt.axvline(dmax, linewidth=.3, color=DTracePlot.PAL_DTRACE[2], ls=':', zorder=0)
+
+            plt.xlabel(f'{drug[1]} (ln IC50, {drug[2]})')
+            plt.ylabel('Essential genes')
+
+            plt.title(tissue)
+
+            plt.gcf().set_size_inches(2, 1)
+            plt.savefig(f"reports/predict_{tissue}_{drug[1]}_boxplot.pdf", bbox_inches='tight', transparent=True)
+            plt.close('all')
+
+    # -
+    crispr_comb = data.crispr[data.gexp.columns].T.eval('MARCH5 + MCL1').rename('MARCH5 + MCL1')
+
+    plot_df = pd.concat([
+        crispr_comb,
+        data.drespo.loc[drugs].T,
+        data.crispr.loc[['MARCH5', 'MCL1']].T
+    ], axis=1)
+    print(plot_df.corr().iloc[[7, 8, 9]].T)
+
+    crispr_comb_gexp = data.lmm_single_association(crispr_comb.to_frame(), data.gexp.T, expand_drug_id=False)
+    crispr_comb_gexp['fdr'] = multipletests(crispr_comb_gexp['pval'], method='bonferroni')[1]
+    print(crispr_comb_gexp.sort_values(['pval', 'fdr']))
+
+    #
+    drug = (1956, 'MCL1_1284', 'RS')
+
+    features = pd.concat([
+        data.drespo.loc[drug].rename('drug'),
+        data.gexp.loc[['BCL2L1', 'IFIT5', 'BAK1'], crispr_comb.index].T,
+        data.crispr.loc[['MARCH5', 'MCL1', 'BCL2L1'], crispr_comb.index].T,
+    ], axis=1).dropna()
+
+    x, y = features.drop(columns='drug'), features['drug']
+
+    crispr_comb_gexp_lm = Ridge().fit(x, y)
+    print(crispr_comb_gexp_lm.score(x, y))
+
+    y_pred = pd.Series(crispr_comb_gexp_lm.predict(x), index=x.index)
+    y_true = features.loc[y_pred.index, 'drug']
+
+    pred_scatterplot(y_true, y_pred, annot_text=f'R-squared: {crispr_comb_gexp_lm.score(x, y):.2f}')
+
+    plt.gcf().set_size_inches(2, 2)
+    plt_name = f'reports/predict_gexp_{d_target}_{drug[0]}_{drug[1]}_{drug[2]}_pred_scatter.pdf'
+    plt.savefig(plt_name, bbox_inches='tight', transparent=True)
+    plt.close('all')
+
+    # -
+    drug = (1956, 'MCL1_1284', 'RS')
+    dmax_thres = np.log(data.drespo_obj.maxconcentration[drug] * 0.5)
+
+    plot_df = pd.concat([
+        data.drespo.loc[drug].rename('drug'),
+        data.crispr.loc[['MARCH5', 'MCL1']].T,
+        data.samplesheet.samplesheet[['model_name', 'institute', 'cancer_type']]
+    ], axis=1).dropna()
+
+    #
+    resistant = list(plot_df.query(f'(drug > {dmax_thres}) & (MCL1 < -1)').index)
+    sensitive = [c for c in plot_df.index if c not in resistant]
+
+    fcs = {}
+    # [('RPPA', datasets.rppa), ('Gexp', datasets.gexp), ('CRISPR', datasets.rppa)]
+    for name, data in [('RPPA', data.rppa), ('Gexp', data.gexp), ('CRISPR', data.crispr)]:
+        fcs[name] = {}
+
+        for i in data.index:
+            data_resistant = data.loc[i, sensitive].dropna()
+            data_sensitive = data.loc[i, resistant].dropna()
+
+            if len(data_resistant) >= 3 and len(data_sensitive) >= 3:
+                fcs[name][i] = data_resistant.median() - data_sensitive.median()
+
+    fcs = pd.DataFrame(fcs).sort_values('RPPA')
 
     # -
     drug = (1956, 'MCL1_1284', 'RS')
