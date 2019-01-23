@@ -6,28 +6,17 @@ import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 import statsmodels.api as sm
+import matplotlib.ticker as plticker
+from scipy.stats import gaussian_kde
+from sklearn.svm import LinearSVC
 from DTracePlot import DTracePlot
 from Associations import Association
 from scipy.stats import spearmanr, pearsonr
-from sklearn.feature_selection import f_regression
-from sklearn.linear_model import Ridge
-import matplotlib.ticker as plticker
+from DTraceEnrichment import DTraceEnrichment
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import ShuffleSplit
-
-
-def correlation(x, y, dtype):
-    ctype = 'pearson' if dtype in ['Mutation'] else 'spearman'
-
-    df = pd.concat([x.rename('x'), y.rename('y')], axis=1, sort=False).dropna()
-
-    if ctype == 'pearson':
-        cor, pval = pearsonr(df['x'], df['y'])
-
-    else:
-        cor, pval = spearmanr(df['x'], df['y'])
-
-    return dict(len=df.shape[0], cor=cor, pval=pval, dtype=dtype, feature=y.name, ctype=ctype)
+from sklearn.feature_selection import f_regression, f_classif
+from sklearn.linear_model import Ridge, ElasticNetCV, Lasso, RidgeCV, LinearRegression
 
 
 def pred_scatterplot(y_true, y_pred, annot_text, data):
@@ -71,77 +60,72 @@ if __name__ == '__main__':
     # - Import
     data = Association(dtype_drug='ic50')
 
-    lmm_drug = pd.read_csv('data/drug_lmm_regressions_ic50.csv.gz')
-    lmm_gexp = pd.read_csv('data/drug_lmm_regressions_ic50_gexp.csv.gz')
     lmm_cgexp = pd.read_csv('data/crispr_lmm_regressions_gexp.csv.gz')
 
     # -
-    #
-    wes_matrix = data.wes.copy()
-    wes_matrix['value'] = 1
+    tissue = data.samplesheet.samplesheet
+    tissue = list(tissue[tissue['cancer_type'].isin(['Breast Carcinoma', 'Colorectal Carcinoma'])].index)
 
-    wes_matrix = pd.pivot_table(wes_matrix, index='Gene', columns='model_id', values='value', fill_value=0)
-    wes_matrix = wes_matrix[wes_matrix.sum(1) > 5]
-
-    #
-    genes = list(set(data.prot.index).intersection(data.gexp.index))
-    samples = list(set(data.prot).intersection(data.gexp))
-    print(f'Genes={len(genes)}; Samples={len(samples)}')
-
-    y_ = {}
-    for g in genes:
-        print(g)
-
-        y = data.prot.loc[g, samples].dropna()
-        x = data.gexp.loc[g, y.index]
-
-        lm = sm.OLS(y, sm.add_constant(x)).fit()
-        y_[g] = lm.resid
-
-    prot_ = pd.DataFrame(y_).T
-
-    #
-    dataframes = [
-        ('Mutation', wes_matrix), ('Gexp', data.gexp), ('RNAi', data.rnai), ('Genomic', data.genomic),
-        ('RPPA', data.rppa), ('CN', data.cn), ('Proteomics', data.prot), ('Phospho', data.phospho),
-        ('Apoptosis', data.apoptosis), ('Degradation', prot_)
-    ]
-
-    x, corrs = data.crispr.loc['MARCH5'], []
-    for dtype, df in dataframes:
-        print(f'Correlation: {dtype}')
-        corrs.append([
-            correlation(x, df.iloc[i], dtype) for i in range(df.shape[0])
-        ])
-
-    corrs = pd.DataFrame([e for l in corrs for e in l]).sort_values('pval')
-    print(corrs)
-
-    # -
-    samples = list(data.gexp)
+    samples = list(set(data.gexp))
 
     gene = 'MARCH5'
 
     y = data.crispr.loc[gene, samples]
 
-    x = data.gexp.loc[lmm_cgexp.query(f"(DRUG_ID == '{gene}') & (pval < .15)")['GeneSymbol'], samples].T
+    x = data.gexp[samples].T
     x = pd.DataFrame(StandardScaler().fit_transform(x), index=x.index, columns=x.columns)
 
-    y_scores = []
-    for train, test in ShuffleSplit(n_splits=100, test_size=.4).split(x, y):
-        lm = Ridge().fit(x.iloc[train], y.iloc[train])
+    #
+    fselection = lmm_cgexp.query(f"DRUG_ID == '{gene}'").set_index('GeneSymbol')['pval']
+    # fselection = pd.Series(f_regression(x, y)[0], index=x.columns)
+    x = x[fselection[fselection < .1].index]
 
+    #
+    y_scores, y_features = [], []
+    for train, test in ShuffleSplit(n_splits=200, test_size=.3).split(x):
+        lm = RidgeCV().fit(x.iloc[train], y.iloc[train])
         r2 = lm.score(x.iloc[test], y.iloc[test])
 
         y_scores.append([r2] + list(lm.coef_))
+        y_features.append(lm.coef_)
 
     y_scores = pd.DataFrame(y_scores, columns=['r2'] + list(x.columns))
-    print(f"Mean r2: {y_scores['r2'].mean()}; n features: {y_scores.shape[1] - 1}")
+    y_features = pd.DataFrame(y_features, columns=x.columns)
+    print(f"Mean r2: {y_scores['r2'].mean():.2f}; n features: {y_scores.shape[1] - 1}")
+    y_features.median().sort_values()
 
     #
-    lm = Ridge().fit(x, y)
-    y_pred = pd.Series(lm.predict(x), index=x.index)
+    ssgsea = DTraceEnrichment()
 
+    gmt_file = 'c5.bp.v6.2.symbols.gmt'
+
+    values = lmm_cgexp.query(f"DRUG_ID == '{gene}'").set_index('GeneSymbol')['beta']
+
+    enr = ssgsea.gsea_enrichments(values, gmt_file)
+    enr.query('len >= 5')
+    enr.loc[[i for i in enr.index if 'CYTOCHROME_C' in i]]
+
+    ssgsea.plot(values, gmt_file, 'GO_POSITIVE_REGULATION_OF_RELEASE_OF_CYTOCHROME_C_FROM_MITOCHONDRIA')
+    plt.show()
+
+    ssgsea.get_signature(
+        gmt_file, 'GO_REGULATION_OF_GENE_SILENCING'
+    )
+
+    #
+    y_pred, y_features = {}, {}
+
+    for s in samples:
+        lm = LinearRegression().fit(x.drop(index=[s]), y.drop(s))
+
+        y_pred[s] = lm.predict(x.loc[[s]])[0]
+        y_features[s] = lm.coef_
+
+    y_pred = pd.Series(y_pred)
+    y_features = pd.DataFrame(y_features, index=x.columns)
+    y_features.median(1).sort_values()
+
+    #
     annot = f"Median R-squared = {y_scores['r2'].median():.2f} (±{y_scores['r2'].std():.2f})"
 
     pred_scatterplot(y, y_pred, annot, data=data)
@@ -149,3 +133,12 @@ if __name__ == '__main__':
     plt_name = f'reports/biomarker_{gene}_pred_scatter.pdf'
     plt.savefig(plt_name, bbox_inches='tight', transparent=True)
     plt.close('all')
+
+    #
+    plot_df = pd.concat([
+        data.crispr.loc['MARCH5'],
+        data.samplesheet.samplesheet['gender']
+    ], axis=1, sort=False).dropna()
+
+    sns.boxplot('gender', 'MARCH5', data=plot_df)
+    plt.show()

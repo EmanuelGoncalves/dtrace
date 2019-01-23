@@ -124,7 +124,7 @@ if __name__ == '__main__':
 
     d_target = 'MCL1'
 
-    gene_products = ['MARCH5', 'MCL1', 'BCL2', 'BCL2L1']
+    gene_products = ['MARCH5', 'MCL1', 'BCL2', 'BCL2L1', 'BCL2L11']
 
     drugs = list({
         tuple(i) for i in lmm_drug[lmm_drug['DRUG_TARGETS'] == d_target][DRUG_INFO].values
