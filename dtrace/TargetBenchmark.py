@@ -10,9 +10,9 @@ from DTracePlot import DTracePlot
 from natsort import natsorted
 from crispy.utils import Utils
 from crispy.qc_plot import QCplot
-from scipy.stats import ttest_ind
 from Associations import Association
 from DataImporter import DrugResponse, PPI
+from scipy.stats import ttest_ind, mannwhitneyu
 
 
 class TargetBenchmark(DTracePlot):
@@ -95,6 +95,9 @@ class TargetBenchmark(DTracePlot):
             label='Target', bins=30
         )
 
+        mannwhitneyu(self.lmm_drug.query("target != 'T'")['beta'], self.lmm_drug.query("target == 'T'")['beta'])
+        ttest_ind(self.lmm_drug.query("target != 'T'")['beta'], self.lmm_drug.query("target == 'T'")['beta'], equal_var=False)
+
         sns.despine(right=True, top=True)
 
         plt.axvline(0, c=self.PAL_DTRACE[1], lw=.3, ls='-', zorder=0)
@@ -103,6 +106,10 @@ class TargetBenchmark(DTracePlot):
         plt.ylabel('Density')
 
         plt.legend(prop={'size': 6}, loc=2, frameon=False)
+
+        plt.gcf().set_size_inches(2, 2)
+        plt.savefig('reports/target_benchmark_beta_histogram.pdf', bbox_inches='tight', transparent=True)
+        plt.close('all')
 
     def pval_histogram(self):
         hist_kws = dict(alpha=.5, zorder=1, linewidth=.3, density=True)
@@ -326,6 +333,41 @@ class TargetBenchmark(DTracePlot):
             prop={'size': 5}, frameon=False
         )
 
+    def drug_notarget_barplot(self, drug, genes):
+        df = self.lmm_drug.query(f"DRUG_NAME == '{drug}'")
+        df = df[df['GeneSymbol'].isin(genes)]
+        df = df.groupby(['DRUG_NAME', 'GeneSymbol']).first()
+        df = df.sort_values(['pval', 'fdr'], ascending=False).reset_index()
+
+        ax = plt.gca()
+
+        ax.barh(
+            df.query("target != 'T'").index, -np.log10(df.query("target != 'T'")['pval']), .8,
+            color=self.PAL_DTRACE[2],
+            align='center', zorder=0, linewidth=0
+        )
+
+        ax.barh(
+            df.query("target == 'T'").index, -np.log10(df.query("target == 'T'")['pval']), .8,
+            color=self.PAL_DTRACE[0],
+            align='center', zorder=0, linewidth=0
+        )
+
+        sns.despine(right=True, top=True, ax=ax)
+
+        for i, (y, t, f) in df[['pval', 'target', 'fdr']].iterrows():
+            ax.text(-np.log10(y) - 0.1, i, t, color='white', ha='right', va='center', fontsize=6, zorder=10)
+
+            if f < self.fdr:
+                ax.text(-np.log10(y) + 0.1, i, '*', color=self.PAL_DTRACE[2], ha='left', va='center', fontsize=6,
+                        zorder=10)
+
+        ax.set_yticks(df.index)
+        ax.set_yticklabels(df['GeneSymbol'])
+
+        ax.set_xlabel('Drug association (-log10 p-value)')
+        ax.set_title(drug)
+
 
 if __name__ == '__main__':
     # Import target benchmark
@@ -370,6 +412,21 @@ if __name__ == '__main__':
         plt.savefig(f'reports/target_benchmark_ppi_distance_{dtype}_countplot.pdf', bbox_inches='tight', transparent=True)
         plt.close('all')
 
+    #
+    drugs_notarget = [
+        ('Olaparib', ['STAG1', 'LIG1', 'FLI1', 'PARP1']),
+        ('Talazoparib', ['PCGF5', 'XRCC1', 'RHNO1', 'LIG1', 'PARP1', 'PARP2'])
+    ]
+
+    for drug, genes in drugs_notarget:
+        print(drug, genes)
+
+        trg.drug_notarget_barplot(drug, genes)
+
+        plt.gcf().set_size_inches(1.5, 1)
+        plt.savefig(f'reports/target_benchmark_drug_notarget_{drug}.pdf', bbox_inches='tight', transparent=True)
+        plt.close('all')
+
     # Single feature examples
     dgs = [('Alpelisib', 'PIK3CA'), ('Nutlin-3a (-)', 'MDM2'), ('MCL1_1284', 'MCL1'), ('MCL1_1284', 'MARCH5')]
 
@@ -387,7 +444,9 @@ if __name__ == '__main__':
             trg.datasets.crispr_obj.institute.rename('Institute'),
         ], axis=1, sort=False).dropna()
 
-        g = DTracePlot.plot_corrplot('crispr', 'drug', 'Institute', plot_df, add_hline=True, annot_text=annot_text)
+        g = DTracePlot.plot_corrplot(
+            'crispr', 'drug', 'Institute', plot_df, add_hline=False, add_vline=False, annot_text=annot_text
+        )
 
         g.ax_joint.axhline(y=dmax, linewidth=.3, color=DTracePlot.PAL_DTRACE[2], ls=':', zorder=0)
 
