@@ -43,19 +43,21 @@ class TargetBenchmark(DTracePlot):
         super().__init__()
 
     def boxplot_kinobead(self):
-        drugs_correct = set(self.lmm_drug.query(f"(fdr < {self.fdr}) & (target == 'T')")['DRUG_ID'].apply(str))
+        catds = pd.read_csv('data/klaeger_et_al_catds_most_potent.csv').dropna(subset=['name']).set_index('name')
 
-        catds = pd.read_csv('data/klaeger_et_al_catds_most_potent.csv')
+        drugs = self.lmm_drug.query(f'fdr < {self.fdr}').groupby('DRUG_NAME')['target'].agg(set)
 
-        def __catds_id_match(ids):
-            if str(ids).lower() == 'nan':
+        def __catds_id_match(drug_name):
+            if str(drug_name).lower() == 'nan':
                 return 'NA'
-            elif len(set(ids.split(';')).intersection(drugs_correct)) == 0:
-                return 'No'
-            else:
+
+            elif (drug_name in drugs.index) and (len(drugs[drug_name].intersection({'T', '1'})) > 0):
                 return 'Yes'
 
-        catds['signif'] = catds['ids'].apply(__catds_id_match)
+            else:
+                return 'No'
+
+        catds['signif'] = catds['name'].apply(__catds_id_match)
 
         t, p = ttest_ind(
             catds[catds['signif'] == 'No']['CATDS_most_potent'],
@@ -80,6 +82,10 @@ class TargetBenchmark(DTracePlot):
 
         ax.set_xlabel('Drug has a significant\nCRISPR-Cas9 association')
         ax.set_ylabel('Selectivity[$CATDS_{most\ potent}$]')
+
+        plt.gcf().set_size_inches(1, 2.5)
+        plt.savefig(f'reports/target_benchmark_kinobeads.pdf', bbox_inches='tight', transparent=True)
+        plt.close('all')
 
     def beta_histogram(self):
         kde_kws = dict(cut=0, lw=1, zorder=1, alpha=.8)
