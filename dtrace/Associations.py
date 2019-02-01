@@ -198,7 +198,7 @@ class Association:
         return lmm_single
 
     @staticmethod
-    def __lmm_robust_association(association, y1, y2, x, min_events):
+    def __lmm_robust_association(association, y1, y2, x, min_events, is_gexp):
         samples = list(x)
 
         # Build drug measurement matrix
@@ -211,7 +211,12 @@ class Association:
 
         # Build genomic feature matrix
         X = x[Y1.index].T
-        X = X.loc[:, X.sum() >= min_events]
+
+        if is_gexp:
+            X = pd.DataFrame(StandardScaler().fit_transform(X), index=X.index, columns=X.columns)
+
+        else:
+            X = X.loc[:, X.sum() >= min_events]
 
         # Random effects matrix
         K = x[Y1.index].T
@@ -240,12 +245,19 @@ class Association:
 
         return df
 
-    def lmm_robust_association(self, lmm_single_associations, fdr_thres=.1, min_events=5):
+    def lmm_robust_association(self, lmm_single_associations, fdr_thres=.1, min_events=5, is_gexp=True):
         lmm_res_signif = lmm_single_associations.query(f'fdr < {fdr_thres}')
         print(f'#(Significant associations) = {lmm_res_signif.shape[0]}')
 
         lmmrobust = pd.concat([
-            self.__lmm_robust_association(a, self.drespo, self.crispr, self.genomic, min_events)
+            self.__lmm_robust_association(
+                association=a,
+                y1=self.drespo,
+                y2=self.crispr,
+                x=self.genomic if not is_gexp else self.gexp,
+                min_events=min_events,
+                is_gexp=is_gexp
+            )
             for a in lmm_res_signif[DrugResponse.DRUG_COLUMNS + ['GeneSymbol']].values
         ])
 
@@ -398,6 +410,11 @@ if __name__ == '__main__':
     lmm_robust\
         .sort_values(['fdr_drug', 'pval_drug'])\
         .to_csv(f'data/drug_lmm_regressions_robust_{dtype}.csv.gz', index=False, compression='gzip')
+
+    lmm_robust_gexp = assoc.lmm_robust_association(lmm_dsingle, is_gexp=True)
+    lmm_robust_gexp\
+        .sort_values(['fdr_drug', 'pval_drug'])\
+        .to_csv(f'data/drug_lmm_regressions_robust_gexp_{dtype}.csv.gz', index=False, compression='gzip')
 
     lmm_multi = assoc.lmm_multiple_association(lmm_dsingle)
     lmm_multi \

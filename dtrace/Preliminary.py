@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # Copyright (C) 2018 Emanuel Goncalves
 
+import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
@@ -173,6 +174,16 @@ class DrugPreliminary(Preliminary):
         plt.legend().remove()
 
     @classmethod
+    def histogram_drug_response(cls, df):
+        sns.distplot(df['n_resp'], color=DTracePlot.PAL_DTRACE[2], hist=False, kde_kws=cls.HIST_KDE_KWS, label=None)
+        sns.despine(top=True, right=True)
+
+        plt.xlabel('Number of drugs')
+        plt.ylabel('Fraction')
+
+        plt.title('Cumulative distribution of drug measurements lower than\n50% of the maximum screened concentration')
+
+    @classmethod
     def growth_correlation_histogram(cls, g_corr):
         for i, s in enumerate(cls.DRUG_PAL):
             hist_kws = dict(alpha=.4, zorder=i + 1, linewidth=0)
@@ -243,9 +254,22 @@ if __name__ == '__main__':
 
     # - Growth ~ Drug-response correlation
     g_corr = DrugResponse.growth_corr(datasets.drespo, datasets.samplesheet.samplesheet['growth'])
+    g_corr.to_csv('data/drug_growth_correlation.csv', index=False)
+
+    # - Number of responses
+    num_resp = pd.Series({
+        drug: (datasets.drespo.loc[drug].dropna() < np.log(datasets.drespo_obj.maxconcentration[drug] * .5)).sum() for drug in datasets.drespo.index
+    }).reset_index()
+    num_resp.columns = ['DRUG_ID', 'DRUG_NAME', 'VERSION', 'n_resp']
+    num_resp.to_csv('data/drug_number_responses.csv', index=False)
 
     # - Plots
     # Drug response
+    DrugPreliminary.histogram_drug_response(num_resp)
+    plt.gcf().set_size_inches(3, 2)
+    plt.savefig('reports/preliminary_drug_response_histogram.pdf', bbox_inches='tight', transparent=True)
+    plt.close('all')
+
     DrugPreliminary.histogram_drug(datasets.drespo.count(1))
     plt.gcf().set_size_inches(3, 2)
     plt.savefig('reports/preliminary_drug_histogram_drug.pdf', bbox_inches='tight', transparent=True)

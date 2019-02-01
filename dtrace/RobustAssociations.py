@@ -81,7 +81,9 @@ class SingleLMMTSNE:
 
         # Annotate targets
         tsnes = tsnes.assign(
-            targets=[';'.join(self.dtargets[i]) if i in self.dtargets else '' for i in tsnes[DrugResponse.DRUG_COLUMNS[0]]])
+            targets=
+            [';'.join(self.dtargets[i]) if i in self.dtargets else '' for i in tsnes[DrugResponse.DRUG_COLUMNS[0]]]
+        )
 
         # Annotate significant
         d_signif = {tuple(i) for i in lmm_drug.query(f'fdr < {self.fdr}')[DrugResponse.DRUG_COLUMNS].values}
@@ -307,7 +309,10 @@ if __name__ == '__main__':
     datasets = Association(dtype_drug='ic50')
 
     lmm_drug = pd.read_csv('data/drug_lmm_regressions_ic50.csv.gz')
+    lmm_drug_gexp = pd.read_csv('data/drug_lmm_regressions_ic50_gexp.csv.gz')
+
     lmm_robust = pd.read_csv('data/drug_lmm_regressions_robust_ic50.csv.gz')
+    lmm_robust_gexp = pd.read_csv('data/drug_lmm_regressions_robust_gexp_ic50.csv.gz')
 
     # - Drug betas TSNEs
     tsnes = SingleLMMTSNE(lmm_drug)
