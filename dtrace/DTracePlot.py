@@ -140,14 +140,14 @@ class DTracePlot(CrispyPlot):
                     marker=cls.MARKERS[t], ax=grid.ax_joint
                 )
 
-        grid.ax_joint.legend(prop=dict(size=4), frameon=False, loc=2)
+        grid.ax_joint.legend(prop=dict(size=8), frameon=False, loc=2)
 
         # Annotation
         if annot_text is None:
             cor, pval = pearsonr(plot_df[x], plot_df[y])
             annot_text = f'R={cor:.2g}, p={pval:.1e}'
 
-        grid.ax_joint.text(.95, .05, annot_text, fontsize=5, transform=grid.ax_joint.transAxes, ha='right')
+        grid.ax_joint.text(.95, .05, annot_text, fontsize=8, transform=grid.ax_joint.transAxes, ha='right')
 
         grid.ax_joint.axhline(0, ls='-', lw=0.3, c=pal[0], alpha=.2)
         grid.ax_joint.axvline(0, ls='-', lw=0.3, c=pal[0], alpha=.2)

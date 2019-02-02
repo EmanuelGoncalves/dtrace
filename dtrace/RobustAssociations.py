@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
+import matplotlib.ticker as plticker
 from DTracePlot import DTracePlot
 from natsort import natsorted
 from scipy.stats import ttest_ind
@@ -198,33 +199,43 @@ class SingleLMMTSNE:
         return g
 
 
-class RobustLMMAnalysis(object):
+class RobustLMMAnalysis:
     @staticmethod
-    def count_signif_associations(lmm_robust, fdr=0.1):
-        columns = ['DRUG_ID', 'DRUG_NAME', 'VERSION', 'GeneSymbol', 'Genetic']
+    def count_signif_associations(lmm_robust, lmm_robust_gexp, fdr=0.1):
+        plot_df = []
+        for f in ['fdr_crispr', 'fdr_drug', 'both']:
+            for n, df in [('Mutation/Copy-number', lmm_robust), ('Gene-expression', lmm_robust_gexp)]:
+                df_ = df.query(f'{f} < {fdr}') if f != 'both' else df.query(
+                    f'(fdr_crispr < {fdr}) & (fdr_drug < {fdr})')
 
-        d_signif = {tuple(i) for i in lmm_robust.query(f'fdr_drug < {fdr}')[columns].values}
-        c_signif = {tuple(i) for i in lmm_robust.query(f'fdr_crispr < {fdr}')[columns].values}
-        dc_signif = d_signif.intersection(c_signif)
+                df_ = df_.groupby('target')['DRUG_NAME'].agg('count').rename('count').to_frame().assign(
+                    variable=f.split('_')[1] if f != 'both' else f).assign(genetic=n)
 
-        # Build dataframe
-        plot_df = pd.DataFrame(dict(
-            names=['Drug', 'CRISPR', 'Intersection'],
-            count=list(map(len, [d_signif, c_signif, dc_signif]))
-        )).sort_values('count', ascending=True)
-        plot_df = plot_df.assign(y=range(plot_df.shape[0]))
+                plot_df.append(df_)
 
-        # Plot
-        plt.barh(plot_df['y'], plot_df['count'], color=DTracePlot.PAL_DTRACE[2], linewidth=0)
+        plot_df = pd.concat(plot_df).reset_index()
 
-        sns.despine(right=True, top=True)
+        order = ['T', '1', '2', '3', '4', '5+', '-']
+        pal = pd.Series(DTracePlot.get_palette_continuous(3, DTracePlot.PAL_DTRACE[2]),
+                        index=['both', 'drug', 'crispr'])
 
-        for c, y in plot_df[['count', 'y']].values:
-            plt.text(c + 3, y, str(c), va='center', fontsize=5, zorder=10, color=DTracePlot.PAL_DTRACE[2])
+        g = sns.catplot(
+            x='count', y='target', hue='variable', row='genetic', data=plot_df, kind='bar', order=order, palette=pal,
+            height=2.5, legend=False, legend_out=False
+        )
 
-        plt.yticks(plot_df['y'], plot_df['names'])
-        plt.xlabel('Number of signifcant associations')
-        plt.ylabel('')
+        g.set_titles('{row_name}')
+
+        g.add_legend(title='Association', frameon=False)
+
+        for ax in g.axes[:, 0]:
+            ax.xaxis.set_major_locator(plticker.MultipleLocator(base=100))
+            ax.grid(lw=.3, alpha=.8, color=DTracePlot.PAL_DTRACE[1], ls='-', axis='x', zorder=0)
+
+        g.set_axis_labels('Significant associations', 'Drug target ~ CRISPR\nPPI distance')
+
+        plt.savefig('reports/robust_count_signif.pdf', bbox_inches='tight', transparent=True)
+        plt.close('all')
 
     @staticmethod
     def genomic_histogram(datasets, ntop=40):
@@ -256,11 +267,8 @@ class RobustLMMAnalysis(object):
         plt.gcf().set_size_inches(2, .15 * ntop)
 
     @staticmethod
-    def top_robust_features(lmm_robust, ntop=40):
+    def top_robust_features(associations, ntop=30, dtype='genomic'):
         f, axs = plt.subplots(1, 2, sharex='none', sharey='none', gridspec_kw=dict(wspace=.75))
-
-        order = ['Mutation', 'CN loss', 'CN gain']
-        pal = pd.Series(DTracePlot.PAL_DTRACE[:3], index=order).to_dict()
 
         for i, d in enumerate(['drug', 'crispr']):
             ax = axs[i]
@@ -269,27 +277,41 @@ class RobustLMMAnalysis(object):
             feature = 'DRUG_NAME' if d == 'drug' else 'GeneSymbol'
 
             # Dataframe
-            plot_df = lmm_robust.query("Genetic != 'msi_status'")
+            plot_df = associations.query("Genetic != 'msi_status'")
             plot_df = plot_df.groupby([feature, 'Genetic'])[beta, pval, fdr].first().reset_index()
-            plot_df = plot_df[[len(datasets.genomic_obj.mobem_feature_to_gene(i)) != 0 for i in plot_df['Genetic']]]
-            plot_df = plot_df.sort_values([fdr, pval]).head(ntop)
-            plot_df = plot_df.assign(type=[datasets.genomic_obj.mobem_feature_type(i) for i in plot_df['Genetic']])
-            plot_df = plot_df.sort_values(beta, ascending=False)
+
+            if dtype == 'genomic':
+                plot_df = plot_df[[len(datasets.genomic_obj.mobem_feature_to_gene(i)) != 0 for i in plot_df['Genetic']]]
+                plot_df = plot_df.assign(type=[datasets.genomic_obj.mobem_feature_type(i) for i in plot_df['Genetic']])
+
+            plot_df = plot_df.sort_values([fdr, pval]).head(ntop).sort_values(beta, ascending=False)
             plot_df = plot_df.assign(y=range(plot_df.shape[0]))
 
-            # Plot
-            for t in order:
-                df = plot_df.query(f"type == '{t}'")
-                ax.scatter(df[beta], df['y'], c=pal[t], label=t)
+            # Scatter
+            if dtype == 'genomic':
+                order = ['Mutation', 'CN loss', 'CN gain']
+                pal = pd.Series(DTracePlot.PAL_DTRACE[:3], index=order).to_dict()
 
+                for t in order:
+                    df = plot_df.query(f"type == '{t}'")
+                    ax.scatter(df[beta], df['y'], c=pal[t], label=t)
+            else:
+                ax.scatter(plot_df[beta], plot_df['y'], c=DTracePlot.PAL_DTRACE[2])
+
+            # Labels
             for fc, y, drug, genetic in plot_df[[beta, 'y', feature, 'Genetic']].values:
-                g_genes = '; '.join(datasets.genomic_obj.mobem_feature_to_gene(genetic))
+                if dtype == 'genomic':
+                    g_genes = '; '.join(datasets.genomic_obj.mobem_feature_to_gene(genetic))
 
-                xoffset = 0.075 if d == 'crispr' else 0.3
+                else:
+                    g_genes = genetic
+
+                xoffset = plot_df[beta].abs().max() * .2
 
                 ax.text(fc - xoffset, y, drug, va='center', fontsize=4, zorder=10, color='gray', ha='right')
                 ax.text(fc + xoffset, y, g_genes, va='center', fontsize=3, zorder=10, color='gray', ha='left')
 
+            # Misc
             ax.axvline(0, lw=.1, c=DTracePlot.PAL_DTRACE[1])
 
             ax.set_xlabel('Effect size (beta)')
@@ -299,9 +321,10 @@ class RobustLMMAnalysis(object):
 
             sns.despine(left=True, ax=ax)
 
-        plt.gcf().set_size_inches(2. * axs.shape[0], ntop * .12)
+        if dtype == 'genomic':
+            plt.legend(title='Genetic event', loc='center left', bbox_to_anchor=(1, 0.5), frameon=False)
 
-        plt.legend(title='Genetic event', loc='center left', bbox_to_anchor=(1, 0.5), frameon=False)
+        plt.gcf().set_size_inches(2. * axs.shape[0], ntop * .12)
 
 
 if __name__ == '__main__':
@@ -347,13 +370,16 @@ if __name__ == '__main__':
     plt.savefig('reports/robust_mobems_countplot.pdf', bbox_inches='tight', transparent=True)
     plt.close('all')
 
-    RobustLMMAnalysis.count_signif_associations(lmm_robust)
-    plt.gcf().set_size_inches(2, 1)
+    RobustLMMAnalysis.count_signif_associations(lmm_robust, lmm_robust_gexp)
     plt.savefig('reports/robust_count_signif.pdf', bbox_inches='tight', transparent=True)
     plt.close('all')
 
-    RobustLMMAnalysis.top_robust_features(lmm_robust)
+    RobustLMMAnalysis.top_robust_features(lmm_robust, ntop=30)
     plt.savefig('reports/robust_top_associations.pdf', bbox_inches='tight', transparent=True)
+    plt.close('all')
+
+    RobustLMMAnalysis.top_robust_features(lmm_robust_gexp, ntop=30, dtype='gene-expression')
+    plt.savefig('reports/robust_top_associations_gexp.pdf', bbox_inches='tight', transparent=True)
     plt.close('all')
 
     # Examples
