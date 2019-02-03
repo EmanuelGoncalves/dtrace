@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
 from scipy.stats import pearsonr
 from DTracePlot import DTracePlot
 from Associations import Association
@@ -245,6 +246,54 @@ class TargetHit(DTracePlot):
         plt.xlabel('Median beta')
         plt.ylabel('')
 
+    @staticmethod
+    def discretise_essentiality(gene_list):
+        return pd.Series({
+            s: ' + '.join([g for g in gene_list if data.crispr.loc[g, s] < -0.5]) for s in data.samples
+        }).replace('', 'None')
+
+    def drugresponse_boxplots(self, data, ctypes, hue_order, order, genes):
+        plot_df = pd.concat([
+            data.drespo.loc[hit.drugs].T,
+            self.discretise_essentiality(genes).rename('essentiality'),
+            data.samplesheet.samplesheet.loc[data.samples, 'cancer_type'].apply(lambda v: v if v in ctypes else 'Other')
+        ], axis=1, sort=False)
+
+        #
+        pal = pd.Series(self.get_palette_continuous(len(hue_order)), index=hue_order)
+
+        nrows = 2
+        ncols = int(len(hit.drugs) / nrows)
+
+        fig, axs = plt.subplots(nrows, ncols, sharex='all', sharey='all')
+
+        for i, d in enumerate(hit.drugs):
+            ax = axs[i % nrows, int(np.floor(i / nrows))]
+
+            sns.boxplot(
+                x=d, y='essentiality', hue='cancer_type', data=plot_df, orient='h', saturation=1., showcaps=False,
+                order=order, hue_order=hue_order, flierprops=self.FLIERPROPS, linewidth=.3, palette=pal, ax=ax
+            )
+
+            sns.despine(ax=ax)
+
+            dmax = np.log(data.drespo_obj.maxconcentration[d])
+            ax.axvline(dmax, linewidth=.3, color=self.PAL_DTRACE[2], ls=':', zorder=0)
+
+            ax.set_xlabel(f'{d[1]} (ln IC50, {d[2]})')
+            ax.set_ylabel('')
+
+            ax.legend().remove()
+
+        plt.legend(
+            handles=[mpatches.Patch(color=v, label=i) for i, v in pal.iteritems()], loc='center left',
+            bbox_to_anchor=(1, 0.5), prop={'size': 6}, frameon=False
+        )
+
+        plt.subplots_adjust(wspace=0.05, hspace=.3)
+
+        plt.gcf().set_size_inches(ncols * 1.5, nrows * 1.5)
+
 
 if __name__ == '__main__':
     # - Imports
@@ -298,4 +347,50 @@ if __name__ == '__main__':
     hit.predict_feature_plot(drug_lms)
     plt.gcf().set_size_inches(2.5, 3)
     plt.savefig(f'reports/hit_features_stripplot.pdf', bbox_inches='tight', transparent=True)
+    plt.close('all')
+
+    # -
+    ctypes = ['Breast Carcinoma', 'Colorectal Carcinoma', 'Acute Myeloid Leukemia']
+    genes = ['MCL1', 'MARCH5']
+    order = ['None', 'MARCH5', 'MCL1', 'MCL1 + MARCH5']
+    hue_order = ['Other', 'Breast Carcinoma', 'Colorectal Carcinoma', 'Acute Myeloid Leukemia']
+
+    #
+    hit.drugresponse_boxplots(data, ctypes=ctypes, hue_order=hue_order, order=order, genes=genes)
+    plt.savefig(f'reports/hit_drugresponse_boxplot.pdf', bbox_inches='tight', transparent=True)
+    plt.close('all')
+
+    #
+    drug = (1956, 'MCL1_1284', 'RS')
+
+    plot_df = pd.concat([
+        data.drespo.loc[drug].rename('drug'),
+        hit.discretise_essentiality(genes).rename('essentiality'),
+        data.samplesheet.samplesheet.loc[data.samples, 'cancer_type'].apply(lambda v: v if v in ctypes else 'Other')
+    ], axis=1, sort=False)
+
+    ctypes = ['Colorectal Carcinoma', 'Breast Carcinoma']
+
+    fig, axs = plt.subplots(1, len(ctypes), sharey='all', sharex='all')
+
+    for i, tissue in enumerate(ctypes):
+        df = plot_df.query(f"cancer_type == '{tissue}'")
+
+        g = DTracePlot().plot_multiple('drug', 'essentiality', df, n_offset=1, n_fontsize=5, ax=axs[i])
+
+        sns.despine(ax=axs[i])
+
+        dmax = np.log(data.drespo_obj.maxconcentration[drug])
+        axs[i].axvline(dmax, linewidth=.3, color=DTracePlot.PAL_DTRACE[2], ls=':', zorder=0)
+
+        daml = plot_df.query("cancer_type == 'Acute Myeloid Leukemia'")['drug'].mean()
+        axs[i].axvline(daml, linewidth=.5, color=DTracePlot.PAL_DTRACE[0], ls=':', zorder=0)
+
+        axs[i].set_xlabel(f'{drug[1]} (ln IC50, {drug[2]})')
+        axs[i].set_ylabel('')
+
+        axs[i].set_title(tissue)
+
+    plt.gcf().set_size_inches(2 * len(ctypes), .75)
+    plt.savefig(f'reports/hit_drugresponse_boxplot_tissue.pdf', bbox_inches='tight', transparent=True)
     plt.close('all')

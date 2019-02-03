@@ -43,15 +43,17 @@ class TargetBenchmark(DTracePlot):
         super().__init__()
 
     def boxplot_kinobead(self):
-        catds = pd.read_csv('data/klaeger_et_al_catds_most_potent.csv').dropna(subset=['name']).set_index('name')
+        catds = pd.read_csv('data/klaeger_et_al_catds_most_potent.csv')
 
-        drugs = self.lmm_drug.query(f'fdr < {self.fdr}').groupby('DRUG_NAME')['target'].agg(set)
+        drugs = self.lmm_drug.query(f'fdr < {self.fdr}')
+        drugs = drugs[drugs['beta'].abs() > .3]
+        drugs = drugs.groupby('DRUG_NAME')['target'].first()
 
         def __catds_id_match(drug_name):
             if str(drug_name).lower() == 'nan':
                 return 'NA'
 
-            elif (drug_name in drugs.index) and (len(drugs[drug_name].intersection({'T', '1'})) > 0):
+            elif (drug_name in drugs.index) and (drugs[drug_name] in ['T', '1']):
                 return 'Yes'
 
             else:
@@ -458,7 +460,7 @@ if __name__ == '__main__':
 
         g.set_axis_labels(f'{dg[1]} (scaled log2 FC)', f'{dg[0]} (ln IC50)')
 
-        plt.gcf().set_size_inches(1.5, 1.5)
+        plt.gcf().set_size_inches(2, 2)
         plt.savefig(f'reports/association_drug_scatter_{dg[0]}_{dg[1]}.pdf', bbox_inches='tight', transparent=True)
         plt.close('all')
 
@@ -484,7 +486,7 @@ if __name__ == '__main__':
 
         g.set_axis_labels(f'{dg[1]} (voom)', f'{dg[0]} (ln IC50)')
 
-        plt.gcf().set_size_inches(1.5, 1.5)
+        plt.gcf().set_size_inches(2, 2)
         plt.savefig(f'reports/association_drug_gexp_scatter_{dg[0]}_{dg[1]}.pdf', bbox_inches='tight', transparent=True)
         plt.close('all')
 
@@ -513,3 +515,8 @@ if __name__ == '__main__':
     for d, t, o, e in ppi_examples:
         graph = PPI.plot_ppi(d, trg.lmm_drug, ppi, corr_thres=t, norder=o, fdr=0.05, exclude_nodes=e)
         graph.write_pdf(f'reports/association_ppi_{d}.pdf')
+
+    # Betas clustermap
+    betas_crispr = pd.pivot_table(
+        trg.lmm_drug, index='GeneSymbol', columns=['DRUG_ID', 'DRUG_NAME', 'VERSION'], values='beta'
+    )
