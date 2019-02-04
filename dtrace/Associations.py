@@ -197,80 +197,101 @@ class Association:
 
         return lmm_single
 
-    @staticmethod
-    def __lmm_robust_association(association, y1, y2, x, min_events, is_gexp):
-        samples = list(x)
+    def lmm_robust_association(self, lmm_dsingle, is_gexp=False, fdr_thres=.1, min_events=5):
+        lmm_res_signif = lmm_dsingle.query(f'fdr < {fdr_thres}')
 
-        # Build drug measurement matrix
-        Y1 = y1.loc[[tuple(association[:3])], samples].T.dropna()
-        Y1 = pd.DataFrame(StandardScaler().fit_transform(Y1), index=Y1.index, columns=Y1.columns)
+        genes = set(lmm_res_signif['GeneSymbol'])
+        drugs = {tuple(d) for d in lmm_res_signif[DrugResponse.DRUG_COLUMNS].values}
 
-        # Build CRISPR measurement matrix
-        Y2 = y2.loc[[association[3]], Y1.index].T
-        Y2 = pd.DataFrame(StandardScaler().fit_transform(Y2), index=Y2.index, columns=Y2.columns)
+        X = self.gexp if is_gexp else self.genomic
+        samples = set(X).intersection(self.samples)
+        print(f'Assoc={lmm_res_signif.shape[0]}; Genes={len(genes)}; Drugs={len(drugs)}; Samples={len(samples)}')
 
-        # Build genomic feature matrix
-        X = x[Y1.index].T
+        # Drug associations
+        lmm_drug = []
+        for drug in drugs:
+            # Observations
+            y = self.drespo.loc[[drug], samples].T.dropna()
+            y = pd.DataFrame(StandardScaler().fit_transform(y), index=y.index, columns=y.columns)
 
-        if is_gexp:
-            X = pd.DataFrame(StandardScaler().fit_transform(X), index=X.index, columns=X.columns)
+            # Features
+            x = X[y.index].T
+            if is_gexp:
+                x = pd.DataFrame(StandardScaler().fit_transform(x), index=x.index, columns=x.columns)
+            else:
+                x = x.loc[:, x.sum() >= min_events]
 
-        else:
-            X = X.loc[:, X.sum() >= min_events]
+            # Random effects matrix
+            k = x.loc[y.index]
+            k = k.dot(k.T)
+            k /= (k.values.diagonal().mean())
 
-        # Random effects matrix
-        K = x[Y1.index].T
-        K = K.dot(K.T)
-        K /= (K.values.diagonal().mean())
+            # Linear Mixed Model
+            lmm = scan(x, y, K=k, lik='normal', verbose=False)
 
-        # Linear Mixed Model
-        lmm_y1 = scan(X, Y1, K=K, lik='normal', verbose=False)
-        lmm_y2 = scan(X, Y2, K=K, lik='normal', verbose=False)
+            # Export
+            lmm_drug.append(pd.DataFrame(dict(
+                beta=lmm.variant_effsizes.values, pval=lmm.variant_pvalues.values, feature=x.columns,
+                DRUG_ID=drug[0], DRUG_NAME=drug[1], VERSION=drug[2]
+            )))
 
-        # Assemble output
-        df = pd.DataFrame(dict(
-            beta_drug=lmm_y1.variant_effsizes.values,
-            pval_drug=lmm_y1.variant_pvalues.values,
-            beta_crispr=lmm_y2.variant_effsizes.values,
-            pval_crispr=lmm_y2.variant_pvalues.values,
-            Genetic=X.columns,
-            n_events=X.sum().values
-        ))
+        lmm_drug = pd.concat(lmm_drug).reset_index(drop=True)
+        lmm_drug = self.multipletests_per_drug(lmm_drug, field='pval', fdr_field=f'fdr')
+        lmm_drug = lmm_drug.sort_values('fdr')
 
-        df = df.assign(DRUG_ID=association[0])
-        df = df.assign(DRUG_NAME=association[1])
-        df = df.assign(VERSION=association[2])
-        df = df.assign(GeneSymbol=association[3])
-        df = df.assign(n_samples=Y1.shape[0])
+        # Drug associations
+        lmm_crispr = []
+        for gene in genes:
+            # Observations
+            y = self.crispr.loc[[gene], samples].T.dropna()
+            y = pd.DataFrame(StandardScaler().fit_transform(y), index=y.index, columns=y.columns)
 
-        return df
+            # Features
+            x = X[y.index].T
+            if is_gexp:
+                x = pd.DataFrame(StandardScaler().fit_transform(x), index=x.index, columns=x.columns)
+            else:
+                x = x.loc[:, x.sum() >= min_events]
 
-    def lmm_robust_association(self, lmm_single_associations, fdr_thres=.1, min_events=5, is_gexp=True):
-        lmm_res_signif = lmm_single_associations.query(f'fdr < {fdr_thres}')
-        print(f'#(Significant associations) = {lmm_res_signif.shape[0]}')
+            # Random effects matrix
+            k = x.loc[y.index]
+            k = k.dot(k.T)
+            k /= (k.values.diagonal().mean())
 
-        lmmrobust = pd.concat([
-            self.__lmm_robust_association(
-                association=a,
-                y1=self.drespo,
-                y2=self.crispr,
-                x=self.genomic if not is_gexp else self.gexp,
-                min_events=min_events,
-                is_gexp=is_gexp
+            # Linear Mixed Model
+            lmm = scan(x, y, K=k, lik='normal', verbose=False)
+
+            # Export
+            lmm_crispr.append(pd.DataFrame(dict(
+                beta=lmm.variant_effsizes.values, pval=lmm.variant_pvalues.values, feature=x.columns, gene=gene
+            )))
+
+        lmm_crispr = pd.concat(lmm_crispr).reset_index(drop=True)
+        lmm_crispr = self.multipletests_per_drug(lmm_crispr, field='pval', fdr_field='fdr', index_cols=['gene'])
+        lmm_crispr = lmm_crispr.sort_values('fdr')
+
+        # Expand <Drug, CRISPR> significant associations
+        lmm_robust = []
+        for i in lmm_res_signif.index:
+            row = lmm_res_signif.loc[i]
+            drug, gene = tuple(row[self.drespo_obj.DRUG_COLUMNS].values), row['GeneSymbol']
+
+            pair_associations = pd.concat([
+                lmm_drug.set_index(self.drespo_obj.DRUG_COLUMNS + ['feature']).loc[drug].add_prefix('drug_'),
+                lmm_crispr.set_index(['gene', 'feature']).loc[gene].add_prefix('crispr_')
+            ], axis=1, sort=False).reset_index().rename(columns={'index': 'feature'})
+            pair_associations.index = [tuple(list(drug) + [gene]) for i in pair_associations.index]
+
+            row = row.to_frame().T
+            row.index = [tuple(list(drug) + [gene]) for i in row.index]
+
+            lmm_robust.append(
+                row.merge(pair_associations, how='outer', left_index=True, right_index=True)
             )
-            for a in lmm_res_signif[DrugResponse.DRUG_COLUMNS + ['GeneSymbol']].values
-        ])
 
-        lmmrobust = self.multipletests_per_drug(lmmrobust, field='pval_drug', fdr_field=f'fdr_drug')
-        lmmrobust = self.multipletests_per_drug(lmmrobust, field='pval_crispr', fdr_field='fdr_crispr')
+        lmm_robust = pd.concat(lmm_robust).reset_index(drop=True)
 
-        lmmrobust = self.annotate_drug_target(lmmrobust)
-
-        lmmrobust = self.ppi.ppi_annotation(
-            lmmrobust, ppi_type='string', ppi_kws=dict(score_thres=900), target_thres=5
-        )
-
-        return lmmrobust
+        return lmm_robust
 
     def get_drug_top(self, lmm_associations, drug, top_features):
         d_genes = lmm_associations\
@@ -406,7 +427,7 @@ if __name__ == '__main__':
         .sort_values(['pval', 'fdr'])\
         .to_csv(f'data/drug_lmm_regressions_{dtype}_gexp.csv.gz', index=False, compression='gzip')
 
-    lmm_robust = assoc.lmm_robust_association(lmm_dsingle)
+    lmm_robust = assoc.lmm_robust_association(lmm_dsingle, is_gexp=False)
     lmm_robust\
         .sort_values(['fdr_drug', 'pval_drug'])\
         .to_csv(f'data/drug_lmm_regressions_robust_{dtype}.csv.gz', index=False, compression='gzip')

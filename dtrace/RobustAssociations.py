@@ -205,8 +205,10 @@ class RobustLMMAnalysis:
         plot_df = []
         for f in ['fdr_crispr', 'fdr_drug', 'both']:
             for n, df in [('Mutation/Copy-number', lmm_robust), ('Gene-expression', lmm_robust_gexp)]:
-                df_ = df.query(f'{f} < {fdr}') if f != 'both' else df.query(
-                    f'(fdr_crispr < {fdr}) & (fdr_drug < {fdr})')
+                if f != 'both':
+                    df_ = df.query(f'{f} < {fdr}')
+                else:
+                    df_ = df.query(f'(fdr_crispr < {fdr}) & (fdr_drug < {fdr})')
 
                 df_ = df_.groupby('target')['DRUG_NAME'].agg('count').rename('count').to_frame().assign(
                     variable=f.split('_')[1] if f != 'both' else f).assign(genetic=n)
@@ -381,6 +383,14 @@ if __name__ == '__main__':
     RobustLMMAnalysis.top_robust_features(lmm_robust_gexp, ntop=30, dtype='gene-expression')
     plt.savefig('reports/robust_top_associations_gexp.pdf', bbox_inches='tight', transparent=True)
     plt.close('all')
+
+    #
+    cols = ['DRUG_ID', 'DRUG_NAME', 'VERSION', 'Genetic']
+
+    pd.concat([
+        lmm_robust.query('(fdr_drug < .1)').groupby(cols)['GeneSymbol'].count(),
+        lmm_robust.query('(fdr_drug < .1) & (fdr_crispr < .1)').groupby(cols)['GeneSymbol'].count()
+    ], axis=1, sort=False).replace(np.nan, 0).astype(int)
 
     # Examples
     rassocs = [
