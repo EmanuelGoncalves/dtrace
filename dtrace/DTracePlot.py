@@ -25,10 +25,17 @@ class DTracePlot(CrispyPlot):
     # - DEFAULT AESTHETICS
     SNS_RC = {
         'axes.linewidth': .3,
+
         'xtick.major.width': .3,
         'ytick.major.width': .3,
         'xtick.major.size': 2.5,
         'ytick.major.size': 2.5,
+
+        'xtick.minor.width': .3,
+        'ytick.minor.width': .3,
+        'xtick.minor.size': 1.5,
+        'ytick.minor.size': 1.5,
+
         'xtick.direction': 'in',
         'ytick.direction': 'in'
     }

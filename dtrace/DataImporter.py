@@ -51,7 +51,7 @@ class DrugResponse:
         ], sort=False).sort_values()
 
     @staticmethod
-    def get_drugsheet(drugsheet_file='data/meta/drugsheet_20190109.xlsx'):
+    def get_drugsheet(drugsheet_file='data/meta/drugsheet_20190204.xlsx'):
         return pd.read_excel(drugsheet_file, index_col=0)
 
     @classmethod

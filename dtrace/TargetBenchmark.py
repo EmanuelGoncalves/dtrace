@@ -10,12 +10,32 @@ from DTracePlot import DTracePlot
 from natsort import natsorted
 from crispy.utils import Utils
 from crispy.qc_plot import QCplot
+from matplotlib.lines import Line2D
 from Associations import Association
 from DataImporter import DrugResponse, PPI
-from scipy.stats import ttest_ind, mannwhitneyu
+from sklearn.linear_model import RidgeCV, Ridge
+from scipy.stats import ttest_ind, mannwhitneyu, gmean
+from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import ShuffleSplit
+from sklearn.ensemble import RandomForestRegressor
 
 
 class TargetBenchmark(DTracePlot):
+    DRUG_TARGETS_COLORS = {
+        '#8ebadb': {'RAF1', 'BRAF'}, '#5f9ecc': {'MAPK1', 'MAPK3'}, '#3182bd': {'MAP2K1', 'MAP2K2'},
+        '#f2a17a': {'PIK3CA', 'PIK3CB'}, '#ec7b43': {'AKT1', 'AKT2', 'AKT3'}, '#e6550d': {'MTOR'},
+        '#6fc088': {'EGFR'}, '#31a354': {'IGF1R'},
+        '#b2acd3': {'CHEK1', 'CHEK2'}, '#938bc2': {'ATR'}, '#756bb1': {'WEE1', 'TERT'},
+        '#eeaad3': {'BTK'}, '#e78ac3': {'SYK'},
+        '#66c2a5': {'PARP1'},
+        '#fedf57': {'BCL2', 'BCL2L1'}, '#fefb57': {'MCL1'},
+        '#636363': {'GLS'},
+        '#dd9a00': {'AURKA', 'AURKB'},
+        '#bc80bd': {'BRD2', 'BRD4', 'BRD3'},
+        '#983539': {'JAK1', 'JAK2', 'JAK3'},
+        '#ffffff': {'No target'}, '#e1e1e1': {'Other target'}, '#bbbbbb': {'Multiple targets'}
+    }
+
     def __init__(self, fdr=.1, dtype='ic50'):
         self.fdr = fdr
         self.dtype = dtype
@@ -23,71 +43,94 @@ class TargetBenchmark(DTracePlot):
         # Imports
         self.datasets = Association(dtype_drug=dtype)
 
-        self.lmm_drug = pd.read_csv(f'data/drug_lmm_regressions_{dtype}.csv.gz')
-        self.lmm_drug_gexp = pd.read_csv(f'data/drug_lmm_regressions_{dtype}_gexp.csv.gz')
+        # Associations
+        self.lmm_drug = pd.read_csv(f'data/drug_lmm_regressions_{self.dtype}.csv.gz')
+        self.lmm_drug_gexp = pd.read_csv(f'data/drug_lmm_regressions_{self.dtype}_gexp.csv.gz')
+
+        # Multiple drugs
+        self.lmm_multiple = pd.read_csv(f'data/drug_lmm_regressions_multiple_{self.dtype}.csv.gz')
 
         # Define sets of drugs
         self.df_genes = set(self.lmm_drug['GeneSymbol'])
         self.d_targets = self.datasets.drespo_obj.get_drugtargets(by='Name')
+        self.d_targets_id = self.datasets.drespo_obj.get_drugtargets(by='id')
 
         self.drugs_all = set(self.lmm_drug['DRUG_NAME'])
+        self.drugs_signif = {d for d in self.lmm_drug.query(f'fdr < {self.fdr}')['DRUG_NAME']}
+
         self.drugs_annot = {d for d in self.drugs_all if d in self.d_targets}
         self.drugs_tested = {d for d in self.drugs_annot if len(self.d_targets[d].intersection(self.df_genes)) > 0}
-        self.drugs_tested_signif = {
-            d for d in self.lmm_drug.query(f'fdr < {self.fdr}')['DRUG_NAME'] if d in self.drugs_tested
-        }
-        self.drugs_tested_correct = {
-            d for d in self.lmm_drug.query(f"fdr < {self.fdr} & target == 'T'")['DRUG_NAME'] if d in self.drugs_tested_signif
+        self.drugs_tested_signif = {d for d in self.lmm_drug.query(f'fdr < {self.fdr}')['DRUG_NAME'] if d in self.drugs_tested}
+        self.drugs_tested_correct = {d for d in self.lmm_drug.query(f"fdr < {self.fdr} & target == 'T'")['DRUG_NAME'] if d in self.drugs_tested_signif}
+
+        self.drugs_tested_ppi = {
+            d for d in self.lmm_drug.query(
+                f"fdr < {self.fdr} & ((target == 'T') | (target == '1'))"
+            )['DRUG_NAME'] if d in self.drugs_tested_signif
         }
 
         super().__init__()
 
+    def get_drug_target_color(self, drug_id):
+        if drug_id not in self.d_targets_id:
+            return '#ffffff'
+
+        drug_targets = [
+            c for c in self.DRUG_TARGETS_COLORS
+            if len(self.d_targets_id[drug_id].intersection(self.DRUG_TARGETS_COLORS[c])) > 0
+        ]
+
+        if len(drug_targets) == 0:
+            return '#e1e1e1'
+
+        elif len(drug_targets) == 1:
+            return drug_targets[0]
+
+        else:
+            return '#bbbbbb'
+
     def boxplot_kinobead(self):
-        catds = pd.read_csv('data/klaeger_et_al_catds_most_potent.csv')
+        dmap = pd.read_csv('data/klaeger_et_al_catds_most_potent.csv').set_index('Drug')['name'].dropna()
 
-        drugs = self.lmm_drug.query(f'fdr < {self.fdr}')
-        drugs = drugs[drugs['beta'].abs() > .3]
-        drugs = drugs.groupby('DRUG_NAME')['target'].first()
+        catds_m = pd.read_csv('data/klaeger_et_al_catds.csv', index_col=0)
+        catds_m = catds_m[catds_m.index.isin(dmap.index)]
+        catds_m.index = dmap[catds_m.index].values
 
-        def __catds_id_match(drug_name):
-            if str(drug_name).lower() == 'nan':
-                return 'NA'
+        catds_m = catds_m.unstack().dropna().reset_index()
+        catds_m.columns = ['target', 'drug', 'catds']
 
-            elif (drug_name in drugs.index) and (drugs[drug_name] in ['T', '1']):
-                return 'Yes'
+        catds_m['is_target'] = [int(t in self.d_targets[d]) for d, t in catds_m[['drug', 'target']].values]
 
-            else:
-                return 'No'
+        lmm_drug_subset = self.lmm_drug[self.lmm_drug['DRUG_NAME'].isin(catds_m['drug'])]
+        catds_m['lmm_pval'] = lmm_drug_subset.groupby(['GeneSymbol', 'DRUG_NAME'])['fdr'].min()[catds_m.set_index(['target', 'drug']).index].values
+        catds_m['lmm_signif'] = catds_m['lmm_pval'].apply(lambda v: 'Yes' if v < self.fdr else 'No')
 
-        catds['signif'] = catds['name'].apply(__catds_id_match)
+        catds_m = catds_m.sort_values('catds').dropna()
 
-        t, p = ttest_ind(
-            catds[catds['signif'] == 'No']['CATDS_most_potent'],
-            catds[catds['signif'] == 'Yes']['CATDS_most_potent'],
-            equal_var=False
+        #
+        t, p = mannwhitneyu(
+            catds_m.query("lmm_signif == 'Yes'")['catds'], catds_m.query("lmm_signif == 'No'")['catds']
         )
-        print(p)
 
         # Plot
-        ax = plt.gca()
+        order = ['No', 'Yes']
+        pal = {'No': self.PAL_DTRACE[1], 'Yes': self.PAL_DTRACE[0]}
 
-        order = ['No', 'Yes', 'NA']
-        pal = {'No': self.PAL_DTRACE[2], 'Yes': self.PAL_DTRACE[0], 'NA': self.PAL_DTRACE[1]}
+        ax = sns.boxplot(
+            catds_m['lmm_signif'], catds_m['catds'], palette=pal, linewidth=.3, fliersize=1.5, order=order,
+            flierprops=self.FLIERPROPS, showcaps=False
+        )
 
-        sns.boxplot(catds['signif'], catds['CATDS_most_potent'], notch=True, palette=pal, linewidth=.3, fliersize=1.5, order=order, ax=ax)
-        sns.swarmplot(catds['signif'], catds['CATDS_most_potent'], palette=pal, linewidth=.3, size=2, order=order, ax=ax)
-        ax.axhline(0.5, lw=.3, c=self.PAL_DTRACE[1], ls='-', alpha=.8, zorder=0)
+        ax.scatter(1, gmean(catds_m.query("lmm_signif == 'Yes'")['catds']), marker='+', lw=.3, color='k', s=3)
+        ax.scatter(0, gmean(catds_m.query("lmm_signif == 'No'")['catds']), marker='+', lw=.3, color='k', s=3)
+
+        ax.set_yscale('log')
 
         sns.despine(top=True, right=True, ax=ax)
 
-        ax.set_ylim((-0.1, 1.1))
-
-        ax.set_xlabel('Drug has a significant\nCRISPR-Cas9 association')
-        ax.set_ylabel('Selectivity[$CATDS_{most\ potent}$]')
-
-        plt.gcf().set_size_inches(1, 2.5)
-        plt.savefig(f'reports/target_benchmark_kinobeads.pdf', bbox_inches='tight', transparent=True)
-        plt.close('all')
+        ax.set_title(f'Drug-Gene association\n(Mann-Whitney p-value={p:.2g})')
+        ax.set_xlabel('Significant')
+        ax.set_ylabel('Kinobeads selectivity (apparent pKd [nM])')
 
     def beta_histogram(self):
         kde_kws = dict(cut=0, lw=1, zorder=1, alpha=.8)
@@ -376,6 +419,24 @@ class TargetBenchmark(DTracePlot):
         ax.set_xlabel('Drug association (-log10 p-value)')
         ax.set_title(drug)
 
+    def lmm_betas_clustermap(self, matrix_betas):
+        matrix_betas_corr = matrix_betas.T.corr()
+
+        row_cols = pd.Series({d: self.get_drug_target_color(d[0]) for d in matrix_betas_corr.index})
+        col_cols = pd.Series({d: self.get_drug_target_color(d[0]) for d in matrix_betas_corr.columns})
+
+        sns.clustermap(
+            matrix_betas_corr, xticklabels=False, yticklabels=False, col_colors=col_cols, row_colors=row_cols,
+            cmap='mako'
+        )
+
+    def lmm_betas_clustermap_legend(self):
+        labels = {
+            ';'.join(self.DRUG_TARGETS_COLORS[c]): Line2D([0], [0], color=c, lw=4) for c in self.DRUG_TARGETS_COLORS
+        }
+
+        plt.legend(labels.values(), labels.keys(), bbox_to_anchor=(.5, 1.), frameon=False)
+
 
 if __name__ == '__main__':
     # Import target benchmark
@@ -385,6 +446,11 @@ if __name__ == '__main__':
     ppi = PPI.ppi_corr(ppi, trg.datasets.crispr)
 
     #
+    trg.boxplot_kinobead()
+    plt.gcf().set_size_inches(.75, 2.5)
+    plt.savefig(f'reports/target_benchmark_kinobeads.pdf', bbox_inches='tight', transparent=True)
+    plt.close('all')
+
     trg.top_associations_barplot()
     plt.savefig('reports/target_benchmark_associations_barplot.pdf', bbox_inches='tight', transparent=True)
     plt.close('all')
@@ -516,7 +582,18 @@ if __name__ == '__main__':
         graph = PPI.plot_ppi(d, trg.lmm_drug, ppi, corr_thres=t, norder=o, fdr=0.05, exclude_nodes=e)
         graph.write_pdf(f'reports/association_ppi_{d}.pdf')
 
-    # Betas clustermap
+    # - Betas clustermap
     betas_crispr = pd.pivot_table(
-        trg.lmm_drug, index='GeneSymbol', columns=['DRUG_ID', 'DRUG_NAME', 'VERSION'], values='beta'
+        trg.lmm_drug.query("VERSION == 'RS'"), index=['DRUG_ID', 'DRUG_NAME'], columns='GeneSymbol', values='beta'
     )
+
+    #
+    trg.lmm_betas_clustermap(betas_crispr)
+    plt.gcf().set_size_inches(8, 8)
+    plt.savefig('reports/target_benchmark_clustermap_betas_crispr.png', bbox_inches='tight', dpi=300)
+    plt.close('all')
+
+    #
+    trg.lmm_betas_clustermap_legend()
+    plt.savefig('reports/target_benchmark_clustermap_betas_crispr_legend.pdf', bbox_inches='tight')
+    plt.close('all')
