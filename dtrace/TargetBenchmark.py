@@ -117,20 +117,20 @@ class TargetBenchmark(DTracePlot):
         pal = {'No': self.PAL_DTRACE[1], 'Yes': self.PAL_DTRACE[0]}
 
         ax = sns.boxplot(
-            catds_m['lmm_signif'], catds_m['catds'], palette=pal, linewidth=.3, fliersize=1.5, order=order,
-            flierprops=self.FLIERPROPS, showcaps=False
+            catds_m['catds'], catds_m['lmm_signif'], palette=pal, linewidth=.3, fliersize=1.5, order=order,
+            flierprops=self.FLIERPROPS, showcaps=False, orient='h'
         )
 
-        ax.scatter(1, gmean(catds_m.query("lmm_signif == 'Yes'")['catds']), marker='+', lw=.3, color='k', s=3)
-        ax.scatter(0, gmean(catds_m.query("lmm_signif == 'No'")['catds']), marker='+', lw=.3, color='k', s=3)
+        ax.scatter(gmean(catds_m.query("lmm_signif == 'Yes'")['catds']), 1, marker='+', lw=.3, color='k', s=3)
+        ax.scatter(gmean(catds_m.query("lmm_signif == 'No'")['catds']), 0, marker='+', lw=.3, color='k', s=3)
 
-        ax.set_yscale('log')
+        ax.set_xscale('log')
 
         sns.despine(top=True, right=True, ax=ax)
 
         ax.set_title(f'Drug-Gene association\n(Mann-Whitney p-value={p:.2g})')
-        ax.set_xlabel('Significant')
-        ax.set_ylabel('Kinobeads selectivity (apparent pKd [nM])')
+        ax.set_ylabel('Significant')
+        ax.set_xlabel('Kinobeads selectivity (apparent pKd [nM])')
 
     def beta_histogram(self):
         kde_kws = dict(cut=0, lw=1, zorder=1, alpha=.8)
@@ -367,7 +367,7 @@ class TargetBenchmark(DTracePlot):
 
             else:
                 sns.despine(ax=axs[i], right=True, top=True)
-                axs[i].set_ylabel('Drug-gene association\n(-log10 p-value)')
+                axs[i].set_ylabel('Drug-gene association (-log10 p-value)')
 
         f.add_subplot(111, frameon=False)
         plt.tick_params(labelcolor='none', top='off', bottom='off', left='off', right='off')
@@ -447,7 +447,7 @@ if __name__ == '__main__':
 
     #
     trg.boxplot_kinobead()
-    plt.gcf().set_size_inches(.75, 2.5)
+    plt.gcf().set_size_inches(2.5, .75)
     plt.savefig(f'reports/target_benchmark_kinobeads.pdf', bbox_inches='tight', transparent=True)
     plt.close('all')
 
@@ -456,7 +456,7 @@ if __name__ == '__main__':
     plt.close('all')
 
     trg.manhattan_plot(n_genes=20)
-    plt.gcf().set_size_inches(5, 2)
+    plt.gcf().set_size_inches(7, 3)
     plt.savefig('reports/drug_associations_manhattan.png', bbox_inches='tight', transparent=True, dpi=600)
     plt.close('all')
 
@@ -526,7 +526,7 @@ if __name__ == '__main__':
 
         g.set_axis_labels(f'{dg[1]} (scaled log2 FC)', f'{dg[0]} (ln IC50)')
 
-        plt.gcf().set_size_inches(2, 2)
+        plt.gcf().set_size_inches(1.5, 1.5)
         plt.savefig(f'reports/association_drug_scatter_{dg[0]}_{dg[1]}.pdf', bbox_inches='tight', transparent=True)
         plt.close('all')
 

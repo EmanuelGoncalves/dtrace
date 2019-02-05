@@ -7,8 +7,6 @@ import warnings
 import numpy as np
 import pandas as pd
 import crispy as cy
-import seaborn as sns
-import matplotlib.pyplot as plt
 from dtrace.DTracePlot import DTracePlot
 
 

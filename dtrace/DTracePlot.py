@@ -66,7 +66,7 @@ class DTracePlot(CrispyPlot):
         # Joint
         for t, df in dataframe.groupby(style):
             grid.ax_joint.scatter(
-                x=df[x], y=df[y], edgecolor='w', lw=.1, s=5, color=cls.PAL_DTRACE[2], marker=cls.MARKERS[t], label=t,
+                x=df[x], y=df[y], edgecolor='w', lw=.05, s=10, color=cls.PAL_DTRACE[2], marker=cls.MARKERS[t], label=t,
                 alpha=.8
             )
 

@@ -399,7 +399,8 @@ class Association:
         # Association
         lmm_gexp_crispr = pd.concat([
             self.lmm_single_association(
-                self.crispr.loc[[g], samples].T, self.gexp.T.loc[samples], k=k.loc[samples, samples], m=m.loc[samples], expand_drug_id=False
+                self.crispr.loc[[g], samples].T, self.gexp.T.loc[samples], k=k.loc[samples, samples], m=m.loc[samples],
+                expand_drug_id=False
             ) for g in crispr_genes
         ])
 
@@ -429,12 +430,12 @@ if __name__ == '__main__':
 
     lmm_robust = assoc.lmm_robust_association(lmm_dsingle, is_gexp=False)
     lmm_robust\
-        .sort_values(['fdr_drug', 'pval_drug'])\
+        .sort_values(['drug_pval', 'drug_fdr'])\
         .to_csv(f'data/drug_lmm_regressions_robust_{dtype}.csv.gz', index=False, compression='gzip')
 
     lmm_robust_gexp = assoc.lmm_robust_association(lmm_dsingle, is_gexp=True)
     lmm_robust_gexp\
-        .sort_values(['fdr_drug', 'pval_drug'])\
+        .sort_values(['drug_pval', 'drug_fdr'])\
         .to_csv(f'data/drug_lmm_regressions_robust_gexp_{dtype}.csv.gz', index=False, compression='gzip')
 
     lmm_multi = assoc.lmm_multiple_association(lmm_dsingle)

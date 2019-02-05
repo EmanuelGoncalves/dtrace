@@ -10,8 +10,8 @@ from DTracePlot import DTracePlot
 from natsort import natsorted
 from scipy.stats import ttest_ind
 from sklearn.manifold import TSNE
-from DataImporter import DrugResponse
 from Associations import Association
+from DataImporter import DrugResponse, PPI
 from sklearn.preprocessing import StandardScaler
 
 
@@ -200,29 +200,33 @@ class SingleLMMTSNE:
 
 
 class RobustLMMAnalysis:
+    GENETIC_PAL = {'Mutation': '#ffde17', 'CN loss': '#6ac4ea', 'CN gain': '#177ba5'}
+    GENETIC_ORDER = ['Mutation', 'CN loss', 'CN gain']
+
     @staticmethod
     def count_signif_associations(lmm_robust, lmm_robust_gexp, fdr=0.1):
+        pair_col = ['DRUG_ID', 'DRUG_NAME', 'VERSION', 'GeneSymbol', 'target']
+
         plot_df = []
-        for f in ['fdr_crispr', 'fdr_drug', 'both']:
+        for f in ['crispr_fdr', 'drug_fdr', 'both']:
             for n, df in [('Mutation/Copy-number', lmm_robust), ('Gene-expression', lmm_robust_gexp)]:
-                if f != 'both':
-                    df_ = df.query(f'{f} < {fdr}')
-                else:
-                    df_ = df.query(f'(fdr_crispr < {fdr}) & (fdr_drug < {fdr})')
+                pairs = df.query(f'(crispr_fdr < {fdr}) & (drug_fdr < {fdr})' if f == 'both' else f'{f} < {fdr}')
 
-                df_ = df_.groupby('target')['DRUG_NAME'].agg('count').rename('count').to_frame().assign(
-                    variable=f.split('_')[1] if f != 'both' else f).assign(genetic=n)
+                pairs_count = pd.Series({tuple(p[:-1]): p[-1] for p in pairs[pair_col].values}).value_counts()
+                pairs_count = pairs_count.rename('count').reset_index().rename(columns={'index': 'ppi'})
+                pairs_count = pairs_count.assign(variable=f.split('_')[0] if f != 'both' else f).assign(genetic=n)
 
-                plot_df.append(df_)
+                plot_df.append(pairs_count)
 
         plot_df = pd.concat(plot_df).reset_index()
 
         order = ['T', '1', '2', '3', '4', '5+', '-']
-        pal = pd.Series(DTracePlot.get_palette_continuous(3, DTracePlot.PAL_DTRACE[2]),
-                        index=['both', 'drug', 'crispr'])
+        pal = pd.Series(
+            DTracePlot.get_palette_continuous(3, DTracePlot.PAL_DTRACE[2]), index=['both', 'drug', 'crispr']
+        )
 
         g = sns.catplot(
-            x='count', y='target', hue='variable', row='genetic', data=plot_df, kind='bar', order=order, palette=pal,
+            x='count', y='ppi', hue='variable', row='genetic', data=plot_df, kind='bar', order=order, palette=pal,
             height=2.5, legend=False, legend_out=False
         )
 
@@ -236,11 +240,8 @@ class RobustLMMAnalysis:
 
         g.set_axis_labels('Significant associations', 'Drug target ~ CRISPR\nPPI distance')
 
-        plt.savefig('reports/robust_count_signif.pdf', bbox_inches='tight', transparent=True)
-        plt.close('all')
-
-    @staticmethod
-    def genomic_histogram(datasets, ntop=40):
+    @classmethod
+    def genomic_histogram(cls, datasets, ntop=40):
         # Build dataframe
         plot_df = datasets.genomic.drop(['msi_status']).sum(1).rename('count').reset_index()
 
@@ -255,10 +256,10 @@ class RobustLMMAnalysis:
         plot_df = plot_df.sort_values('count', ascending=False).head(ntop)
 
         # Plot
-        order = ['Mutation', 'CN loss', 'CN gain']
-        pal = pd.Series(DTracePlot.PAL_DTRACE[:3], index=order).to_dict()
-
-        sns.barplot('count', 'name', 'type', data=plot_df, palette=pal, hue_order=order, dodge=False, saturation=1)
+        sns.barplot(
+            'count', 'name', 'type', data=plot_df, palette=cls.GENETIC_PAL, hue_order=cls.GENETIC_ORDER, dodge=False,
+            saturation=1
+        )
 
         plt.xlabel('Number of occurrences')
         plt.ylabel('')
@@ -268,40 +269,37 @@ class RobustLMMAnalysis:
 
         plt.gcf().set_size_inches(2, .15 * ntop)
 
-    @staticmethod
-    def top_robust_features(associations, ntop=30, dtype='genomic'):
+    @classmethod
+    def top_robust_features(cls, associations, ntop=30, dtype='genomic'):
         f, axs = plt.subplots(1, 2, sharex='none', sharey='none', gridspec_kw=dict(wspace=.75))
 
         for i, d in enumerate(['drug', 'crispr']):
             ax = axs[i]
-            beta, pval, fdr = f'beta_{d}', f'pval_{d}', f'fdr_{d}'
+            beta, pval, fdr = f'{d}_beta', f'{d}_pval', f'{d}_fdr'
 
             feature = 'DRUG_NAME' if d == 'drug' else 'GeneSymbol'
 
             # Dataframe
-            plot_df = associations.query("Genetic != 'msi_status'")
-            plot_df = plot_df.groupby([feature, 'Genetic'])[beta, pval, fdr].first().reset_index()
+            plot_df = associations.query("feature != 'msi_status'")
+            plot_df = plot_df.groupby([feature, 'feature'])[beta, pval, fdr].first().reset_index()
 
             if dtype == 'genomic':
-                plot_df = plot_df[[len(datasets.genomic_obj.mobem_feature_to_gene(i)) != 0 for i in plot_df['Genetic']]]
-                plot_df = plot_df.assign(type=[datasets.genomic_obj.mobem_feature_type(i) for i in plot_df['Genetic']])
+                plot_df = plot_df[[len(datasets.genomic_obj.mobem_feature_to_gene(i)) != 0 for i in plot_df['feature']]]
+                plot_df = plot_df.assign(type=[datasets.genomic_obj.mobem_feature_type(i) for i in plot_df['feature']])
 
             plot_df = plot_df.sort_values([fdr, pval]).head(ntop).sort_values(beta, ascending=False)
             plot_df = plot_df.assign(y=range(plot_df.shape[0]))
 
             # Scatter
             if dtype == 'genomic':
-                order = ['Mutation', 'CN loss', 'CN gain']
-                pal = pd.Series(DTracePlot.PAL_DTRACE[:3], index=order).to_dict()
-
-                for t in order:
+                for t in cls.GENETIC_ORDER:
                     df = plot_df.query(f"type == '{t}'")
-                    ax.scatter(df[beta], df['y'], c=pal[t], label=t)
+                    ax.scatter(df[beta], df['y'], c=cls.GENETIC_PAL[t], label=t)
             else:
                 ax.scatter(plot_df[beta], plot_df['y'], c=DTracePlot.PAL_DTRACE[2])
 
             # Labels
-            for fc, y, drug, genetic in plot_df[[beta, 'y', feature, 'Genetic']].values:
+            for fc, y, drug, genetic in plot_df[[beta, 'y', feature, 'feature']].values:
                 if dtype == 'genomic':
                     g_genes = '; '.join(datasets.genomic_obj.mobem_feature_to_gene(genetic))
 
@@ -338,6 +336,9 @@ if __name__ == '__main__':
 
     lmm_robust = pd.read_csv('data/drug_lmm_regressions_robust_ic50.csv.gz')
     lmm_robust_gexp = pd.read_csv('data/drug_lmm_regressions_robust_gexp_ic50.csv.gz')
+
+    ppi = PPI().build_string_ppi(score_thres=900)
+    ppi = PPI.ppi_corr(ppi, datasets.crispr)
 
     # - Drug betas TSNEs
     tsnes = SingleLMMTSNE(lmm_drug)
@@ -385,12 +386,23 @@ if __name__ == '__main__':
     plt.close('all')
 
     #
-    cols = ['DRUG_ID', 'DRUG_NAME', 'VERSION', 'Genetic']
+    cols, values = ['DRUG_ID', 'DRUG_NAME', 'VERSION', 'feature'], ['GeneSymbol', 'target']
 
-    pd.concat([
-        lmm_robust.query('(fdr_drug < .1)').groupby(cols)['GeneSymbol'].count(),
-        lmm_robust.query('(fdr_drug < .1) & (fdr_crispr < .1)').groupby(cols)['GeneSymbol'].count()
-    ], axis=1, sort=False).replace(np.nan, 0).astype(int)
+    df_drug = lmm_robust.query('(drug_fdr < .1)').groupby(cols)[values].agg(list)
+    df_robust = lmm_robust.query('(drug_fdr < .1) & (crispr_fdr < .1)').groupby(cols)[values].agg(list)
+
+    lmm_robust.query('(drug_fdr < .1) & (crispr_fdr < .1)').groupby(cols)[values].agg(list)
+
+    # PPI
+    ppi_examples = [
+        ('Nutlin-3a (-)', .4, 1, ['RPL37', 'UBE3B']),
+        ('AZD3759', .3, 1, None)
+    ]
+    for d, t, o, e in ppi_examples:
+        graph = PPI.plot_ppi(d, trg.lmm_drug, ppi, corr_thres=t, norder=o, fdr=0.05, exclude_nodes=e)
+        graph.write_pdf(f'reports/robust_ppi_{d}.pdf')
+
+
 
     # Examples
     rassocs = [
@@ -400,10 +412,10 @@ if __name__ == '__main__':
         ('Taselisib', 'PIK3CA', 'PIK3CA_mut')
     ]
 
-    # d, c, g = ('Taselisib', 'PIK3CA', 'PIK3CA_mut')
+    # d, c, g = ('Talazoparib', 'FLI1', 'EWSR1.FLI1_mut')
     for d, c, g in rassocs:
         assoc = lmm_robust[
-            (lmm_robust['DRUG_NAME'] == d) & (lmm_robust['GeneSymbol'] == c) & (lmm_robust['Genetic'] == g)
+            (lmm_robust['DRUG_NAME'] == d) & (lmm_robust['GeneSymbol'] == c) & (lmm_robust['feature'] == g)
         ].iloc[0]
 
         drug = tuple(assoc[DrugResponse.DRUG_COLUMNS])
