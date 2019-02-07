@@ -395,20 +395,30 @@ class Genomic:
 
 
 class GeneExpression:
-    def __init__(self, gexp_file='data/genomic/rnaseq_voom.csv.gz'):
-        self.gexp = pd.read_csv(gexp_file, index_col=0)
+    def __init__(self, voom_file='data/genomic/rnaseq_voom.csv.gz', rpkm_file='data/genomic/rnaseq_rpkm.csv.gz'):
+        self.voom = pd.read_csv(voom_file, index_col=0)
+        self.rpkm = pd.read_csv(rpkm_file, index_col=0)
 
-    def get_data(self):
-        return self.gexp.copy()
+    def get_data(self, dtype='voom'):
+        if dtype.lower() == 'rpkm':
+            return self.rpkm.copy()
 
-    def filter(self, subset=None):
-        df = self.get_data()
+        else:
+            return self.voom.copy()
+
+    def filter(self, dtype='voom', subset=None):
+        df = self.get_data(dtype=dtype)
 
         # Subset matrices
         if subset is not None:
             df = df.loc[:, df.columns.isin(subset)]
 
         return df
+
+    def is_not_expressed(self, rpkm_threshold=1, subset=None):
+        rpkm = self.filter(dtype='rpkm', subset=subset)
+        rpkm = (rpkm < rpkm_threshold).astype(int)
+        return rpkm
 
 
 class Proteomics:

@@ -8,10 +8,10 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as plticker
 from DTracePlot import DTracePlot
 from natsort import natsorted
-from scipy.stats import ttest_ind
+from scipy.stats import pearsonr
 from sklearn.manifold import TSNE
 from Associations import Association
-from DataImporter import DrugResponse, PPI
+from DataImporter import DrugResponse, PPI, GeneExpression
 from sklearn.preprocessing import StandardScaler
 
 
@@ -203,43 +203,6 @@ class RobustLMMAnalysis:
     GENETIC_PAL = {'Mutation': '#ffde17', 'CN loss': '#6ac4ea', 'CN gain': '#177ba5'}
     GENETIC_ORDER = ['Mutation', 'CN loss', 'CN gain']
 
-    @staticmethod
-    def count_signif_associations(lmm_robust, lmm_robust_gexp, fdr=0.1):
-        pair_col = ['DRUG_ID', 'DRUG_NAME', 'VERSION', 'GeneSymbol', 'target']
-
-        plot_df = []
-        for f in ['crispr_fdr', 'drug_fdr', 'both']:
-            for n, df in [('Mutation/Copy-number', lmm_robust), ('Gene-expression', lmm_robust_gexp)]:
-                pairs = df.query(f'(crispr_fdr < {fdr}) & (drug_fdr < {fdr})' if f == 'both' else f'{f} < {fdr}')
-
-                pairs_count = pd.Series({tuple(p[:-1]): p[-1] for p in pairs[pair_col].values}).value_counts()
-                pairs_count = pairs_count.rename('count').reset_index().rename(columns={'index': 'ppi'})
-                pairs_count = pairs_count.assign(variable=f.split('_')[0] if f != 'both' else f).assign(genetic=n)
-
-                plot_df.append(pairs_count)
-
-        plot_df = pd.concat(plot_df).reset_index()
-
-        order = ['T', '1', '2', '3', '4', '5+', '-']
-        pal = pd.Series(
-            DTracePlot.get_palette_continuous(3, DTracePlot.PAL_DTRACE[2]), index=['both', 'drug', 'crispr']
-        )
-
-        g = sns.catplot(
-            x='count', y='ppi', hue='variable', row='genetic', data=plot_df, kind='bar', order=order, palette=pal,
-            height=2.5, legend=False, legend_out=False
-        )
-
-        g.set_titles('{row_name}')
-
-        g.add_legend(title='Association', frameon=False)
-
-        for ax in g.axes[:, 0]:
-            ax.xaxis.set_major_locator(plticker.MultipleLocator(base=100))
-            ax.grid(lw=.3, alpha=.8, color=DTracePlot.PAL_DTRACE[1], ls='-', axis='x', zorder=0)
-
-        g.set_axis_labels('Significant associations', 'Drug target ~ CRISPR\nPPI distance')
-
     @classmethod
     def genomic_histogram(cls, datasets, ntop=40):
         # Build dataframe
@@ -326,6 +289,64 @@ class RobustLMMAnalysis:
 
         plt.gcf().set_size_inches(2. * axs.shape[0], ntop * .12)
 
+    @staticmethod
+    def robust_associations_barplot(fdr=0.1):
+        cols, values = ['DRUG_ID', 'DRUG_NAME', 'VERSION', 'GeneSymbol'], ['feature', 'target']
+        filters = [
+            ('Drug', f'(drug_fdr < {fdr})'), ('CRISPR', f'(crispr_fdr < {fdr})'),
+            ('Both', f'(drug_fdr < {fdr}) & (crispr_fdr < {fdr})')
+        ]
+
+        plot_df, plot_df_ppi = [], []
+        for dtype, df in [('Genomic', lmm_robust), ('Gene-expression', lmm_robust_gexp)]:
+            for ftype, query in filters:
+                df_pairs = df.query(query).groupby(cols)[values].agg(list)
+
+                plot_df.append(dict(dtype=dtype, ftype=ftype, count=df_pairs.shape[0]))
+
+                for i, v in pd.Series([t for ts in df_pairs['target'] for t in ts]).value_counts().iteritems():
+                    plot_df_ppi.append(dict(dtype=dtype, ftype=ftype, ppi=i, count=v))
+
+            plot_df.append(dict(dtype=dtype, ftype='Total', count=884))
+
+        plot_df, plot_df_ppi = pd.DataFrame(plot_df), pd.DataFrame(plot_df_ppi)
+
+        #
+        hue_order = ['Both', 'Drug', 'CRISPR', 'Total']
+        pal = {'Both': '#fc8d62', 'Drug': '#ababab', 'CRISPR': '#656565', 'Total': '#E1E1E1'}
+
+        sns.catplot('dtype', 'count', 'ftype', data=plot_df, palette=pal, kind='bar', hue_order=hue_order)
+
+        plt.xlabel('')
+        plt.ylabel('Drug-gene associations')
+
+        plt.grid(lw=.3, c=DTracePlot.PAL_DTRACE[1], axis='y', alpha=5, zorder=0)
+
+        plt.gcf().set_size_inches(2, 2)
+        plt.savefig('reports/robust_signif_association_barplot.pdf', bbox_inches='tight', transparent=True)
+        plt.close('all')
+
+        #
+        order = ['T', '1', '2', '3', '4', '5+', '-']
+        hue_order = ['Both', 'Drug', 'CRISPR']
+        pal = {'Both': '#fc8d62', 'Drug': '#ababab', 'CRISPR': '#656565'}
+
+        g = sns.catplot(
+            'count', 'ppi', 'ftype', row='dtype', data=plot_df_ppi, palette=pal, kind='bar', order=order,
+            hue_order=hue_order
+        )
+
+        g.set_titles('{row_name}')
+
+        for ax in g.axes[:, 0]:
+            ax.set_xlabel('Drug-gene associations')
+            ax.set_ylabel('PPI distance')
+            ax.grid(lw=.3, c=DTracePlot.PAL_DTRACE[1], axis='x', alpha=5, zorder=0)
+
+        plt.gcf().set_size_inches(2, 3)
+        plt.savefig('reports/robust_signif_association_barplot_ppi.pdf', bbox_inches='tight', transparent=True)
+        plt.close('all')
+
 
 if __name__ == '__main__':
     # - Import associations
@@ -373,10 +394,6 @@ if __name__ == '__main__':
     plt.savefig('reports/robust_mobems_countplot.pdf', bbox_inches='tight', transparent=True)
     plt.close('all')
 
-    RobustLMMAnalysis.count_signif_associations(lmm_robust, lmm_robust_gexp)
-    plt.savefig('reports/robust_count_signif.pdf', bbox_inches='tight', transparent=True)
-    plt.close('all')
-
     RobustLMMAnalysis.top_robust_features(lmm_robust, ntop=30)
     plt.savefig('reports/robust_top_associations.pdf', bbox_inches='tight', transparent=True)
     plt.close('all')
@@ -385,34 +402,23 @@ if __name__ == '__main__':
     plt.savefig('reports/robust_top_associations_gexp.pdf', bbox_inches='tight', transparent=True)
     plt.close('all')
 
+    RobustLMMAnalysis.robust_associations_barplot(fdr=0.1)
+
     #
     cols, values = ['DRUG_ID', 'DRUG_NAME', 'VERSION', 'feature'], ['GeneSymbol', 'target']
+    df_robust = lmm_robust.query('(drug_fdr < .1) & (crispr_fdr < .1)')
+    df_robust_gexp = lmm_robust_gexp.query('(drug_fdr < .1) & (crispr_fdr < .1)')
 
-    df_drug = lmm_robust.query('(drug_fdr < .1)').groupby(cols)[values].agg(list)
-    df_robust = lmm_robust.query('(drug_fdr < .1) & (crispr_fdr < .1)').groupby(cols)[values].agg(list)
-
-    lmm_robust.query('(drug_fdr < .1) & (crispr_fdr < .1)').groupby(cols)[values].agg(list)
-
-    # PPI
-    ppi_examples = [
-        ('Nutlin-3a (-)', .4, 1, ['RPL37', 'UBE3B']),
-        ('AZD3759', .3, 1, None)
-    ]
-    for d, t, o, e in ppi_examples:
-        graph = PPI.plot_ppi(d, trg.lmm_drug, ppi, corr_thres=t, norder=o, fdr=0.05, exclude_nodes=e)
-        graph.write_pdf(f'reports/robust_ppi_{d}.pdf')
-
-
-
-    # Examples
+    # - Genomic robust associations
     rassocs = [
         ('Olaparib', 'FLI1', 'EWSR1.FLI1_mut'),
         ('Dabrafenib', 'BRAF', 'BRAF_mut'),
         ('Nutlin-3a (-)', 'MDM2', 'TP53_mut'),
-        ('Taselisib', 'PIK3CA', 'PIK3CA_mut')
+        ('Taselisib', 'PIK3CA', 'PIK3CA_mut'),
+        ('MCL1_1284', 'MCL1', 'EZH2_mut')
     ]
 
-    # d, c, g = ('Talazoparib', 'FLI1', 'EWSR1.FLI1_mut')
+    # d, c, g = ('Linifanib', 'STAT5B', 'XRN1_mut')
     for d, c, g in rassocs:
         assoc = lmm_robust[
             (lmm_robust['DRUG_NAME'] == d) & (lmm_robust['GeneSymbol'] == c) & (lmm_robust['feature'] == g)
@@ -440,3 +446,123 @@ if __name__ == '__main__':
         plt.gcf().set_size_inches(1.5, 1.5)
         plt.savefig(f'reports/robust_scatter_{d}_{c}_{g}.pdf', bbox_inches='tight', transparent=True)
         plt.close('all')
+
+    # - Gene-expression robust associations
+    rassocs = [
+        ('MCL1_1284', 'MCL1', 'BCL2L1'),
+        ('Linsitinib', 'IGF1R', 'IGF1R'),
+        ('SN1041137233', 'ERBB2', 'ERBB2'),
+        ('Nutlin-3a (-)', 'MDM2', 'BAX'),
+        ('Venetoclax', 'BCL2', 'CDC42BPA')
+    ]
+
+    # d, c, g = ('Venetoclax', 'BCL2', 'CDC42BPA')
+    for d, c, g in rassocs:
+        assoc = lmm_robust_gexp[
+            (lmm_robust_gexp['DRUG_NAME'] == d) & (lmm_robust_gexp['GeneSymbol'] == c) & (lmm_robust_gexp['feature'] == g)
+        ].iloc[0]
+
+        drug = tuple(assoc[DrugResponse.DRUG_COLUMNS])
+
+        dmax = np.log(datasets.drespo_obj.maxconcentration[drug])
+
+        plot_df = pd.concat([
+            datasets.drespo.loc[drug].rename('drug'),
+            datasets.crispr.loc[c].rename('crispr'),
+            datasets.gexp.loc[g].rename('gexp'),
+            datasets.crispr_obj.institute.rename('Institute'),
+            datasets.samplesheet.samplesheet['cancer_type']
+        ], axis=1, sort=False).dropna()
+
+        #
+        fig, axs = plt.subplots(1, 2, sharey='row', sharex='none')
+
+        for i, dtype in enumerate(['crispr', 'gexp']):
+            # Scatter
+            for t, df in plot_df.groupby('Institute'):
+                axs[i].scatter(
+                    x=df[dtype], y=df['drug'], edgecolor='w', lw=.05, s=10, color=DTracePlot.PAL_DTRACE[2],
+                    marker=DTracePlot.MARKERS[t], label=t, alpha=.8
+                )
+
+            # Reg
+            sns.regplot(
+                x=plot_df[dtype], y=plot_df['drug'], data=plot_df, color=DTracePlot.PAL_DTRACE[1], truncate=True,
+                fit_reg=True, scatter=False, line_kws=dict(lw=1., color=DTracePlot.PAL_DTRACE[0]), ax=axs[i]
+            )
+
+            # Annotation
+            cor, pval = pearsonr(plot_df[dtype], plot_df['drug'])
+            annot_text = f'R={cor:.2g}, p={pval:.1e}'
+
+            axs[i].text(.95, .05, annot_text, fontsize=4, transform=axs[i].transAxes, ha='right')
+
+            # Misc
+            axs[i].axhline(y=dmax, linewidth=.3, color=DTracePlot.PAL_DTRACE[2], ls=':', zorder=0)
+
+            axs[i].set_ylabel(f'{d} (ln IC50)' if i == 0 else '')
+            axs[i].set_xlabel(f'scaled log2 FC' if dtype == 'crispr' else f'RNA-seq voom')
+            axs[i].set_title(c if dtype == 'crispr' else g)
+
+            # Legend
+            axs[i].legend(prop=dict(size=4), frameon=False, loc=2)
+
+        plt.subplots_adjust(wspace=0.05)
+        plt.gcf().set_size_inches(3, 1.5)
+        plt.savefig(f'reports/robust_scatter_gexp_{d}_{c}_{g}.pdf', bbox_inches='tight', transparent=True)
+        plt.close('all')
+
+    # -
+    d, c, g = ('Venetoclax', 'BCL2', 'CDC42BPA')
+
+    assoc_all = lmm_robust_gexp[lmm_robust_gexp['DRUG_NAME'] == d]
+
+    assoc = lmm_robust_gexp[
+        (lmm_robust_gexp['DRUG_NAME'] == d) & (lmm_robust_gexp['GeneSymbol'] == c) & (lmm_robust_gexp['feature'] == g)
+    ].iloc[0]
+
+    drug = tuple(assoc[DrugResponse.DRUG_COLUMNS])
+    dmax = np.log(datasets.drespo_obj.maxconcentration[drug])
+
+    plot_df = pd.concat([
+        datasets.drespo.loc[drug].rename('drug'),
+        datasets.crispr.loc[c],
+        datasets.gexp.loc[g],
+        datasets.gexp.loc['BTK'],
+        datasets.samplesheet.samplesheet[['institute', 'cancer_type']],
+    ], axis=1, sort=False).dropna()
+    plot_df[f'{g}_bin'] = (plot_df[g] < 0).astype(int)
+
+    # CRISPR gene pair corr
+    # gene_x, gene_y = ('DTX1', 'CDC42BPA')
+    for gene_x, gene_y in [('BTK', 'CDC42BPA'), ('BCL2', 'CDC42BPA')]:
+        df = pd.concat([
+            datasets.gexp.loc[gene_x],
+            datasets.gexp.loc[gene_y],
+            datasets.samplesheet.samplesheet[['institute', 'cancer_type']],
+        ], axis=1, sort=False).dropna()
+
+        grid = DTracePlot().plot_corrplot(gene_x, gene_y, 'institute', df, add_hline=True)
+
+        grid.set_axis_labels(f'{gene_x}\nRNA-seq voom', f'{gene_y}\nRNA-seq voom')
+
+        plt.gcf().set_size_inches(1.5, 1.5)
+        plt.savefig(f'reports/robust_gexp_scatter_{gene_x}_{gene_y}.pdf', bbox_inches='tight', transparent=True)
+        plt.close('all')
+
+    # Discrete
+    grid = DTracePlot.plot_corrplot_discrete(c, 'drug', f'{g}_bin', 'institute', plot_df)
+
+    grid.ax_joint.axhline(y=dmax, linewidth=.3, color=DTracePlot.PAL_DTRACE[2], ls=':', zorder=0)
+
+    grid.set_axis_labels(f'{c} (scaled log2 FC)', f'{d} (ln IC50)')
+
+    plt.suptitle(f'{g} not expressed', y=1.05, fontsize=8)
+
+    plt.gcf().set_size_inches(1.5, 1.5)
+    plt.savefig(f'reports/robust_scatter_{d}_{c}_gexp.pdf', bbox_inches='tight', transparent=True)
+    plt.close('all')
+
+    #
+    sensitive = list(plot_df.query(f'({g}_bin == 1) & ({c} < -0.75)').index)
+    resistant = list(plot_df.query(f'({g}_bin == 1) & ({c} > -0.75)').index)

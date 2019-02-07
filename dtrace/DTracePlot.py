@@ -81,7 +81,7 @@ class DTracePlot(CrispyPlot):
             cor, pval = pearsonr(dataframe[x], dataframe[y])
             annot_text = f'R={cor:.2g}, p={pval:.1e}'
 
-        grid.ax_joint.text(.95, .05, annot_text, fontsize=5, transform=grid.ax_joint.transAxes, ha='right')
+        grid.ax_joint.text(.95, .05, annot_text, fontsize=4, transform=grid.ax_joint.transAxes, ha='right')
 
         # Marginals
         grid.plot_marginals(sns.distplot, kde=False, hist_kws=dict(linewidth=0), color=cls.PAL_DTRACE[2])
@@ -147,14 +147,14 @@ class DTracePlot(CrispyPlot):
                     marker=cls.MARKERS[t], ax=grid.ax_joint
                 )
 
-        grid.ax_joint.legend(prop=dict(size=8), frameon=False, loc=2)
+        grid.ax_joint.legend(prop=dict(size=4), frameon=False, loc=2)
 
         # Annotation
         if annot_text is None:
             cor, pval = pearsonr(plot_df[x], plot_df[y])
             annot_text = f'R={cor:.2g}, p={pval:.1e}'
 
-        grid.ax_joint.text(.95, .05, annot_text, fontsize=8, transform=grid.ax_joint.transAxes, ha='right')
+        grid.ax_joint.text(.95, .05, annot_text, fontsize=4, transform=grid.ax_joint.transAxes, ha='right')
 
         grid.ax_joint.axhline(0, ls='-', lw=0.3, c=pal[0], alpha=.2)
         grid.ax_joint.axvline(0, ls='-', lw=0.3, c=pal[0], alpha=.2)
@@ -199,7 +199,7 @@ class DTracePlot(CrispyPlot):
             n = np.sum(dataframe[y] == c)
             ax.text(text_x, i, f'N={n}', ha='left', va='center', fontsize=n_fontsize)
 
-        x_lim = ax.get_xlim()
-        ax.set_xlim(x_lim[0], text_x)
+        # x_lim = ax.get_xlim()
+        # ax.set_xlim(x_lim[0], text_x)
 
         return ax

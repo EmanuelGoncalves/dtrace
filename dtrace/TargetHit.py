@@ -340,14 +340,30 @@ if __name__ == '__main__':
     drug_lms = hit.predict_drugresponse(data, features)
 
     hit.predict_r2_barplot(drug_lms)
-    plt.gcf().set_size_inches(2, 2.5)
+    plt.gcf().set_size_inches(1.5, 2.5)
     plt.savefig(f'reports/hit_rsqaured_barplot.pdf', bbox_inches='tight', transparent=True)
     plt.close('all')
 
     hit.predict_feature_plot(drug_lms)
-    plt.gcf().set_size_inches(2.5, 3)
+    plt.gcf().set_size_inches(1.5, 3)
     plt.savefig(f'reports/hit_features_stripplot.pdf', bbox_inches='tight', transparent=True)
     plt.close('all')
+
+    # - CRISPR gene pair corr
+    for gene_x, gene_y in [('MARCH5', 'MCL1')]:
+        plot_df = pd.concat([
+            data.crispr.loc[gene_x].rename(gene_x),
+            data.crispr.loc[gene_y].rename(gene_y),
+            data.crispr_obj.institute.rename('Institute'),
+        ], axis=1, sort=False).dropna()
+
+        g = DTracePlot().plot_corrplot(gene_x, gene_y, 'Institute', plot_df, add_hline=True)
+
+        g.set_axis_labels(f'{gene_x} (scaled log2 FC)', f'{gene_y} (scaled log2 FC)')
+
+        plt.gcf().set_size_inches(1.5, 1.5)
+        plt.savefig(f'reports/hit_scatter_{gene_x}_{gene_y}.pdf', bbox_inches='tight', transparent=True)
+        plt.close('all')
 
     # -
     ctypes = ['Breast Carcinoma', 'Colorectal Carcinoma', 'Acute Myeloid Leukemia']
@@ -361,36 +377,70 @@ if __name__ == '__main__':
     plt.close('all')
 
     #
-    drug = (1956, 'MCL1_1284', 'RS')
+    # drug = (1956, 'MCL1_1284', 'RS')
+    for drug in [(1956, 'MCL1_1284', 'RS'), (2235, 'AZD5991', 'RS')]:
+        plot_df = pd.concat([
+            data.drespo.loc[drug].rename('drug'),
+            hit.discretise_essentiality(genes).rename('essentiality'),
+            data.samplesheet.samplesheet.loc[data.samples, 'cancer_type'],
+        ], axis=1, sort=False)
+        plot_df['ctype'] = plot_df['cancer_type'].apply(lambda v: v if v in ctypes else 'Other')
+
+        ctypes = ['Colorectal Carcinoma', 'Breast Carcinoma']
+
+        fig, axs = plt.subplots(1, len(ctypes), sharey='all', sharex='all')
+
+        for i, tissue in enumerate(ctypes):
+            df = plot_df.query(f"ctype == '{tissue}'")
+
+            g = DTracePlot().plot_multiple('drug', 'essentiality', df, n_offset=1, n_fontsize=5, ax=axs[i])
+
+            sns.despine(ax=axs[i])
+
+            dmax = np.log(data.drespo_obj.maxconcentration[drug])
+            axs[i].axvline(dmax, linewidth=.3, color=DTracePlot.PAL_DTRACE[2], ls=':', zorder=0)
+
+            daml = plot_df.query("cancer_type == 'Acute Myeloid Leukemia'")['drug'].mean()
+            axs[i].axvline(daml, linewidth=.3, color=DTracePlot.PAL_DTRACE[0], ls=':', zorder=0)
+
+            axs[i].set_xlabel(f'{drug[1]} (ln IC50, {drug[2]})')
+            axs[i].set_ylabel('')
+
+            axs[i].set_title(tissue)
+
+        plt.gcf().set_size_inches(2 * len(ctypes), .75)
+        plt.savefig(f'reports/hit_drugresponse_boxplot_tissue_{drug[1]}.pdf', bbox_inches='tight', transparent=True)
+        plt.close('all')
+
+    # - MCL1 amplification
+    d, c = ('MCL1_1284', 'MCL1')
+
+    assoc = lmm_drug[(lmm_drug['DRUG_NAME'] == d) & (lmm_drug['GeneSymbol'] == c)].iloc[0]
+
+    drug = tuple(assoc[data.drespo_obj.DRUG_COLUMNS])
+
+    dmax = np.log(data.drespo_obj.maxconcentration[drug])
 
     plot_df = pd.concat([
         data.drespo.loc[drug].rename('drug'),
-        hit.discretise_essentiality(genes).rename('essentiality'),
-        data.samplesheet.samplesheet.loc[data.samples, 'cancer_type'].apply(lambda v: v if v in ctypes else 'Other')
-    ], axis=1, sort=False)
+        data.crispr.loc[c].rename('crispr'),
+        data.cn.loc['MCL1'].rename('cn'),
+        data.crispr_obj.institute.rename('Institute'),
+        data.samplesheet.samplesheet['ploidy'],
+    ], axis=1, sort=False).dropna()
 
-    ctypes = ['Colorectal Carcinoma', 'Breast Carcinoma']
+    plot_df = plot_df.assign(amp=[
+        1 if ((p <= 2.7) and (c >= 5)) or ((p > 2.7) and (c >= 9)) else 0 for p, c in plot_df[['ploidy', 'cn']].values
+    ])
 
-    fig, axs = plt.subplots(1, len(ctypes), sharey='all', sharex='all')
+    grid = DTracePlot.plot_corrplot_discrete('crispr', 'drug', 'amp', 'Institute', plot_df)
 
-    for i, tissue in enumerate(ctypes):
-        df = plot_df.query(f"cancer_type == '{tissue}'")
+    grid.ax_joint.axhline(y=dmax, linewidth=.3, color=DTracePlot.PAL_DTRACE[2], ls=':', zorder=0)
 
-        g = DTracePlot().plot_multiple('drug', 'essentiality', df, n_offset=1, n_fontsize=5, ax=axs[i])
+    grid.set_axis_labels(f'{c} (scaled log2 FC)', f'{d} (ln IC50)')
 
-        sns.despine(ax=axs[i])
+    plt.suptitle('MCL1 amplification', y=1.05, fontsize=8)
 
-        dmax = np.log(data.drespo_obj.maxconcentration[drug])
-        axs[i].axvline(dmax, linewidth=.3, color=DTracePlot.PAL_DTRACE[2], ls=':', zorder=0)
-
-        daml = plot_df.query("cancer_type == 'Acute Myeloid Leukemia'")['drug'].mean()
-        axs[i].axvline(daml, linewidth=.5, color=DTracePlot.PAL_DTRACE[0], ls=':', zorder=0)
-
-        axs[i].set_xlabel(f'{drug[1]} (ln IC50, {drug[2]})')
-        axs[i].set_ylabel('')
-
-        axs[i].set_title(tissue)
-
-    plt.gcf().set_size_inches(2 * len(ctypes), .75)
-    plt.savefig(f'reports/hit_drugresponse_boxplot_tissue.pdf', bbox_inches='tight', transparent=True)
+    plt.gcf().set_size_inches(1.5, 1.5)
+    plt.savefig(f'reports/hit_scatter_{d}_{c}_amp.pdf', bbox_inches='tight', transparent=True)
     plt.close('all')
