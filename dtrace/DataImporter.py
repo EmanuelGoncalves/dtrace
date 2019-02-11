@@ -15,7 +15,7 @@ class DrugResponse:
 
     DRUG_COLUMNS = ['DRUG_ID', 'DRUG_NAME', 'VERSION']
 
-    DRUG_OWNERS = ['AZ', 'GDSC', 'MGH', 'NCI.Pommier', 'Nathaneal.Gray']
+    DRUG_OWNERS = ['AZ', 'GDSC', 'MGH', 'Nathaneal.Gray']
 
     def __init__(
             self,
@@ -49,7 +49,7 @@ class DrugResponse:
         ], sort=False).sort_values()
 
     @staticmethod
-    def get_drugsheet(drugsheet_file='data/meta/drugsheet_20190204.xlsx'):
+    def get_drugsheet(drugsheet_file='data/meta/drugsheet_20190210.xlsx'):
         return pd.read_excel(drugsheet_file, index_col=0)
 
     @classmethod
@@ -177,6 +177,19 @@ class CRISPR:
         self.crispr = self.crispr.drop(columns=self.LOW_QUALITY_SAMPLES)
 
         self.qc_ess = self.__merge_qc_arrays()
+
+        self.essential_broad = 'depmap19Q1_essential_genes.txt'
+        self.essential_sanger = 'projectscore_essential_genes.csv'
+
+    def import_broad_essential_genes(self):
+        broad_ess = pd.read_csv(f'{self.DATADIR}/{self.essential_broad}')['gene']
+        broad_ess = list(set(broad_ess.apply(lambda v: v.split(' ')[0])))
+        return broad_ess
+
+    def import_sanger_essential_genes(self):
+        sanger_ess = pd.read_csv(f'{self.DATADIR}/{self.essential_sanger}')
+        sanger_ess = list(set(sanger_ess[sanger_ess['CoreFitness']]['GeneSymbol']))
+        return sanger_ess
 
     def __merge_qc_arrays(self):
         gdsc_qc = pd.Series.from_csv(f'{self.DATADIR}/{self.SANGER_QC_FILE}')

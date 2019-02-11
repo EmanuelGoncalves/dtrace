@@ -456,7 +456,7 @@ if __name__ == '__main__':
         ('Venetoclax', 'BCL2', 'CDC42BPA')
     ]
 
-    # d, c, g = ('Venetoclax', 'BCL2', 'CDC42BPA')
+    # d, c, g = ('Savolitinib', 'GAB1', 'PPP6R2')
     for d, c, g in rassocs:
         assoc = lmm_robust_gexp[
             (lmm_robust_gexp['DRUG_NAME'] == d) & (lmm_robust_gexp['GeneSymbol'] == c) & (lmm_robust_gexp['feature'] == g)
@@ -528,27 +528,10 @@ if __name__ == '__main__':
         datasets.drespo.loc[drug].rename('drug'),
         datasets.crispr.loc[c],
         datasets.gexp.loc[g],
-        datasets.gexp.loc['BTK'],
+        datasets.gexp_obj.rpkm.loc[g].rename(f'{g}_rpkm'),
         datasets.samplesheet.samplesheet[['institute', 'cancer_type']],
     ], axis=1, sort=False).dropna()
     plot_df[f'{g}_bin'] = (plot_df[g] < 0).astype(int)
-
-    # CRISPR gene pair corr
-    # gene_x, gene_y = ('DTX1', 'CDC42BPA')
-    for gene_x, gene_y in [('BTK', 'CDC42BPA'), ('BCL2', 'CDC42BPA')]:
-        df = pd.concat([
-            datasets.gexp.loc[gene_x],
-            datasets.gexp.loc[gene_y],
-            datasets.samplesheet.samplesheet[['institute', 'cancer_type']],
-        ], axis=1, sort=False).dropna()
-
-        grid = DTracePlot().plot_corrplot(gene_x, gene_y, 'institute', df, add_hline=True)
-
-        grid.set_axis_labels(f'{gene_x}\nRNA-seq voom', f'{gene_y}\nRNA-seq voom')
-
-        plt.gcf().set_size_inches(1.5, 1.5)
-        plt.savefig(f'reports/robust_gexp_scatter_{gene_x}_{gene_y}.pdf', bbox_inches='tight', transparent=True)
-        plt.close('all')
 
     # Discrete
     grid = DTracePlot.plot_corrplot_discrete(c, 'drug', f'{g}_bin', 'institute', plot_df)
@@ -566,3 +549,24 @@ if __name__ == '__main__':
     #
     sensitive = list(plot_df.query(f'({g}_bin == 1) & ({c} < -0.75)').index)
     resistant = list(plot_df.query(f'({g}_bin == 1) & ({c} > -0.75)').index)
+
+    # gene_x, gene_y = 'BCL2', 'CDC42BPA'
+    for gene_x, gene_y in [('BTK', 'CDC42BPA'), ('BCL2', 'CDC42BPA')]:
+        df = pd.concat([
+            datasets.crispr.loc[gene_x],
+            datasets.gexp.loc[gene_y],
+            datasets.samplesheet.samplesheet[['institute', 'cancer_type']],
+        ], axis=1, sort=False).dropna()
+
+        grid = DTracePlot().plot_corrplot(gene_x, gene_y, 'institute', df, add_hline=False, add_vline=False)
+
+        for c, lines in [(DTracePlot.PAL_DTRACE[0], sensitive), (DTracePlot.PAL_DTRACE[3], resistant)]:
+            grid.ax_joint.scatter(
+                df.loc[lines, gene_x], df.loc[lines, gene_x], edgecolor='w', lw=.05, s=10, color=c, marker='X', alpha=.8
+            )
+
+        grid.set_axis_labels(f'{gene_x}\nRNA-seq voom', f'{gene_y}\nRNA-seq voom')
+
+        plt.gcf().set_size_inches(1.5, 1.5)
+        plt.savefig(f'reports/robust_gexp_scatter.pdf', bbox_inches='tight', transparent=True)
+        plt.close('all')

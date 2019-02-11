@@ -57,7 +57,7 @@ class Association:
         crispr_ess_qc = (crispr_ess_qc - crispr_ess_qc.mean()) / crispr_ess_qc.std()
 
         # CRISPR institute of origin PC
-        crispr_insitute = pd.read_csv('data/crispr_pca_column_pcs.csv', index_col=0)['PC1'].rename('institute')
+        crispr_insitute = pd.get_dummies(self.samplesheet.samplesheet['institute'])
 
         # Cell lines growth rate
         drug_growth = pd.read_csv('data/drug_pca_column_pcs.csv', index_col=0)['PC1'].rename('drug_growth')
@@ -197,6 +197,42 @@ class Association:
 
         return lmm_single
 
+    def lmm_single_associations_genomic(self, method='bonferroni', min_events=5):
+        X = self.genomic
+
+        samples, drugs = set(X).intersection(self.samples), self.drespo.index
+        print(f'Samples={len(samples)};Drugs={len(drugs)}')
+
+        lmm_drug = []
+        for drug in drugs:
+            # Observations
+            y = self.drespo.loc[[drug], samples].T.dropna()
+            y = pd.DataFrame(StandardScaler().fit_transform(y), index=y.index, columns=y.columns)
+
+            # Features
+            x = X[y.index].T
+            x = x.loc[:, x.sum() >= min_events]
+
+            # Random effects matrix
+            k = x.loc[y.index]
+            k = k.dot(k.T)
+            k /= (k.values.diagonal().mean())
+
+            # Linear Mixed Model
+            lmm = scan(x, y, K=k, lik='normal', verbose=False)
+
+            # Export
+            lmm_drug.append(pd.DataFrame(dict(
+                beta=lmm.variant_effsizes.values, pval=lmm.variant_pvalues.values, feature=x.columns,
+                DRUG_ID=drug[0], DRUG_NAME=drug[1], VERSION=drug[2]
+            )))
+
+        lmm_drug = pd.concat(lmm_drug).reset_index(drop=True)
+        lmm_drug = self.multipletests_per_drug(lmm_drug, field='pval', fdr_field=f'fdr', method=method)
+        lmm_drug = lmm_drug.sort_values(['fdr', 'pval'])
+
+        return lmm_drug
+
     def lmm_robust_association(self, lmm_dsingle, is_gexp=False, fdr_thres=.1, min_events=5):
         lmm_res_signif = lmm_dsingle.query(f'fdr < {fdr_thres}')
 
@@ -239,7 +275,7 @@ class Association:
         lmm_drug = self.multipletests_per_drug(lmm_drug, field='pval', fdr_field=f'fdr')
         lmm_drug = lmm_drug.sort_values('fdr')
 
-        # Drug associations
+        # CRISPR associations
         lmm_crispr = []
         for gene in genes:
             # Observations
@@ -427,6 +463,11 @@ if __name__ == '__main__':
     lmm_dgexp\
         .sort_values(['pval', 'fdr'])\
         .to_csv(f'data/drug_lmm_regressions_{dtype}_gexp.csv.gz', index=False, compression='gzip')
+
+    lmm_dgenomic = assoc.lmm_single_associations_genomic()
+    lmm_dgenomic\
+        .sort_values(['pval', 'fdr'])\
+        .to_csv(f'data/drug_lmm_regressions_{dtype}_genomic.csv.gz', index=False, compression='gzip')
 
     lmm_robust = assoc.lmm_robust_association(lmm_dsingle, is_gexp=False)
     lmm_robust\
