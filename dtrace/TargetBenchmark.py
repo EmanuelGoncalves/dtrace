@@ -32,7 +32,7 @@ class TargetBenchmark(DTracePlot):
         '#ffffff': {'No target'}, '#e1e1e1': {'Other target'}, '#bbbbbb': {'Multiple targets'}
     }
 
-    def __init__(self, fdr=.1, dtype='ic50'):
+    def __init__(self, fdr=.1, dtype='ic50', lmm_drug=None, lmm_drug_gexp=None, lmm_drug_genomic=None):
         self.fdr = fdr
         self.dtype = dtype
 
@@ -40,12 +40,20 @@ class TargetBenchmark(DTracePlot):
         self.datasets = Association(dtype_drug=dtype)
 
         # Associations
-        self.lmm_drug = pd.read_csv(f'data/drug_lmm_regressions_{self.dtype}.csv.gz')
-        self.lmm_drug_gexp = pd.read_csv(f'data/drug_lmm_regressions_{self.dtype}_gexp.csv.gz')
-        self.lmm_drug_genomic = pd.read_csv(f'data/drug_lmm_regressions_{self.dtype}_genomic.csv.gz')
+        if lmm_drug is None:
+            self.lmm_drug = pd.read_csv(f'data/drug_lmm_regressions_{self.dtype}.csv.gz')
+        else:
+            self.lmm_drug = lmm_drug
 
-        # Multiple drugs
-        self.lmm_multiple = pd.read_csv(f'data/drug_lmm_regressions_multiple_{self.dtype}.csv.gz')
+        if lmm_drug_gexp is None:
+            self.lmm_drug_gexp = pd.read_csv(f'data/drug_lmm_regressions_{self.dtype}_gexp.csv.gz')
+        else:
+            self.lmm_drug_gexp = lmm_drug_gexp
+
+        if lmm_drug_genomic is None:
+            self.lmm_drug_genomic = pd.read_csv(f'data/drug_lmm_regressions_{self.dtype}_genomic.csv.gz')
+        else:
+            self.lmm_drug_genomic = lmm_drug_genomic
 
         # Define sets of drugs
         self.df_genes = set(self.lmm_drug['GeneSymbol'])

@@ -154,6 +154,109 @@ class DrugResponse:
         return g_corr
 
 
+class CRISPRComBat:
+    LOW_QUALITY_SAMPLES = ['SIDM00096', 'SIDM01085', 'SIDM00958']
+
+    def __init__(self, datadir='data/crispr/', dmatrix_file='InitialCombat_BroadSanger_Matrix.csv'):
+        self.ss = Sample()
+        self.datadir = datadir
+        self.dmatrix_file = dmatrix_file
+
+        self.crispr = pd.read_csv(f'{self.datadir}/{self.dmatrix_file}', index_col=0)
+
+    def __generate_merged_matrix(self, dmatrix='InitialCombat_BroadSanger.csv'):
+        df = pd.read_csv(f'{self.datadir}/{dmatrix}')
+
+        # Split Sanger matrix
+        idmap_sanger = self.ss.samplesheet.reset_index().dropna(subset=['model_name']).set_index('model_name')
+        crispr_sanger = df[[i for i in df if i in self.ss.samplesheet['model_name'].values]]
+        crispr_sanger = crispr_sanger.rename(columns=idmap_sanger['model_id'])
+
+        # Split Broad matrix
+        idmap_broad = self.ss.samplesheet.reset_index().dropna(subset=['model_name']).set_index('BROAD_ID')
+        crispr_broad = df[[i for i in df if i in self.ss.samplesheet['BROAD_ID'].values]]
+        crispr_broad = crispr_broad.rename(columns=idmap_broad['model_id'])
+
+        # Merge matrices
+        crispr = pd.concat([
+            crispr_sanger,
+            crispr_broad[[i for i in crispr_broad if i not in crispr_sanger]]
+        ], axis=1, sort=False).dropna()
+        crispr.to_csv(f'{self.datadir}/InitialCombat_BroadSanger_Matrix.csv')
+
+        # Store isntitute sample origin
+        institute = pd.Series({s: 'Sanger' if s in crispr_sanger else 'Broad' for s in crispr})
+        institute.to_csv(f'{self.datadir}/InitialCombat_BroadSanger_Institute.csv')
+
+    def __qc_recall_curves(self):
+        qc_ess = pd.Series({
+            i: cy.QCplot.recall_curve(self.crispr[i], cy.Utils.get_essential_genes())[2] for i in self.crispr
+        })
+        qc_ess.to_csv(f'{self.datadir}/InitialCombat_BroadSanger_Essential_AURC.csv')
+
+        qc_ness = pd.Series({
+            i: cy.QCplot.recall_curve(self.crispr[i], cy.Utils.get_non_essential_genes())[2] for i in self.crispr
+        })
+        qc_ness.to_csv(f'{self.datadir}/InitialCombat_BroadSanger_NonEssential_AURC.csv')
+
+    def get_data(self, scale=True, drop_lowquality=True):
+        df = self.crispr.copy()
+
+        if drop_lowquality:
+            df = df.drop(columns=self.LOW_QUALITY_SAMPLES)
+
+        if scale:
+            df = self.scale(df)
+
+        return df
+
+    def filter(
+            self, subset=None, scale=True, abs_thres=None, drop_core_essential=False, min_events=5,
+            drop_core_essential_broad=False
+    ):
+        df = self.get_data(scale=True)
+
+        # - Filters
+        # Subset matrices
+        if subset is not None:
+            df = df.loc[:, df.columns.isin(subset)]
+
+        # Filter by scaled scores
+        if abs_thres is not None:
+            df = df[(df.abs() > abs_thres).sum(1) >= min_events]
+
+        # Filter out core essential genes
+        if drop_core_essential:
+            df = df[~df.index.isin(cy.Utils.get_adam_core_essential())]
+
+        if drop_core_essential_broad:
+            df = df[~df.index.isin(cy.Utils.get_broad_core_essential())]
+
+        # - Subset matrices
+        return self.get_data(scale=scale).loc[df.index].reindex(columns=df.columns)
+
+    @staticmethod
+    def scale(df, essential=None, non_essential=None, metric=np.median):
+        if essential is None:
+            essential = cy.Utils.get_essential_genes(return_series=False)
+
+        if non_essential is None:
+            non_essential = cy.Utils.get_non_essential_genes(return_series=False)
+
+        assert len(essential.intersection(df.index)) != 0, \
+            'DataFrame has no index overlapping with essential list'
+
+        assert len(non_essential.intersection(df.index)) != 0, \
+            'DataFrame has no index overlapping with non essential list'
+
+        essential_metric = metric(df.reindex(essential).dropna(), axis=0)
+        non_essential_metric = metric(df.reindex(non_essential).dropna(), axis=0)
+
+        df = df.subtract(non_essential_metric).divide(non_essential_metric - essential_metric)
+
+        return df
+
+
 class CRISPR:
     LOW_QUALITY_SAMPLES = ['SIDM00096', 'SIDM01085', 'SIDM00958']
 

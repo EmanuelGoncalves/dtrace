@@ -9,7 +9,7 @@ from limix.stats import lrt_pvalues
 from sklearn.preprocessing import StandardScaler
 from statsmodels.stats.multitest import multipletests
 from dtrace.DataImporter import DrugResponse, CRISPR, Genomic, Sample, PPI, GeneExpression, Proteomics, \
-    PhosphoProteomics, CopyNumber, Apoptosis, RPPA, WES, RNAi
+    PhosphoProteomics, CopyNumber, Apoptosis, RPPA, WES, RNAi, CRISPRComBat
 
 
 class Association:
@@ -30,6 +30,7 @@ class Association:
         self.rppa_obj = RPPA()
         self.wes_obj = WES()
         self.rnai_obj = RNAi()
+        self.crisprcb_obj = CRISPRComBat()
 
         self.samples = list(set.intersection(
             set(self.drespo_obj.get_data().columns),
@@ -49,6 +50,7 @@ class Association:
         self.rppa = self.rppa_obj.filter(subset=self.samples)
         self.wes = self.wes_obj.filter(subset=self.samples)
         self.rnai = self.rnai_obj.filter(subset=self.samples)
+        self.crisprcb = self.crisprcb_obj.filter(subset=self.samples)
         print(f'#(Drugs)={self.drespo.shape[0]}; #(Genes)={self.crispr.shape[0]}; #(Genomic)={self.genomic.shape[0]}')
 
     def get_covariates(self):
