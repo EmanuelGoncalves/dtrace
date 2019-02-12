@@ -10,7 +10,7 @@ from TargetBenchmark import TargetBenchmark
 from Preliminary import Preliminary, CrisprPreliminary
 
 
-def lmm_single_associations(assoc, method='bonferroni'):
+def lmm_single_associations(assoc):
     # - Kinship matrix (random effects)
     k = assoc.kinship(assoc.crisprcb.T)
     m = assoc.get_covariates()
@@ -22,7 +22,7 @@ def lmm_single_associations(assoc, method='bonferroni'):
     ])
 
     # Multiple p-value correction
-    lmm_single = assoc.multipletests_per_drug(lmm_single, field='pval', method=method)
+    lmm_single = assoc.multipletests_per_drug(lmm_single, field='pval', method=assoc.pval_method)
 
     # Annotate drug target
     lmm_single = assoc.annotate_drug_target(lmm_single)

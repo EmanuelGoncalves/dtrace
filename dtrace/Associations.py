@@ -1,20 +1,27 @@
 #!/usr/bin/env python
 # Copyright (C) 2018 Emanuel Goncalves
 
+import scipy as sp
 import numpy as np
 import pandas as pd
 import itertools as it
 from limix.qtl import scan
+from scipy import interpolate
 from limix.stats import lrt_pvalues
 from sklearn.preprocessing import StandardScaler
 from statsmodels.stats.multitest import multipletests
+
+from Qvalue import QValue
 from dtrace.DataImporter import DrugResponse, CRISPR, Genomic, Sample, PPI, GeneExpression, Proteomics, \
     PhosphoProteomics, CopyNumber, Apoptosis, RPPA, WES, RNAi, CRISPRComBat
 
 
 class Association:
-    def __init__(self, dtype_drug='ic50'):
+    def __init__(self, dtype_drug='ic50', pval_method='fdr_bh'):
         # Import
+        self.dtype_drug = dtype_drug
+        self.pval_method = pval_method
+
         self.samplesheet = Sample()
 
         self.ppi = PPI()
@@ -50,7 +57,7 @@ class Association:
         self.rppa = self.rppa_obj.filter(subset=self.samples)
         self.wes = self.wes_obj.filter(subset=self.samples)
         self.rnai = self.rnai_obj.filter(subset=self.samples)
-        self.crisprcb = self.crisprcb_obj.filter(subset=self.samples)
+        self.crisprcb = self.crisprcb_obj.filter(subset=self.samples).loc[self.crispr.index]
         print(f'#(Drugs)={self.drespo.shape[0]}; #(Genes)={self.crispr.shape[0]}; #(Genomic)={self.genomic.shape[0]}')
 
     def get_covariates(self):
@@ -73,6 +80,81 @@ class Association:
         ], axis=1, sort=False).loc[self.samples]
 
         return covariates
+
+    @staticmethod
+    def estimate(pv, m=None, verbose=False, lowmem=False, pi0=None):
+        assert (pv.min() >= 0 and pv.max() <= 1), "p-values should be between 0 and 1"
+
+        original_shape = pv.shape
+        pv = pv.ravel()  # flattens the array in place, more efficient than flatten()
+
+        if m is None:
+            m = float(len(pv))
+        else:
+            # the user has supplied an m
+            m *= 1.0
+
+        # if the number of hypotheses is small, just set pi0 to 1
+        if len(pv) < 100 and pi0 is None:
+            pi0 = 1.0
+        elif pi0 is not None:
+            pi0 = pi0
+        else:
+            # evaluate pi0 for different lambdas
+            pi0 = []
+            lam = sp.arange(0, 0.90, 0.01)
+            counts = sp.array([(pv > i).sum() for i in sp.arange(0, 0.9, 0.01)])
+            for l in range(len(lam)):
+                pi0.append(counts[l] / (m * (1 - lam[l])))
+
+            pi0 = sp.array(pi0)
+
+            # fit natural cubic spline
+            tck = interpolate.splrep(lam, pi0, k=3)
+            pi0 = interpolate.splev(lam[-1], tck)
+            if verbose:
+                print("qvalues pi0=%.3f, estimated proportion of null features " % pi0)
+
+            if pi0 > 1:
+                if verbose:
+                    print("got pi0 > 1 (%.3f) while estimating qvalues, setting it to 1" % pi0)
+                pi0 = 1.0
+
+        assert (pi0 >= 0 and pi0 <= 1), "pi0 is not between 0 and 1: %f" % pi0
+
+        if lowmem:
+            # low memory version, only uses 1 pv and 1 qv matrices
+            qv = sp.zeros((len(pv),))
+            last_pv = pv.argmax()
+            qv[last_pv] = (pi0 * pv[last_pv] * m) / float(m)
+            pv[last_pv] = -sp.inf
+            prev_qv = last_pv
+            for i in range(int(len(pv)) - 2, -1, -1):
+                cur_max = pv.argmax()
+                qv_i = (pi0 * m * pv[cur_max] / float(i + 1))
+                pv[cur_max] = -sp.inf
+                qv_i1 = prev_qv
+                qv[cur_max] = min(qv_i, qv_i1)
+                prev_qv = qv[cur_max]
+
+        else:
+            p_ordered = sp.argsort(pv)
+            pv = pv[p_ordered]
+            qv = pi0 * m / len(pv) * pv
+            qv[-1] = min(qv[-1], 1.0)
+
+            for i in range(len(pv) - 2, -1, -1):
+                qv[i] = min(pi0 * m * pv[i] / (i + 1.0), qv[i + 1])
+
+            # reorder qvalues
+            qv_temp = qv.copy()
+            qv = sp.zeros_like(qv)
+            qv[p_ordered] = qv_temp
+
+        # reshape qvalues
+        qv = qv.reshape(original_shape)
+
+        return qv
 
     @staticmethod
     def kinship(k):
@@ -117,7 +199,7 @@ class Association:
         return lmm, dict(x=X, y=Y, k=K, m=m)
 
     @staticmethod
-    def multipletests_per_drug(associations, method='bonferroni', field='pval', fdr_field='fdr', index_cols=None):
+    def multipletests_per_drug(associations, method, field='pval', fdr_field='fdr', index_cols=None):
         index_cols = DrugResponse.DRUG_COLUMNS if index_cols is None else index_cols
 
         d_unique = {tuple(i) for i in associations[index_cols].values}
@@ -126,7 +208,7 @@ class Association:
 
         df = pd.concat([
             df.loc[i].assign(
-                fdr=multipletests(df.loc[i, field], method=method)[1]
+                fdr=QValue(df.loc[i, field]).qvalue() if method == 'qvalue' else multipletests(df.loc[i, field], method=method)[1]
             ).rename(columns={'fdr': fdr_field}) for i in d_unique
         ]).reset_index()
 
@@ -172,7 +254,7 @@ class Association:
 
         return df
 
-    def lmm_single_associations(self, method='bonferroni'):
+    def lmm_single_associations(self):
         # - Kinship matrix (random effects)
         k = self.kinship(self.crispr.T)
         m = self.get_covariates()
@@ -184,7 +266,7 @@ class Association:
         ])
 
         # Multiple p-value correction
-        lmm_single = self.multipletests_per_drug(lmm_single, field='pval', method=method)
+        lmm_single = self.multipletests_per_drug(lmm_single, field='pval', method=self.pval_method)
 
         # Annotate drug target
         lmm_single = self.annotate_drug_target(lmm_single)
@@ -199,7 +281,7 @@ class Association:
 
         return lmm_single
 
-    def lmm_single_associations_genomic(self, method='bonferroni', min_events=5):
+    def lmm_single_associations_genomic(self, min_events=5):
         X = self.genomic
 
         samples, drugs = set(X).intersection(self.samples), self.drespo.index
@@ -230,7 +312,7 @@ class Association:
             )))
 
         lmm_drug = pd.concat(lmm_drug).reset_index(drop=True)
-        lmm_drug = self.multipletests_per_drug(lmm_drug, field='pval', fdr_field=f'fdr', method=method)
+        lmm_drug = self.multipletests_per_drug(lmm_drug, field='pval', fdr_field=f'fdr', method=self.pval_method)
         lmm_drug = lmm_drug.sort_values(['fdr', 'pval'])
 
         return lmm_drug
@@ -274,7 +356,7 @@ class Association:
             )))
 
         lmm_drug = pd.concat(lmm_drug).reset_index(drop=True)
-        lmm_drug = self.multipletests_per_drug(lmm_drug, field='pval', fdr_field=f'fdr')
+        lmm_drug = self.multipletests_per_drug(lmm_drug, field='pval', fdr_field=f'fdr', method=self.pval_method)
         lmm_drug = lmm_drug.sort_values('fdr')
 
         # CRISPR associations
@@ -305,7 +387,7 @@ class Association:
             )))
 
         lmm_crispr = pd.concat(lmm_crispr).reset_index(drop=True)
-        lmm_crispr = self.multipletests_per_drug(lmm_crispr, field='pval', fdr_field='fdr', index_cols=['gene'])
+        lmm_crispr = self.multipletests_per_drug(lmm_crispr, field='pval', fdr_field='fdr', index_cols=['gene'], method=self.pval_method)
         lmm_crispr = lmm_crispr.sort_values('fdr')
 
         # Expand <Drug, CRISPR> significant associations
@@ -395,7 +477,7 @@ class Association:
 
         return mlmm_res
 
-    def lmm_gexp_drug(self, method='bonferroni'):
+    def lmm_gexp_drug(self):
         # Samples with gene-expression
         samples = list(self.gexp)
 
@@ -411,7 +493,7 @@ class Association:
         ])
 
         # Multiple p-value correction
-        lmm_dgexp = self.multipletests_per_drug(lmm_dgexp, field='pval', method=method)
+        lmm_dgexp = self.multipletests_per_drug(lmm_dgexp, field='pval', method=self.pval_method)
 
         # Annotate drug target
         lmm_dgexp = self.annotate_drug_target(lmm_dgexp)
@@ -426,7 +508,7 @@ class Association:
 
         return lmm_dgexp
 
-    def lmm_gexp_crispr(self, crispr_genes, method='bonferroni'):
+    def lmm_gexp_crispr(self, crispr_genes):
         # Samples with gene-expression
         samples = list(self.gexp)
 
@@ -443,7 +525,9 @@ class Association:
         ])
 
         # Multiple p-value correction
-        lmm_gexp_crispr = self.multipletests_per_drug(lmm_gexp_crispr, field='pval', method=method, index_cols=['DRUG_ID'])
+        lmm_gexp_crispr = self.multipletests_per_drug(
+            lmm_gexp_crispr, field='pval', method=self.pval_method, index_cols=['DRUG_ID']
+        )
 
         # Sort p-values
         lmm_gexp_crispr = lmm_gexp_crispr.sort_values(['fdr', 'pval'])

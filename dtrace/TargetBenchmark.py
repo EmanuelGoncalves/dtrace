@@ -593,15 +593,6 @@ if __name__ == '__main__':
     plt.savefig(f'reports/target_benchmark_kinobeads.pdf', bbox_inches='tight', transparent=True)
     plt.close('all')
 
-    trg.top_associations_barplot()
-    plt.savefig('reports/target_benchmark_associations_barplot.pdf', bbox_inches='tight', transparent=True)
-    plt.close('all')
-
-    trg.manhattan_plot(n_genes=20)
-    plt.gcf().set_size_inches(7, 3)
-    plt.savefig('reports/drug_associations_manhattan.png', bbox_inches='tight', transparent=True, dpi=600)
-    plt.close('all')
-
     trg.beta_histogram()
     plt.gcf().set_size_inches(2, 2)
     plt.savefig('reports/target_benchmark_beta_histogram.pdf', bbox_inches='tight', transparent=True)
@@ -626,6 +617,16 @@ if __name__ == '__main__':
     trg.drugs_ppi_countplot_background()
     plt.gcf().set_size_inches(2.5, 2.5)
     plt.savefig(f'reports/target_benchmark_ppi_distance_{dtype}_countplot_bkg.pdf', bbox_inches='tight', transparent=True)
+    plt.close('all')
+
+    #
+    trg.top_associations_barplot()
+    plt.savefig('reports/target_benchmark_associations_barplot.pdf', bbox_inches='tight', transparent=True)
+    plt.close('all')
+
+    trg.manhattan_plot(n_genes=20)
+    plt.gcf().set_size_inches(7, 3)
+    plt.savefig('reports/drug_associations_manhattan.png', bbox_inches='tight', transparent=True, dpi=600)
     plt.close('all')
 
     # - Drug targets
