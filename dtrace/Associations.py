@@ -1,17 +1,13 @@
 #!/usr/bin/env python
 # Copyright (C) 2018 Emanuel Goncalves
 
-import scipy as sp
 import numpy as np
 import pandas as pd
 import itertools as it
 from limix.qtl import scan
-from scipy import interpolate
 from limix.stats import lrt_pvalues
 from sklearn.preprocessing import StandardScaler
 from statsmodels.stats.multitest import multipletests
-
-from Qvalue import QValue
 from dtrace.DataImporter import DrugResponse, CRISPR, Genomic, Sample, PPI, GeneExpression, Proteomics, \
     PhosphoProteomics, CopyNumber, Apoptosis, RPPA, WES, RNAi, CRISPRComBat
 
@@ -82,81 +78,6 @@ class Association:
         return covariates
 
     @staticmethod
-    def estimate(pv, m=None, verbose=False, lowmem=False, pi0=None):
-        assert (pv.min() >= 0 and pv.max() <= 1), "p-values should be between 0 and 1"
-
-        original_shape = pv.shape
-        pv = pv.ravel()  # flattens the array in place, more efficient than flatten()
-
-        if m is None:
-            m = float(len(pv))
-        else:
-            # the user has supplied an m
-            m *= 1.0
-
-        # if the number of hypotheses is small, just set pi0 to 1
-        if len(pv) < 100 and pi0 is None:
-            pi0 = 1.0
-        elif pi0 is not None:
-            pi0 = pi0
-        else:
-            # evaluate pi0 for different lambdas
-            pi0 = []
-            lam = sp.arange(0, 0.90, 0.01)
-            counts = sp.array([(pv > i).sum() for i in sp.arange(0, 0.9, 0.01)])
-            for l in range(len(lam)):
-                pi0.append(counts[l] / (m * (1 - lam[l])))
-
-            pi0 = sp.array(pi0)
-
-            # fit natural cubic spline
-            tck = interpolate.splrep(lam, pi0, k=3)
-            pi0 = interpolate.splev(lam[-1], tck)
-            if verbose:
-                print("qvalues pi0=%.3f, estimated proportion of null features " % pi0)
-
-            if pi0 > 1:
-                if verbose:
-                    print("got pi0 > 1 (%.3f) while estimating qvalues, setting it to 1" % pi0)
-                pi0 = 1.0
-
-        assert (pi0 >= 0 and pi0 <= 1), "pi0 is not between 0 and 1: %f" % pi0
-
-        if lowmem:
-            # low memory version, only uses 1 pv and 1 qv matrices
-            qv = sp.zeros((len(pv),))
-            last_pv = pv.argmax()
-            qv[last_pv] = (pi0 * pv[last_pv] * m) / float(m)
-            pv[last_pv] = -sp.inf
-            prev_qv = last_pv
-            for i in range(int(len(pv)) - 2, -1, -1):
-                cur_max = pv.argmax()
-                qv_i = (pi0 * m * pv[cur_max] / float(i + 1))
-                pv[cur_max] = -sp.inf
-                qv_i1 = prev_qv
-                qv[cur_max] = min(qv_i, qv_i1)
-                prev_qv = qv[cur_max]
-
-        else:
-            p_ordered = sp.argsort(pv)
-            pv = pv[p_ordered]
-            qv = pi0 * m / len(pv) * pv
-            qv[-1] = min(qv[-1], 1.0)
-
-            for i in range(len(pv) - 2, -1, -1):
-                qv[i] = min(pi0 * m * pv[i] / (i + 1.0), qv[i + 1])
-
-            # reorder qvalues
-            qv_temp = qv.copy()
-            qv = sp.zeros_like(qv)
-            qv[p_ordered] = qv_temp
-
-        # reshape qvalues
-        qv = qv.reshape(original_shape)
-
-        return qv
-
-    @staticmethod
     def kinship(k):
         K = k.dot(k.T)
         K /= (K.values.diagonal().mean())
@@ -208,7 +129,7 @@ class Association:
 
         df = pd.concat([
             df.loc[i].assign(
-                fdr=QValue(df.loc[i, field]).qvalue() if method == 'qvalue' else multipletests(df.loc[i, field], method=method)[1]
+                fdr=multipletests(df.loc[i, field], method=method)[1]
             ).rename(columns={'fdr': fdr_field}) for i in d_unique
         ]).reset_index()
 
@@ -424,56 +345,47 @@ class Association:
             self.crispr.loc[d_genes].T
         ], axis=1, sort=False).dropna().T
 
-    def lmm_multiple_association(self, lmm_associations, top_features=10):
+    def lmm_multiple_association(self, lmm_associations, top_features=5):
         mlmm_res = []
-        # drug = (1411, 'SN1041137233', 'v17')
 
+        # drug = (1411, 'SN1041137233', 'v17')
         for drug in self.drespo.index:
             # Top associated genes
-            drug_df = self.get_drug_top(lmm_associations, drug, top_features)
+            drug_df = self.get_drug_top(lmm_associations, drug, top_features).T
 
             # Kinship and covariates
-            k = self.kinship(self.crispr[drug_df.columns].T)
-            m = self.get_covariates().loc[drug_df.columns]
+            k = self.kinship(self.crispr[drug_df.index].T)
+            m = self.get_covariates().loc[drug_df.index]
 
             # Combination of features with the top feature
-            features = list(drug_df.index[1:])
+            features = list(drug_df.iloc[:, 1:])
             combinations = list(it.combinations(features, 2))
-            combinations = [c for c in combinations if features[0] in c]
-
-            # Null model with top feature
-            lmm_best, lmm_best_params = Association.lmm_association_limix(
-                y=drug_df.loc[[drug]].T,
-                x=drug_df.loc[[features[0]]].T,
-                m=pd.concat([m, drug_df.loc[[features[0]]].T], axis=1).dropna(),
-                k=k
-            )
 
             # Test the feature combinations
             for c in combinations:
+                c_eval = '*'.join(c)
+                c_feature = (drug_df[c[0]] * drug_df[c[1]]).rename(c_eval).to_frame()
+
                 # Alternative model with both features
-                lmm_alternative, lmm_alt_params = Association.lmm_association_limix(
-                    y=drug_df.loc[[drug]].T,
-                    x=drug_df.loc[[features[0]]].T,
-                    m=pd.concat([m, drug_df.loc[list(c)].T], axis=1).dropna(),
+                c_lmm, c_lmm_params = Association.lmm_association_limix(
+                    y=drug_df[[drug]],
+                    x=c_feature,
+                    m=pd.concat([m, drug_df[list(c)]], axis=1),
                     k=k
                 )
 
-                # Log-ratio test
-                lrt_pval = lrt_pvalues(lmm_best.null_lml, lmm_alternative.null_lml, len(c) - 1)
-
                 # Add results
                 mlmm_res.append(dict(
-                    features='+'.join(c),
-                    betas=';'.join(lmm_alternative.null_covariate_effsizes[list(c)].apply(lambda v: f'{v:.5f}')),
-                    pval=lrt_pval,
+                    feature=c_eval,
+                    beta=c_lmm.variant_effsizes.values[0], pval=c_lmm.variant_pvalues.values[0],
+                    covs_betas=';'.join(c_lmm.null_covariate_effsizes[list(c)].apply(lambda v: f'{v:.5f}')),
                     DRUG_ID=drug[0],
                     DRUG_NAME=drug[1],
                     VERSION=drug[2]
                 ))
 
         mlmm_res = pd.DataFrame(mlmm_res).sort_values('pval')
-        mlmm_res = self.multipletests_per_drug(mlmm_res, field='pval', fdr_field='fdr')
+        mlmm_res = self.multipletests_per_drug(mlmm_res, field='pval', fdr_field='fdr', method=self.pval_method)
 
         return mlmm_res
 
