@@ -5,7 +5,6 @@ import numpy as np
 import pandas as pd
 import itertools as it
 from limix.qtl import scan
-from limix.stats import lrt_pvalues
 from sklearn.preprocessing import StandardScaler
 from statsmodels.stats.multitest import multipletests
 from dtrace.DataImporter import DrugResponse, CRISPR, Genomic, Sample, PPI, GeneExpression, Proteomics, \

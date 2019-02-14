@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
+from scipy.stats import gaussian_kde
 from DTracePlot import DTracePlot
 from natsort import natsorted
 from crispy.utils import Utils
@@ -15,7 +16,7 @@ from matplotlib.lines import Line2D
 from Associations import Association
 from DataImporter import DrugResponse, PPI
 from sklearn.preprocessing import MinMaxScaler
-from scipy.stats import ttest_ind, mannwhitneyu, gmean
+from scipy.stats import ttest_ind, mannwhitneyu, gmean, pearsonr
 
 
 class TargetBenchmark(DTracePlot):
@@ -435,10 +436,11 @@ class TargetBenchmark(DTracePlot):
         )
 
         for i, (y, t, f) in df[['pval', 'target', 'fdr']].iterrows():
-            ax.text(-np.log10(y) - 0.1, i, t, color='white', ha='right', va='center', fontsize=6, zorder=10)
 
-            if f < self.fdr:
-                ax.text(-np.log10(y) + 0.1, i, '*', color=self.PAL_DTRACE[2], ha='left', va='center', fontsize=6, zorder=10)
+            ax.text(
+                -np.log10(y) - 0.1, i, f"{t}{'*' if f < self.fdr else ''}", color='white', ha='right', va='center',
+                fontsize=6, zorder=10
+            )
 
         ax.grid(axis='x', lw=.3, color=self.PAL_DTRACE[1], zorder=0)
 
@@ -447,6 +449,8 @@ class TargetBenchmark(DTracePlot):
 
         ax.set_xlabel('Drug association (-log10 p-value)')
         ax.set_title(drug)
+
+        return ax
 
     def lmm_betas_clustermap(self, matrix_betas):
         matrix_betas_corr = matrix_betas.T.corr()
@@ -589,6 +593,54 @@ class TargetBenchmark(DTracePlot):
 
         grid.ax_joint.set_xlim(0, 1)
 
+    def signif_fdr_scatter(self):
+        plot_df = pd.concat([
+            self.lmm_drug.groupby(self.datasets.drespo_obj.DRUG_COLUMNS)['fdr'].min().rename('crispr'),
+            self.lmm_drug_genomic.groupby(self.datasets.drespo_obj.DRUG_COLUMNS)['fdr'].min().rename('drug')
+        ], axis=1, sort=False)
+
+        x, y = -np.log10(plot_df['crispr']), -np.log10(plot_df['drug'])
+
+        xy = np.vstack([x, y])
+        z = gaussian_kde(xy)(xy)
+
+        plt.scatter(x, y, c=z, marker='o', edgecolor='', cmap='viridis_r', s=3, alpha=.85)
+
+        plt.axhline(-np.log10(0.1), ls=':', lw=.5, color=self.PAL_DTRACE[2], zorder=0)
+        plt.axvline(-np.log10(0.1), ls=':', lw=.5, color=self.PAL_DTRACE[2], zorder=0)
+
+        plt.xlabel('Drug ~ CRISPR association FDR\n(-log10)')
+        plt.ylabel('Drug ~ Genomic association FDR\n(-log10)')
+
+    def drug_top_associations(self, drug):
+        plot_df = self.lmm_drug.query(f"(DRUG_NAME == '{d}') & (fdr < {self.fdr})").reset_index(drop=True)
+        plot_df = plot_df.groupby(['DRUG_NAME', 'GeneSymbol']).first().sort_values(['fdr', 'pval']).reset_index()
+        plot_df['logpval'] = -np.log10(plot_df['pval'])
+
+        #
+        ax = plt.gca()
+
+        df = plot_df.query("target != 'T'")
+        ax.bar(df.index, df['logpval'], .8, color=self.PAL_DTRACE[2], align='center', zorder=5, linewidth=0)
+
+        df = plot_df.query("target == 'T'")
+        ax.bar(df.index, df['logpval'], .8, color=self.PAL_DTRACE[0], align='center', zorder=5, linewidth=0)
+
+        for i, g in enumerate(plot_df['GeneSymbol']):
+            ax.text(i, 0.1, g, ha='center', va='bottom', fontsize=8, zorder=10, rotation='vertical', color='white')
+
+        for i, (y, t, b) in enumerate(plot_df[['logpval', 'target', 'beta']].values):
+            c = self.PAL_DTRACE[0] if t == 'T' else self.PAL_DTRACE[2]
+
+            ax.text(i, y + 0.25, t, color=c, ha='center', fontsize=6, zorder=10)
+            ax.text(i, -1, f'{b:.1f}', color=c, ha='center', fontsize=6, rotation='vertical', zorder=10)
+
+        sns.despine(right=True, top=True, ax=ax)
+        ax.axes.get_xaxis().set_ticks([])
+
+        ax.set_ylabel('Drug-gene association\n(-log10 p-value)')
+        ax.set_title(f'{d} significant associations')
+
 
 if __name__ == '__main__':
     # Import target benchmark
@@ -620,6 +672,12 @@ if __name__ == '__main__':
     trg.signif_maxconcentration_scatter()
     plt.gcf().set_size_inches(2.5, 2.5)
     plt.savefig('reports/target_benchmark_signif_scatter_maxconcentration.pdf', bbox_inches='tight', transparent=True)
+    plt.close('all')
+
+    #
+    trg.signif_fdr_scatter()
+    plt.gcf().set_size_inches(2, 2)
+    plt.savefig('reports/target_benchmark_signif_fdr_scatter.pdf', bbox_inches='tight', transparent=True)
     plt.close('all')
 
     # -
@@ -679,13 +737,17 @@ if __name__ == '__main__':
     plt.savefig('reports/drug_associations_manhattan.png', bbox_inches='tight', transparent=True, dpi=600)
     plt.close('all')
 
-    # - Drug targets
-    drugs_notarget = [
-        ('Olaparib', ['STAG1', 'LIG1', 'FLI1', 'PARP1']),
-        ('Talazoparib', ['PCGF5', 'XRCC1', 'RHNO1', 'LIG1', 'PARP1', 'PARP2'])
-    ]
+    # -
+    d = 'AZD5582'
+    trg.drug_top_associations(d)
+    plt.gcf().set_size_inches(1.5, 2)
+    plt.savefig('reports/target_benchmark_drug_top_associations_barplot.pdf', bbox_inches='tight', transparent=True, dpi=600)
+    plt.close('all')
 
-    for drug, genes in drugs_notarget:
+    # - Drug targets
+    genes = ['STAG1', 'LIG1', 'FLI1', 'PARP1', 'PARP2', 'PARP3', 'PCGF5', 'XRCC1', 'RHNO1']
+
+    for drug in ['Olaparib', 'Talazoparib']:
         trg.drug_notarget_barplot(drug, genes)
 
         plt.gcf().set_size_inches(2, 1.5)

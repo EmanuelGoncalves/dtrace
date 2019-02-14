@@ -29,7 +29,7 @@ class DrugResponse:
         self.d_rs = pd.read_csv(drugresponse_file_rs).assign(VERSION='RS')
 
         self.drugresponse = dict()
-        for index_value, n in [('ln_IC50', 'ic50'), ('AUC', 'auc')]:
+        for index_value, n in [('ln_IC50', 'ic50'), ('AUC', 'auc'), ('RMSE', 'rmse')]:
             d_v17_matrix = pd.pivot_table(
                 self.d_v17, index=self.DRUG_COLUMNS, columns=self.SAMPLE_COLUMNS, values=index_value
             )
