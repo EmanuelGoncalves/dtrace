@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
+from DTraceEnrichment import DTraceEnrichment
 from scipy.stats import gaussian_kde
 from DTracePlot import DTracePlot
 from natsort import natsorted
@@ -891,3 +892,10 @@ if __name__ == '__main__':
             plt.gcf().set_size_inches(1.5, 1.5)
             plt.savefig(plot_name, bbox_inches='tight', transparent=True)
             plt.close('all')
+
+    # -
+    sublist = set(trg.lmm_drug.query(f'fdr < {trg.fdr}')['GeneSymbol'])
+    background = set(trg.lmm_drug['GeneSymbol'])
+
+    enr = DTraceEnrichment().hypergeom_enrichments(sublist, background, 'c5.bp.v6.2.symbols.gmt')
+    print(enr.head(60))

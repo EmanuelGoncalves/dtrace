@@ -4,6 +4,7 @@
 import os
 import pandas as pd
 from crispy import SSGSEA, GSEAplot
+from scipy.stats.distributions import hypergeom
 from statsmodels.stats.multitest import multipletests
 
 
@@ -71,3 +72,53 @@ class DTraceEnrichment:
         )
 
         return ax
+
+    @staticmethod
+    def hypergeom_test(signature, background, sublist):
+        """
+        Performs hypergeometric test
+
+        Arguements:
+                signature: {string} - Signature IDs
+                background: {string} - Background IDs
+                sublist: {string} - Sub-set IDs
+
+        # hypergeom.sf(x, M, n, N, loc=0)
+        # M: total number of objects,
+        # n: total number of type I objects
+        # N: total number of type I objects drawn without replacement
+
+        """
+        pvalue = hypergeom.sf(
+            len(sublist.intersection(signature)),
+            len(background),
+            len(background.intersection(signature)),
+            len(sublist)
+        )
+
+        intersection = len(sublist.intersection(signature))
+
+        return pvalue, intersection
+
+    def hypergeom_enrichments(self, sublist, background, gmt_file, padj_method='fdr_bh', verbose=0):
+        self.__assert_gmt_file(gmt_file)
+
+        geneset = self.gmts[gmt_file]
+
+        ssgsea_geneset = []
+        for gset in geneset:
+            if verbose > 0:
+                print(f'[INFO] Gene-set: {gset}')
+
+            p_value, intersection = self.hypergeom_test(
+                signature=geneset[gset], background=background, sublist=sublist
+            )
+
+            ssgsea_geneset.append(dict(
+                gset=gset, p_value=p_value, len_sig=len(geneset[gset]), len_intersection=intersection
+            ))
+
+        ssgsea_geneset = pd.DataFrame(ssgsea_geneset).set_index('gset').sort_values('p_value')
+        ssgsea_geneset['fdr'] = multipletests(ssgsea_geneset['p_value'], method=padj_method)[1]
+
+        return ssgsea_geneset

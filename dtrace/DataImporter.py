@@ -374,6 +374,18 @@ class CRISPR:
 
         return df
 
+    @staticmethod
+    def growth_corr(df, growth):
+        samples = list(set(growth.dropna().index).intersection(df.columns))
+
+        g_corr = df[samples].T\
+            .corrwith(growth[samples])\
+            .sort_values()\
+            .rename('corr')\
+            .reset_index()
+
+        return g_corr
+
 
 class Sample:
     def __init__(

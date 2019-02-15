@@ -7,9 +7,9 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from DTracePlot import DTracePlot
 from scipy.stats import pearsonr
-from DataImporter import DrugResponse
 from Associations import Association
 from sklearn.decomposition import PCA
+from DataImporter import DrugResponse, CRISPR
 
 
 class Preliminary:
@@ -255,6 +255,10 @@ if __name__ == '__main__':
     # - Growth ~ Drug-response correlation
     g_corr = DrugResponse.growth_corr(datasets.drespo, datasets.samplesheet.samplesheet['growth'])
     g_corr.to_csv('data/drug_growth_correlation.csv', index=False)
+
+    # - Growth ~ CRISPR correlation
+    c_corr = CRISPR.growth_corr(datasets.crispr, datasets.samplesheet.samplesheet['growth'])
+    c_corr.to_csv('data/crispr_growth_correlation.csv', index=False)
 
     # - Number of responses
     num_resp = pd.Series({
