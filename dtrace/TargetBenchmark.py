@@ -695,36 +695,43 @@ if __name__ == '__main__':
     trg_signif = pd.concat([c_signif, g_signif], axis=1, sort=False).dropna()
 
     # -
-    self = trg
+    atype_eval = ['r2_combined - r2_feature1', 'r2_combined - r2_feature2']
 
-    atype_eval = ['beta_combined - beta_feature1', 'beta_combined - beta_feature2']
-
-    cols = self.datasets.drespo_obj.DRUG_COLUMNS
-
-    plot_df = pd.concat([
-        pd.concat(
-            self.lmm_multi.query("atype == '*'").groupby(cols).median().eval(atype_eval), axis=1, sort=False
-        ).min(1).rename('prod'),
-
-        pd.concat(
-            self.lmm_multi.query("atype == '+'").groupby(cols).median().eval(atype_eval), axis=1, sort=False
-        ).min(1).rename('add')
-    ])
+    cols = self.datasets.drespo_obj.DRUG_COLUMNS + ['feature1', 'feature2']
 
     #
+    df_prod = self.lmm_multi.query("atype == '*'").groupby(cols).median()
+    df_prod = df_prod.eval('d_r2_f1 = r2_combined - r2_feature1').eval('d_r2_f2 = r2_combined - r2_feature2')
+    df_prod = df_prod.assign(d_r2_min=df_prod[['d_r2_f1', 'd_r2_f2']].min(1))
+
+    df_add = self.lmm_multi.query("atype == '+'").groupby(cols).median()
+    df_add = df_add.eval('d_r2_f1 = r2_combined - r2_feature1').eval('d_r2_f2 = r2_combined - r2_feature2')
+    df_add = df_add.assign(d_r2_min=df_add[['d_r2_f1', 'd_r2_f2']].min(1))
+
+    plot_df = pd.concat([
+        df_prod.add_prefix('prod'), df_add.add_prefix('add')
+    ], axis=1, sort=False)
+    plot_df['fdr'] = self.lmm_drug.groupby(self.datasets.drespo_obj.DRUG_COLUMNS)['fdr'].min().loc[[tuple(i[:3]) for i in plot_df.index]].values
+    plot_df['signif'] = plot_df['fdr'].apply(lambda v: int(v < self.fdr))
+
+    #
+    x, y = plot_df['prod'], plot_df['add']
+    xy = np.vstack([x, y])
+    z = gaussian_kde(xy)(xy)
+
     ax = plt.gca()
 
-    ax.scatter(data['prod'], data['add'], c=DTracePlot.PAL_DBGD[0], s=5, marker='o', lw=.5, edegcolor='white')
-
-    (x0, x1), (y0, y1) = ax.get_xlim(), ax.get_ylim()
-    lims = [max(x0, y0), min(x1, y1)]
-    ax.plot(lims, lims, 'k-', lw=.1, zorder=0, alpha=.7)
+    ax.scatter(x, y, c=z, marker='o', edgecolor='', cmap='viridis', s=3, alpha=.85)
 
     ax.axhline(0, ls='-', lw=.1, zorder=0, alpha=.7, color='k')
     ax.axvline(0, ls='-', lw=.1, zorder=0, alpha=.7, color='k')
 
     ax.set_xlabel('f1*f2 dela R2')
     ax.set_ylabel('f1+f2 dela R2')
+
+    (x0, x1), (y0, y1) = ax.get_xlim(), ax.get_ylim()
+    lims = [max(x0, y0), min(x1, y1)]
+    ax.plot(lims, lims, 'k-', lw=.1, zorder=0, alpha=.7)
 
     plt.gcf().set_size_inches(2, 2)
     plt.savefig('reports/target_benchmark_multi_scatter.pdf', bbox_inches='tight', transparent=True)

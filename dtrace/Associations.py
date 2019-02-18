@@ -503,7 +503,6 @@ if __name__ == '__main__':
 
     lmm_multi = assoc.lmm_multiple_association(lmm_dsingle)
     lmm_multi \
-        .sort_values(['pval', 'fdr']) \
         .to_csv(f'data/drug_lm_regressions_multiple_{dtype}.csv.gz', index=False, compression='gzip')
 
     genes = ['MARCH5', 'MCL1', 'BCL2', 'BCL2L1', 'BCL2L11', 'BAX', 'PMAIP1', 'CYCS']
