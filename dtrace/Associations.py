@@ -5,7 +5,9 @@ import numpy as np
 import pandas as pd
 import itertools as it
 from limix.qtl import scan
+from sklearn.linear_model import RidgeCV
 from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import ShuffleSplit
 from statsmodels.stats.multitest import multipletests
 from dtrace.DataImporter import DrugResponse, CRISPR, Genomic, Sample, PPI, GeneExpression, Proteomics, \
     PhosphoProteomics, CopyNumber, Apoptosis, RPPA, WES, RNAi, CRISPRComBat
@@ -344,47 +346,69 @@ class Association:
             self.crispr.loc[d_genes].T
         ], axis=1, sort=False).dropna().T
 
-    def lmm_multiple_association(self, lmm_associations, top_features=5):
-        mlmm_res = []
+    @staticmethod
+    def lm_outofsample(y, x, n_splits, test_size):
+        y = y[x.index].dropna()
+        y = pd.DataFrame(StandardScaler().fit_transform(y.to_frame()), index=y.index).iloc[:, 0]
 
+        x = x.loc[y.index]
+        x = pd.DataFrame(StandardScaler().fit_transform(x), index=x.index, columns=x.columns)
+
+        df = []
+        for train, test in ShuffleSplit(n_splits=n_splits, test_size=test_size).split(x, y):
+            lm = RidgeCV().fit(x.iloc[train], y.iloc[train])
+
+            r2 = lm.score(x.iloc[test], y.iloc[test])
+
+            df.append(dict(r2=r2, beta=lm.coef_[0]))
+
+        return pd.DataFrame(df)
+
+    def lmm_multiple_association(self, lmm_associations, top_features=3, n_splits=1000, test_size=.3, verbose=1):
+        mlmm_res = []
         # drug = (1411, 'SN1041137233', 'v17')
         for drug in self.drespo.index:
+            if verbose > 0:
+                print('Drug =', drug)
+
             # Top associated genes
             drug_df = self.get_drug_top(lmm_associations, drug, top_features).T
-
-            # Kinship and covariates
-            k = self.kinship(self.crispr[drug_df.index].T)
-            m = self.get_covariates().loc[drug_df.index]
 
             # Combination of features with the top feature
             features = list(drug_df.iloc[:, 1:])
             combinations = list(it.combinations(features, 2))
 
+            # Test single feature models
+            y = drug_df.iloc[:, 0]
+
+            lm_features = {
+                f: self.lm_outofsample(y=y, x=drug_df[[f]], n_splits=n_splits, test_size=test_size) for f in features
+            }
+
             # Test the feature combinations
             for c in combinations:
-                c_eval = '*'.join(c)
-                c_feature = (drug_df[c[0]] * drug_df[c[1]]).rename(c_eval).to_frame()
+                for atype in ['+', '*']:
+                    if atype == '+':
+                        c_feature = (drug_df[c[0]] + drug_df[c[1]]).to_frame()
+                    elif atype == '*':
+                        c_feature = (drug_df[c[0]] * drug_df[c[1]]).to_frame()
+                    else:
+                        assert False, f'Combination type not supported: {atype}'
 
-                # Alternative model with both features
-                c_lmm, c_lmm_params = Association.lmm_association_limix(
-                    y=drug_df[[drug]],
-                    x=c_feature,
-                    m=pd.concat([m, drug_df[list(c)]], axis=1),
-                    k=k
-                )
+                    lm_combined = self.lm_outofsample(y=y, x=c_feature, n_splits=n_splits, test_size=test_size)
 
-                # Add results
-                mlmm_res.append(dict(
-                    feature=c_eval,
-                    beta=c_lmm.variant_effsizes.values[0], pval=c_lmm.variant_pvalues.values[0],
-                    covs_betas=';'.join(c_lmm.null_covariate_effsizes[list(c)].apply(lambda v: f'{v:.5f}')),
-                    DRUG_ID=drug[0],
-                    DRUG_NAME=drug[1],
-                    VERSION=drug[2]
-                ))
+                    c_lm = pd.concat([
+                        lm_combined.add_suffix('_combined'),
+                        lm_features[c[0]].add_suffix('_feature1'),
+                        lm_features[c[1]].add_suffix('_feature2'),
+                    ], axis=1, sort=False)
 
-        mlmm_res = pd.DataFrame(mlmm_res).sort_values('pval')
-        mlmm_res = self.multipletests_per_drug(mlmm_res, field='pval', fdr_field='fdr', method=self.pval_method)
+                    c_lm = c_lm.assign(combined=atype.join(c)).assign(feature1=c[0]).assign(feature2=c[1])\
+                        .assign(atype=atype).assign(DRUG_ID=drug[0]).assign(DRUG_NAME=drug[1]).assign(VERSION=drug[2])
+
+                    mlmm_res.append(c_lm)
+
+        mlmm_res = pd.concat(mlmm_res)
 
         return mlmm_res
 
@@ -450,6 +474,7 @@ if __name__ == '__main__':
     dtype = 'ic50'
 
     assoc = Association(dtype_drug=dtype)
+    # lmm_dsingle = pd.read_csv(f'data/drug_lmm_regressions_{dtype}.csv.gz')
 
     lmm_dsingle = assoc.lmm_single_associations()
     lmm_dsingle\
@@ -479,7 +504,7 @@ if __name__ == '__main__':
     lmm_multi = assoc.lmm_multiple_association(lmm_dsingle)
     lmm_multi \
         .sort_values(['pval', 'fdr']) \
-        .to_csv(f'data/drug_lmm_regressions_multiple_{dtype}.csv.gz', index=False, compression='gzip')
+        .to_csv(f'data/drug_lm_regressions_multiple_{dtype}.csv.gz', index=False, compression='gzip')
 
     genes = ['MARCH5', 'MCL1', 'BCL2', 'BCL2L1', 'BCL2L11', 'BAX', 'PMAIP1', 'CYCS']
     lmm_gexp_crispr = assoc.lmm_gexp_crispr(crispr_genes=genes)

@@ -54,7 +54,7 @@ class DTracePlot(CrispyPlot):
     MARKERS = dict(Sanger='o', Broad='X')
 
     def __init__(self):
-        sns.set(style='ticks', context='paper', rc=self.SNS_RC, font_scale=.75)
+        sns.set(style='ticks', context='paper', rc=self.SNS_RC, font_scale=.75, font='Helvetica')
 
     @classmethod
     def plot_corrplot(
@@ -115,7 +115,7 @@ class DTracePlot(CrispyPlot):
     @classmethod
     def plot_corrplot_discrete(
             cls, x, y, z, style, plot_df, scatter_kws=None, line_kws=None, legend_title='', discrete_pal=None,
-            hue_order=None, annot_text=None
+            hue_order=None, annot_text=None, add_hline=False, add_vline=False
     ):
         # Defaults
         if scatter_kws is None:
@@ -156,8 +156,11 @@ class DTracePlot(CrispyPlot):
 
         grid.ax_joint.text(.95, .05, annot_text, fontsize=4, transform=grid.ax_joint.transAxes, ha='right')
 
-        grid.ax_joint.axhline(0, ls='-', lw=0.3, c=pal[0], alpha=.2)
-        grid.ax_joint.axvline(0, ls='-', lw=0.3, c=pal[0], alpha=.2)
+        if add_hline:
+            grid.ax_joint.axhline(0, ls='-', lw=0.3, c=pal[0], alpha=.2)
+
+        if add_vline:
+            grid.ax_joint.axvline(0, ls='-', lw=0.3, c=pal[0], alpha=.2)
 
         grid.set_axis_labels('{} (log2 FC)'.format(x), '{} (ln IC50)'.format(y))
 

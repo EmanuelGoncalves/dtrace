@@ -453,10 +453,13 @@ if __name__ == '__main__':
         ('Linsitinib', 'IGF1R', 'IGF1R'),
         ('SN1041137233', 'ERBB2', 'ERBB2'),
         ('Nutlin-3a (-)', 'MDM2', 'BAX'),
-        ('Venetoclax', 'BCL2', 'CDC42BPA')
+        ('Venetoclax', 'BCL2', 'CDC42BPA'),
+        ('AZD5582', 'MAP3K7', 'TNF'),
+        ('SN1021632995', 'MAP3K7', 'TNF'),
+        ('SN1043546339', 'MAP3K7', 'TNF'),
     ]
 
-    # d, c, g = ('Savolitinib', 'GAB1', 'PPP6R2')
+    # d, c, g = ('SN1043546339', 'MAP3K7', 'TNF')
     for d, c, g in rassocs:
         assoc = lmm_robust_gexp[
             (lmm_robust_gexp['DRUG_NAME'] == d) & (lmm_robust_gexp['GeneSymbol'] == c) & (lmm_robust_gexp['feature'] == g)
@@ -513,38 +516,38 @@ if __name__ == '__main__':
         plt.close('all')
 
     # -
-    d, c, g = ('Venetoclax', 'BCL2', 'CDC42BPA')
+    # d, c, g = ('Venetoclax', 'BCL2', 'CDC42BPA')
+    for d, c, g in [('Venetoclax', 'BCL2', 'CDC42BPA'), ('SN1021632995', 'MAP3K7', 'TNF')]:
+        assoc_all = lmm_robust_gexp[lmm_robust_gexp['DRUG_NAME'] == d]
 
-    assoc_all = lmm_robust_gexp[lmm_robust_gexp['DRUG_NAME'] == d]
+        assoc = lmm_robust_gexp[
+            (lmm_robust_gexp['DRUG_NAME'] == d) & (lmm_robust_gexp['GeneSymbol'] == c) & (lmm_robust_gexp['feature'] == g)
+        ].iloc[0]
 
-    assoc = lmm_robust_gexp[
-        (lmm_robust_gexp['DRUG_NAME'] == d) & (lmm_robust_gexp['GeneSymbol'] == c) & (lmm_robust_gexp['feature'] == g)
-    ].iloc[0]
+        drug = tuple(assoc[DrugResponse.DRUG_COLUMNS])
+        dmax = np.log(datasets.drespo_obj.maxconcentration[drug])
 
-    drug = tuple(assoc[DrugResponse.DRUG_COLUMNS])
-    dmax = np.log(datasets.drespo_obj.maxconcentration[drug])
+        plot_df = pd.concat([
+            datasets.drespo.loc[drug].rename('drug'),
+            datasets.crispr.loc[c],
+            datasets.gexp.loc[g],
+            datasets.gexp_obj.rpkm.loc[g].rename(f'{g}_rpkm'),
+            datasets.samplesheet.samplesheet[['institute', 'cancer_type']],
+        ], axis=1, sort=False).dropna()
+        plot_df[f'{g}_bin'] = (plot_df[g] < 0).astype(int)
 
-    plot_df = pd.concat([
-        datasets.drespo.loc[drug].rename('drug'),
-        datasets.crispr.loc[c],
-        datasets.gexp.loc[g],
-        datasets.gexp_obj.rpkm.loc[g].rename(f'{g}_rpkm'),
-        datasets.samplesheet.samplesheet[['institute', 'cancer_type']],
-    ], axis=1, sort=False).dropna()
-    plot_df[f'{g}_bin'] = (plot_df[g] < 0).astype(int)
+        # Discrete
+        grid = DTracePlot.plot_corrplot_discrete(c, 'drug', f'{g}_bin', 'institute', plot_df)
 
-    # Discrete
-    grid = DTracePlot.plot_corrplot_discrete(c, 'drug', f'{g}_bin', 'institute', plot_df)
+        grid.ax_joint.axhline(y=dmax, linewidth=.3, color=DTracePlot.PAL_DTRACE[2], ls=':', zorder=0)
 
-    grid.ax_joint.axhline(y=dmax, linewidth=.3, color=DTracePlot.PAL_DTRACE[2], ls=':', zorder=0)
+        grid.set_axis_labels(f'{c} (scaled log2 FC)', f'{d} (ln IC50)')
 
-    grid.set_axis_labels(f'{c} (scaled log2 FC)', f'{d} (ln IC50)')
+        plt.suptitle(f'{g} not expressed', y=1.05, fontsize=8)
 
-    plt.suptitle(f'{g} not expressed', y=1.05, fontsize=8)
-
-    plt.gcf().set_size_inches(1.5, 1.5)
-    plt.savefig(f'reports/robust_scatter_{d}_{c}_gexp.pdf', bbox_inches='tight', transparent=True)
-    plt.close('all')
+        plt.gcf().set_size_inches(1.5, 1.5)
+        plt.savefig(f'reports/robust_scatter_{d}_{c}_gexp.pdf', bbox_inches='tight', transparent=True)
+        plt.close('all')
 
     #
     sensitive = list(plot_df.query(f'({g}_bin == 1) & ({c} < -0.75)').index)
@@ -570,3 +573,45 @@ if __name__ == '__main__':
         plt.gcf().set_size_inches(1.5, 1.5)
         plt.savefig(f'reports/robust_gexp_scatter.pdf', bbox_inches='tight', transparent=True)
         plt.close('all')
+
+    # -
+    y_feature, x_feature = 'STAG1', 'STAG2_mut'
+
+    plot_df = pd.concat([
+        datasets.crispr.loc[y_feature], datasets.genomic.loc[x_feature].apply(lambda v: 'Yes' if v else 'No')
+    ], axis=1, sort=False).dropna().sort_values(x_feature)
+
+    pal = dict(Yes=DTracePlot.PAL_DTRACE[1], No=DTracePlot.PAL_DTRACE[0])
+
+    sns.boxplot(
+        x=x_feature, y=y_feature, palette=pal, data=plot_df, linewidth=.3, fliersize=1, notch=False, saturation=1.0,
+        showcaps=False, boxprops=DTracePlot.BOXPROPS, whiskerprops=DTracePlot.WHISKERPROPS,
+        flierprops=DTracePlot.FLIERPROPS, medianprops=dict(linestyle='-', linewidth=1.)
+    )
+
+    plt.ylabel(f'{y_feature}\n(scaled log2 FC)')
+
+    plt.gcf().set_size_inches(.75, 1.5)
+    plt.savefig(f'reports/robust_genomic_boxplot_{x_feature}.pdf', bbox_inches='tight', transparent=True)
+    plt.close('all')
+
+    # -
+    gene_gexp, gene_crispr, gene_mut = 'STAG2', 'STAG1', 'STAG2_mut'
+
+    plot_df = pd.concat([
+        datasets.crispr.loc[gene_crispr],
+        datasets.gexp.loc[gene_gexp],
+        datasets.genomic.loc[gene_mut],
+        datasets.crispr_obj.institute.rename('Institute'),
+        datasets.samplesheet.samplesheet['cancer_type']
+    ], axis=1, sort=False).dropna()
+
+    grid = DTracePlot.plot_corrplot_discrete(gene_crispr, gene_gexp, gene_mut, 'Institute', plot_df)
+
+    grid.set_axis_labels(f'{gene_crispr} (scaled log2 FC)', f'{gene_gexp} (RNA-seq voom)')
+
+    plt.suptitle(gene_mut, y=1.05, fontsize=8)
+
+    plt.gcf().set_size_inches(1.5, 1.5)
+    plt.savefig(f'reports/robust_scatter_gexp_crispr_{gene_gexp}_{gene_crispr}_{gene_mut}.pdf', bbox_inches='tight', transparent=True)
+    plt.close('all')

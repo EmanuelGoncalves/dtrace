@@ -59,7 +59,7 @@ class TargetBenchmark(DTracePlot):
         else:
             self.lmm_drug_genomic = lmm_drug_genomic
 
-        self.lmm_multi = pd.read_csv(f'data/drug_lmm_regressions_multiple_{dtype}.csv.gz')
+        self.lmm_multi = pd.read_csv(f'data/drug_lm_regressions_multiple_{dtype}.csv.gz')
 
         # PPI misc variables
         self.ppi_order = ['T', '1', '2', '3', '4', '5+', '-']
@@ -613,8 +613,10 @@ class TargetBenchmark(DTracePlot):
         plt.xlabel('Drug ~ CRISPR association FDR\n(-log10)')
         plt.ylabel('Drug ~ Genomic association FDR\n(-log10)')
 
-    def drug_top_associations(self, drug):
-        plot_df = self.lmm_drug.query(f"(DRUG_NAME == '{d}') & (fdr < {self.fdr})").reset_index(drop=True)
+    def drug_top_associations(self, drug, fdr_thres=None):
+        fdr_thres = self.fdr if fdr_thres is None else fdr_thres
+
+        plot_df = self.lmm_drug.query(f"(DRUG_NAME == '{drug}') & (fdr < {fdr_thres})").reset_index(drop=True)
         plot_df = plot_df.groupby(['DRUG_NAME', 'GeneSymbol']).first().sort_values(['fdr', 'pval']).reset_index()
         plot_df['logpval'] = -np.log10(plot_df['pval'])
 
@@ -627,8 +629,11 @@ class TargetBenchmark(DTracePlot):
         df = plot_df.query("target == 'T'")
         ax.bar(df.index, df['logpval'], .8, color=self.PAL_DTRACE[0], align='center', zorder=5, linewidth=0)
 
-        for i, g in enumerate(plot_df['GeneSymbol']):
-            ax.text(i, 0.1, g, ha='center', va='bottom', fontsize=8, zorder=10, rotation='vertical', color='white')
+        for i, (g, p) in enumerate(plot_df[['GeneSymbol', 'fdr']].values):
+            ax.text(
+                i, 0.1, f"{g}{'*' if p < self.fdr else ''}", ha='center', va='bottom', fontsize=8, zorder=10,
+                rotation='vertical', color='white'
+            )
 
         for i, (y, t, b) in enumerate(plot_df[['logpval', 'target', 'beta']].values):
             c = self.PAL_DTRACE[0] if t == 'T' else self.PAL_DTRACE[2]
@@ -640,7 +645,24 @@ class TargetBenchmark(DTracePlot):
         ax.axes.get_xaxis().set_ticks([])
 
         ax.set_ylabel('Drug-gene association\n(-log10 p-value)')
-        ax.set_title(f'{d} significant associations')
+        ax.set_title(f'{d} associations')
+
+    def signif_volcano(self):
+        plot_df = self.lmm_drug.query(f'fdr < {self.fdr}')
+        plot_df['size'] = MinMaxScaler().fit_transform(plot_df[['beta']].abs())[:, 0] * 10 + 1
+
+        for t, df in plot_df.groupby('target'):
+            plt.scatter(
+                df['beta'], -np.log10(df['pval']), s=df['size'], color=self.ppi_pal[t], marker='o', label=t,
+                edgecolor='white', lw=.1, alpha=.5
+            )
+
+        plt.axvline(0, lw=.1, ls='-', c=self.PAL_DTRACE[1], alpha=.8, zorder=0)
+
+        plt.legend(frameon=False, prop={'size': 4}, title='PPI distance').get_title().set_fontsize('4')
+
+        plt.xlabel('Effect size')
+        plt.ylabel('Association p-value (-log10)')
 
 
 if __name__ == '__main__':
@@ -649,6 +671,64 @@ if __name__ == '__main__':
 
     ppi = PPI().build_string_ppi(score_thres=900)
     ppi = PPI.ppi_corr(ppi, trg.datasets.crispr)
+
+    # -
+    e3_ligases = pd.read_excel('data/ubq/Definite Ligase List.xlsx')
+
+    plot_df = self.lmm_drug.query(f'fdr < {self.fdr}')
+    plot_df['ligase'] = plot_df['GeneSymbol'].isin(e3_ligases['Gene Symbol']).astype(int).values
+
+    background = set(self.lmm_drug['GeneSymbol'])
+    signature = set(e3_ligases['Gene Symbol']).intersection(background)
+    sublist = set(plot_df['GeneSymbol']).intersection(background)
+
+    pval, int_len = DTraceEnrichment.hypergeom_test(signature=signature, background=background, sublist=sublist)
+    print(pval, int_len)
+
+    # -
+    c_signif = self.lmm_drug.query(f"(fdr < {self.fdr}) & (target == 'T')")\
+        .groupby(['DRUG_NAME', 'GeneSymbol']).first()
+
+    g_signif = self.lmm_drug_gexp.query(f"(fdr < {self.fdr}) & (target == 'T')")\
+        .groupby(['DRUG_NAME', 'GeneSymbol']).first()
+
+    trg_signif = pd.concat([c_signif, g_signif], axis=1, sort=False).dropna()
+
+    # -
+    self = trg
+
+    atype_eval = ['beta_combined - beta_feature1', 'beta_combined - beta_feature2']
+
+    cols = self.datasets.drespo_obj.DRUG_COLUMNS
+
+    plot_df = pd.concat([
+        pd.concat(
+            self.lmm_multi.query("atype == '*'").groupby(cols).median().eval(atype_eval), axis=1, sort=False
+        ).min(1).rename('prod'),
+
+        pd.concat(
+            self.lmm_multi.query("atype == '+'").groupby(cols).median().eval(atype_eval), axis=1, sort=False
+        ).min(1).rename('add')
+    ])
+
+    #
+    ax = plt.gca()
+
+    ax.scatter(data['prod'], data['add'], c=DTracePlot.PAL_DBGD[0], s=5, marker='o', lw=.5, edegcolor='white')
+
+    (x0, x1), (y0, y1) = ax.get_xlim(), ax.get_ylim()
+    lims = [max(x0, y0), min(x1, y1)]
+    ax.plot(lims, lims, 'k-', lw=.1, zorder=0, alpha=.7)
+
+    ax.axhline(0, ls='-', lw=.1, zorder=0, alpha=.7, color='k')
+    ax.axvline(0, ls='-', lw=.1, zorder=0, alpha=.7, color='k')
+
+    ax.set_xlabel('f1*f2 dela R2')
+    ax.set_ylabel('f1+f2 dela R2')
+
+    plt.gcf().set_size_inches(2, 2)
+    plt.savefig('reports/target_benchmark_multi_scatter.pdf', bbox_inches='tight', transparent=True)
+    plt.close('all')
 
     # - Non-significant associations description
     #
@@ -682,6 +762,11 @@ if __name__ == '__main__':
     plt.close('all')
 
     # -
+    trg.signif_volcano()
+    plt.gcf().set_size_inches(1.5, 3)
+    plt.savefig('reports/target_benchmark_volcano.pdf', bbox_inches='tight', transparent=True)
+    plt.close('all')
+
     trg.countplot_drugs()
     plt.gcf().set_size_inches(2, 0.75)
     plt.savefig('reports/target_benchmark_association_countplot.pdf', bbox_inches='tight', transparent=True)
@@ -739,11 +824,17 @@ if __name__ == '__main__':
     plt.close('all')
 
     # -
-    d = 'AZD5582'
-    trg.drug_top_associations(d)
-    plt.gcf().set_size_inches(1.5, 2)
-    plt.savefig('reports/target_benchmark_drug_top_associations_barplot.pdf', bbox_inches='tight', transparent=True, dpi=600)
-    plt.close('all')
+    drugs = [
+        'SN1021632995', 'AZD5582', 'SN1043546339', 'VE-821', 'AZ20', 'VE821', 'VX-970', 'AZD6738', 'VE-822'
+    ]
+
+    for d in drugs:
+        trg.drug_top_associations(d, fdr_thres=.25)
+        plt.gcf().set_size_inches(1.5, 2)
+        plt.savefig(
+            f'reports/target_benchmark_{d}_top_associations_barplot.pdf', bbox_inches='tight', transparent=True, dpi=600
+        )
+        plt.close('all')
 
     # - Drug targets
     genes = ['STAG1', 'LIG1', 'FLI1', 'PARP1', 'PARP2', 'PARP3', 'PCGF5', 'XRCC1', 'RHNO1']
