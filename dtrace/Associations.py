@@ -16,7 +16,7 @@ from statsmodels.stats.multitest import multipletests
 
 class Association:
     """
-    Main module to test linear associations bewteen data-sets (e.g. drug-response and CRISPR-Cas9 knockout viability
+    Main class to test linear associations bewteen data-sets (e.g. drug-response and CRISPR-Cas9 knockout viability
     measurements).
 
     """

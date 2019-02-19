@@ -40,6 +40,17 @@ included_files = {"dtrace": [
     "data/ppi/BIOGRID-ORGANISM-Homo_sapiens-3.4.157.tab2.txt",
 
     "data/genomic/WES_variants.csv.gz",
+
+    "data/pathways/c1.all.v6.2.symbols.gmt",
+    "data/pathways/c2.cp.biocarta.v6.2.symbols.gmt",
+    "data/pathways/c2.cp.kegg.v6.2.symbols.gmt",
+    "data/pathways/c2.cp.reactome.v6.2.symbols.gmt",
+    "data/pathways/c2.cp.v6.2.symbols.gmt",
+    "data/pathways/c5.all.v6.2.symbols.gmt",
+    "data/pathways/c5.bp.v6.2.symbols.gmt",
+    "data/pathways/c5.cc.v6.2.symbols.gmt",
+    "data/pathways/c5.mf.v6.2.symbols.gmt",
+    "data/pathways/h.all.v6.2.symbols.gmt",
 ]}
 
 setuptools.setup(

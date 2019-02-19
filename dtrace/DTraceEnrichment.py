@@ -2,39 +2,51 @@
 # Copyright (C) 2019 Emanuel Goncalves
 
 import os
+import logging
 import pandas as pd
+from dtrace import logger, dpath
 from crispy import SSGSEA, GSEAplot
 from scipy.stats.distributions import hypergeom
 from statsmodels.stats.multitest import multipletests
 
 
 class DTraceEnrichment:
-    def __init__(self, data_dir='data/pathways/'):
-        self.data_dir = data_dir
+    """
+    Gene enrichment analysis class.
+
+    """
+
+    def __init__(self):
+        self.data_dir = f"{dpath}/pathways/"
 
         self.gmts = {
-            f: self.read_gmt(f'{self.data_dir}/{f}') for f in os.listdir(self.data_dir) if f.endswith('.gmt')
+            f: self.read_gmt(f"{self.data_dir}/{f}")
+            for f in os.listdir(self.data_dir)
+            if f.endswith(".gmt")
         }
 
     def __assert_gmt_file(self, gmt_file):
-        assert gmt_file in self.gmts, f'{gmt_file} not in gmt files: {self.gmts.keys()}'
+        assert gmt_file in self.gmts, f"{gmt_file} not in gmt files: {self.gmts.keys()}"
 
     def __assert_signature(self, gmt_file, signature):
         self.__assert_gmt_file(gmt_file)
-
-        assert signature in self.gmts[gmt_file], f'{signature} not in {gmt_file}'
+        assert signature in self.gmts[gmt_file], f"{signature} not in {gmt_file}"
 
     @staticmethod
     def read_gmt(file_path):
         with open(file_path) as f:
-            signatures = {l.split('\t')[0]: set(l.strip().split('\t')[2:]) for l in f.readlines()}
+            signatures = {
+                l.split("\t")[0]: set(l.strip().split("\t")[2:]) for l in f.readlines()
+            }
         return signatures
 
     @staticmethod
     def gsea(values, signature, permutations):
         return SSGSEA.gsea(values.to_dict(), signature, permutations=permutations)
 
-    def gsea_enrichments(self, values, gmt_file, permutations=0, padj_method='fdr_bh', verbose=0):
+    def gsea_enrichments(
+        self, values, gmt_file, permutations=0, padj_method="fdr_bh", verbose=0
+    ):
         self.__assert_gmt_file(gmt_file)
 
         geneset = self.gmts[gmt_file]
@@ -42,18 +54,26 @@ class DTraceEnrichment:
         ssgsea_geneset = []
         for gset in geneset:
             if verbose > 0:
-                print(f'[INFO] Gene-set: {gset}')
+                logger.log(logging.INFO, f"Gene-set={gset}")
 
             gset_len = len({i for i in geneset[gset] if i in values.index})
 
-            e_score, p_value, _, _ = self.gsea(values, geneset[gset], permutations=permutations)
+            e_score, p_value, _, _ = self.gsea(
+                values, geneset[gset], permutations=permutations
+            )
 
-            ssgsea_geneset.append(dict(gset=gset, e_score=e_score, p_value=p_value, len=gset_len))
+            ssgsea_geneset.append(
+                dict(gset=gset, e_score=e_score, p_value=p_value, len=gset_len)
+            )
 
-        gsea_hallmarks = pd.DataFrame(ssgsea_geneset).set_index('gset').sort_values('e_score')
+        gsea_hallmarks = (
+            pd.DataFrame(ssgsea_geneset).set_index("gset").sort_values("e_score")
+        )
 
         if permutations > 0:
-            gsea_hallmarks['fdr'] = multipletests(gsea_hallmarks['p_value'], method=padj_method)[1]
+            gsea_hallmarks["fdr"] = multipletests(
+                gsea_hallmarks["p_value"], method=padj_method
+            )[1]
 
         return gsea_hallmarks
 
@@ -61,14 +81,28 @@ class DTraceEnrichment:
         self.__assert_signature(gmt_file, signature)
         return self.gmts[gmt_file][signature]
 
-    def plot(self, values, gmt_file, signature, permutations=0, vertical_lines=False, shade=False):
+    def plot(
+        self,
+        values,
+        gmt_file,
+        signature,
+        permutations=0,
+        vertical_lines=False,
+        shade=False,
+    ):
         if type(signature) == str:
             signature = self.get_signature(gmt_file, signature)
 
-        e_score, p_value, hits, running_hit = self.gsea(values, signature, permutations=permutations)
+        e_score, p_value, hits, running_hit = self.gsea(
+            values, signature, permutations=permutations
+        )
 
         ax = GSEAplot.plot_gsea(
-            hits, running_hit, dataset=values.to_dict(), vertical_lines=vertical_lines, shade=shade
+            hits,
+            running_hit,
+            dataset=values.to_dict(),
+            vertical_lines=vertical_lines,
+            shade=shade,
         )
 
         return ax
@@ -93,14 +127,16 @@ class DTraceEnrichment:
             len(sublist.intersection(signature)),
             len(background),
             len(background.intersection(signature)),
-            len(sublist)
+            len(sublist),
         )
 
         intersection = len(sublist.intersection(signature))
 
         return pvalue, intersection
 
-    def hypergeom_enrichments(self, sublist, background, gmt_file, padj_method='fdr_bh', verbose=0):
+    def hypergeom_enrichments(
+        self, sublist, background, gmt_file, padj_method="fdr_bh", verbose=0
+    ):
         self.__assert_gmt_file(gmt_file)
 
         geneset = self.gmts[gmt_file]
@@ -108,17 +144,26 @@ class DTraceEnrichment:
         ssgsea_geneset = []
         for gset in geneset:
             if verbose > 0:
-                print(f'[INFO] Gene-set: {gset}')
+                logger.log(logging.INFO, f"Gene-set={gset}")
 
             p_value, intersection = self.hypergeom_test(
                 signature=geneset[gset], background=background, sublist=sublist
             )
 
-            ssgsea_geneset.append(dict(
-                gset=gset, p_value=p_value, len_sig=len(geneset[gset]), len_intersection=intersection
-            ))
+            ssgsea_geneset.append(
+                dict(
+                    gset=gset,
+                    p_value=p_value,
+                    len_sig=len(geneset[gset]),
+                    len_intersection=intersection,
+                )
+            )
 
-        ssgsea_geneset = pd.DataFrame(ssgsea_geneset).set_index('gset').sort_values('p_value')
-        ssgsea_geneset['fdr'] = multipletests(ssgsea_geneset['p_value'], method=padj_method)[1]
+        ssgsea_geneset = (
+            pd.DataFrame(ssgsea_geneset).set_index("gset").sort_values("p_value")
+        )
+        ssgsea_geneset["fdr"] = multipletests(
+            ssgsea_geneset["p_value"], method=padj_method
+        )[1]
 
         return ssgsea_geneset
