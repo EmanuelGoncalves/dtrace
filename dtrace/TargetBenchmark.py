@@ -50,42 +50,13 @@ class TargetBenchmark(DTracePlot):
     def __init__(
         self,
         fdr=0.1,
-        dtype="ic50",
-        lmm_drug=None,
-        lmm_drug_gexp=None,
-        lmm_drug_genomic=None,
+        dtype="ic50"
     ):
         self.fdr = fdr
         self.dtype = dtype
 
         # Imports
         self.datasets = Association(dtype_drug=dtype)
-
-        # Associations
-        if lmm_drug is None:
-            self.lmm_drug = pd.read_csv(
-                f"data/drug_lmm_regressions_{self.dtype}.csv.gz"
-            )
-        else:
-            self.lmm_drug = lmm_drug
-
-        if lmm_drug_gexp is None:
-            self.lmm_drug_gexp = pd.read_csv(
-                f"data/drug_lmm_regressions_{self.dtype}_gexp.csv.gz"
-            )
-        else:
-            self.lmm_drug_gexp = lmm_drug_gexp
-
-        if lmm_drug_genomic is None:
-            self.lmm_drug_genomic = pd.read_csv(
-                f"data/drug_lmm_regressions_{self.dtype}_genomic.csv.gz"
-            )
-        else:
-            self.lmm_drug_genomic = lmm_drug_genomic
-
-        self.lmm_multi = pd.read_csv(
-            f"data/drug_lm_regressions_multiple_{dtype}.csv.gz"
-        )
 
         # PPI misc variables
         self.ppi_order = ["T", "1", "2", "3", "4", "5+", "-"]

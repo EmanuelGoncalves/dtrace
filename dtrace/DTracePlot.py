@@ -24,79 +24,109 @@ class MidpointNormalize(colors.Normalize):
 class DTracePlot(CrispyPlot):
     # - DEFAULT AESTHETICS
     SNS_RC = {
-        'axes.linewidth': .3,
-
-        'xtick.major.width': .3,
-        'ytick.major.width': .3,
-        'xtick.major.size': 2.5,
-        'ytick.major.size': 2.5,
-
-        'xtick.minor.width': .3,
-        'ytick.minor.width': .3,
-        'xtick.minor.size': 1.5,
-        'ytick.minor.size': 1.5,
-
-        'xtick.direction': 'in',
-        'ytick.direction': 'in'
+        "axes.linewidth": 0.3,
+        "xtick.major.width": 0.3,
+        "ytick.major.width": 0.3,
+        "xtick.major.size": 2.5,
+        "ytick.major.size": 2.5,
+        "xtick.minor.width": 0.3,
+        "ytick.minor.width": 0.3,
+        "xtick.minor.size": 1.5,
+        "ytick.minor.size": 1.5,
+        "xtick.direction": "in",
+        "ytick.direction": "in",
     }
 
-    PAL_SET2 = sns.color_palette('Set2', n_colors=8).as_hex()
+    PAL_SET2 = sns.color_palette("Set2", n_colors=8).as_hex()
 
-    PAL_DTRACE = [PAL_SET2[1], '#E1E1E1', '#656565', '#2b8cbe', '#de2d26']
+    PAL_DTRACE = [PAL_SET2[1], "#E1E1E1", "#656565", "#2b8cbe", "#de2d26"]
 
-    BOXPROPS = dict(linewidth=1.)
-    WHISKERPROPS = dict(linewidth=1.)
-    MEDIANPROPS = dict(linestyle='-', linewidth=1., color=PAL_DTRACE[0])
+    BOXPROPS = dict(linewidth=1.0)
+    WHISKERPROPS = dict(linewidth=1.0)
+    MEDIANPROPS = dict(linestyle="-", linewidth=1.0, color=PAL_DTRACE[0])
     FLIERPROPS = dict(
-        marker='o', markerfacecolor='black', markersize=2., linestyle='none', markeredgecolor='none', alpha=.6
+        marker="o",
+        markerfacecolor="black",
+        markersize=2.0,
+        linestyle="none",
+        markeredgecolor="none",
+        alpha=0.6,
     )
 
-    MARKERS = dict(Sanger='o', Broad='X')
-
-    def __init__(self):
-        sns.set(style='ticks', context='paper', rc=self.SNS_RC, font_scale=.75, font='Helvetica')
+    MARKERS = dict(Sanger="o", Broad="X")
 
     @classmethod
     def plot_corrplot(
-            cls, x, y, style, dataframe, add_hline=True, add_vline=True, diag_line=False, annot_text=None, lowess=False,
-            fit_reg=True
+        cls,
+        x,
+        y,
+        style,
+        dataframe,
+        add_hline=True,
+        add_vline=True,
+        diag_line=False,
+        annot_text=None,
+        lowess=False,
+        fit_reg=True,
     ):
         grid = sns.JointGrid(x, y, data=dataframe, space=0)
 
         # Joint
         for t, df in dataframe.groupby(style):
             grid.ax_joint.scatter(
-                x=df[x], y=df[y], edgecolor='w', lw=.05, s=10, color=cls.PAL_DTRACE[2], marker=cls.MARKERS[t], label=t,
-                alpha=.8
+                x=df[x],
+                y=df[y],
+                edgecolor="w",
+                lw=0.05,
+                s=10,
+                color=cls.PAL_DTRACE[2],
+                marker=cls.MARKERS[t],
+                label=t,
+                alpha=0.8,
             )
 
         if fit_reg:
             grid.plot_joint(
-                sns.regplot, data=dataframe, line_kws=dict(lw=1., color=cls.PAL_DTRACE[0]), marker='', lowess=lowess,
-                truncate=True
+                sns.regplot,
+                data=dataframe,
+                line_kws=dict(lw=1.0, color=cls.PAL_DTRACE[0]),
+                marker="",
+                lowess=lowess,
+                truncate=True,
             )
 
         # Annotation
-        if annot_text == '':
+        if annot_text == "":
             cor, pval = pearsonr(dataframe[x], dataframe[y])
-            annot_text = f'R={cor:.2g}, p={pval:.1e}'
+            annot_text = f"R={cor:.2g}, p={pval:.1e}"
 
-        grid.ax_joint.text(.95, .05, annot_text, fontsize=4, transform=grid.ax_joint.transAxes, ha='right')
+        grid.ax_joint.text(
+            0.95,
+            0.05,
+            annot_text,
+            fontsize=4,
+            transform=grid.ax_joint.transAxes,
+            ha="right",
+        )
 
         # Marginals
-        grid.plot_marginals(sns.distplot, kde=False, hist_kws=dict(linewidth=0), color=cls.PAL_DTRACE[2])
+        grid.plot_marginals(
+            sns.distplot, kde=False, hist_kws=dict(linewidth=0), color=cls.PAL_DTRACE[2]
+        )
 
         # Extra
         if add_hline:
-            grid.ax_joint.axhline(0, ls='-', lw=0.1, c=cls.PAL_DTRACE[1], zorder=0)
+            grid.ax_joint.axhline(0, ls="-", lw=0.1, c=cls.PAL_DTRACE[1], zorder=0)
 
         if add_vline:
-            grid.ax_joint.axvline(0, ls='-', lw=0.1, c=cls.PAL_DTRACE[1], zorder=0)
+            grid.ax_joint.axvline(0, ls="-", lw=0.1, c=cls.PAL_DTRACE[1], zorder=0)
 
         if diag_line:
             (x0, x1), (y0, y1) = grid.ax_joint.get_xlim(), grid.ax_joint.get_ylim()
             lims = [max(x0, y0), min(x1, y1)]
-            grid.ax_joint.plot(lims, lims, ls='--', lw=.3, zorder=0, c=cls.PAL_DTRACE[1])
+            grid.ax_joint.plot(
+                lims, lims, ls="--", lw=0.3, zorder=0, c=cls.PAL_DTRACE[1]
+            )
 
         grid.ax_joint.legend(prop=dict(size=4), frameon=False, loc=2)
 
@@ -105,24 +135,36 @@ class DTracePlot(CrispyPlot):
     @staticmethod
     def _marginal_boxplot(a, xs=None, ys=None, zs=None, vertical=False, **kws):
         if vertical:
-            ax = sns.boxplot(x=zs, y=ys, orient='v', **kws)
+            ax = sns.boxplot(x=zs, y=ys, orient="v", **kws)
         else:
-            ax = sns.boxplot(x=xs, y=zs, orient='h', **kws)
+            ax = sns.boxplot(x=xs, y=zs, orient="h", **kws)
 
-        ax.set_ylabel('')
-        ax.set_xlabel('')
+        ax.set_ylabel("")
+        ax.set_xlabel("")
 
     @classmethod
     def plot_corrplot_discrete(
-            cls, x, y, z, style, plot_df, scatter_kws=None, line_kws=None, legend_title='', discrete_pal=None,
-            hue_order=None, annot_text=None, add_hline=False, add_vline=False
+        cls,
+        x,
+        y,
+        z,
+        style,
+        plot_df,
+        scatter_kws=None,
+        line_kws=None,
+        legend_title="",
+        discrete_pal=None,
+        hue_order=None,
+        annot_text=None,
+        add_hline=False,
+        add_vline=False,
     ):
         # Defaults
         if scatter_kws is None:
-            scatter_kws = dict(edgecolor='w', lw=.3, s=12)
+            scatter_kws = dict(edgecolor="w", lw=0.3, s=12)
 
         if line_kws is None:
-            line_kws = dict(lw=1., color=cls.PAL_DTRACE[0])
+            line_kws = dict(lw=1.0, color=cls.PAL_DTRACE[0])
 
         pal = {0: cls.PAL_DTRACE[2], 1: cls.PAL_DTRACE[0]}
 
@@ -130,21 +172,47 @@ class DTracePlot(CrispyPlot):
         grid = sns.JointGrid(x, y, plot_df, space=0, ratio=8)
 
         grid.plot_marginals(
-            cls._marginal_boxplot, palette=pal if discrete_pal is None else discrete_pal, data=plot_df, linewidth=.3,
-            fliersize=1, notch=False, saturation=1.0, xs=x, ys=y, zs=z, showcaps=False, boxprops=cls.BOXPROPS,
-            whiskerprops=cls.WHISKERPROPS, flierprops=cls.FLIERPROPS, medianprops=dict(linestyle='-', linewidth=1.)
+            cls._marginal_boxplot,
+            palette=pal if discrete_pal is None else discrete_pal,
+            data=plot_df,
+            linewidth=0.3,
+            fliersize=1,
+            notch=False,
+            saturation=1.0,
+            xs=x,
+            ys=y,
+            zs=z,
+            showcaps=False,
+            boxprops=cls.BOXPROPS,
+            whiskerprops=cls.WHISKERPROPS,
+            flierprops=cls.FLIERPROPS,
+            medianprops=dict(linestyle="-", linewidth=1.0),
         )
 
         sns.regplot(
-            x=x, y=y, data=plot_df, color=pal[0], truncate=True, fit_reg=True, scatter=False, line_kws=line_kws,
-            ax=grid.ax_joint
+            x=x,
+            y=y,
+            data=plot_df,
+            color=pal[0],
+            truncate=True,
+            fit_reg=True,
+            scatter=False,
+            line_kws=line_kws,
+            ax=grid.ax_joint,
         )
 
         for feature in [0, 1]:
             for t, df in plot_df[plot_df[z] == feature].groupby(style):
                 sns.regplot(
-                    x=x, y=y, data=df, color=pal[feature], fit_reg=False, scatter_kws=scatter_kws, label=t if feature == 0 else None,
-                    marker=cls.MARKERS[t], ax=grid.ax_joint
+                    x=x,
+                    y=y,
+                    data=df,
+                    color=pal[feature],
+                    fit_reg=False,
+                    scatter_kws=scatter_kws,
+                    label=t if feature == 0 else None,
+                    marker=cls.MARKERS[t],
+                    ax=grid.ax_joint,
                 )
 
         grid.ax_joint.legend(prop=dict(size=4), frameon=False, loc=2)
@@ -152,47 +220,93 @@ class DTracePlot(CrispyPlot):
         # Annotation
         if annot_text is None:
             cor, pval = pearsonr(plot_df[x], plot_df[y])
-            annot_text = f'R={cor:.2g}, p={pval:.1e}'
+            annot_text = f"R={cor:.2g}, p={pval:.1e}"
 
-        grid.ax_joint.text(.95, .05, annot_text, fontsize=4, transform=grid.ax_joint.transAxes, ha='right')
+        grid.ax_joint.text(
+            0.95,
+            0.05,
+            annot_text,
+            fontsize=4,
+            transform=grid.ax_joint.transAxes,
+            ha="right",
+        )
 
         if add_hline:
-            grid.ax_joint.axhline(0, ls='-', lw=0.3, c=pal[0], alpha=.2)
+            grid.ax_joint.axhline(0, ls="-", lw=0.3, c=pal[0], alpha=0.2)
 
         if add_vline:
-            grid.ax_joint.axvline(0, ls='-', lw=0.3, c=pal[0], alpha=.2)
+            grid.ax_joint.axvline(0, ls="-", lw=0.3, c=pal[0], alpha=0.2)
 
-        grid.set_axis_labels('{} (log2 FC)'.format(x), '{} (ln IC50)'.format(y))
+        grid.set_axis_labels("{} (log2 FC)".format(x), "{} (ln IC50)".format(y))
 
         if discrete_pal is None:
-            handles = [mpatches.Circle([.0, .0], .25, facecolor=c, label='Yes' if t else 'No') for t, c in pal.items()]
+            handles = [
+                mpatches.Circle(
+                    [0.0, 0.0], 0.25, facecolor=c, label="Yes" if t else "No"
+                )
+                for t, c in pal.items()
+            ]
 
         elif hue_order is None:
-            handles = [mpatches.Circle([.0, .0], .25, facecolor=c, label=t) for t, c in discrete_pal.items()]
+            handles = [
+                mpatches.Circle([0.0, 0.0], 0.25, facecolor=c, label=t)
+                for t, c in discrete_pal.items()
+            ]
 
         else:
-            handles = [mpatches.Circle([.0, .0], .25, facecolor=discrete_pal[t], label=t) for t in hue_order]
+            handles = [
+                mpatches.Circle([0.0, 0.0], 0.25, facecolor=discrete_pal[t], label=t)
+                for t in hue_order
+            ]
 
         grid.ax_marg_y.legend(
-            handles=handles, title=legend_title, loc='center left', bbox_to_anchor=(1, 0.5), frameon=False
+            handles=handles,
+            title=legend_title,
+            loc="center left",
+            bbox_to_anchor=(1, 0.5),
+            frameon=False,
         )
 
         return grid
 
-    def plot_multiple(self, x, y, dataframe, order=None, ax=None, notch=False, n_offset=1.15, n_fontsize=3.5):
+    @classmethod
+    def plot_multiple(
+        cls,
+        x,
+        y,
+        dataframe,
+        order=None,
+        ax=None,
+        notch=False,
+        n_offset=1.15,
+        n_fontsize=3.5,
+    ):
         if ax is None:
             ax = plt.gca()
 
         if order is None:
-            order = list(dataframe.groupby(y)[x].mean().sort_values(ascending=False).index)
+            order = list(
+                dataframe.groupby(y)[x].mean().sort_values(ascending=False).index
+            )
 
         dataframe = dataframe.dropna(subset=[x, y])
 
-        pal = pd.Series(self.get_palette_continuous(len(order), self.PAL_DTRACE[2]), index=order)
+        pal = pd.Series(
+            cls.get_palette_continuous(len(order), cls.PAL_DTRACE[2]), index=order
+        )
 
         sns.boxplot(
-            x=x, y=y, data=dataframe, orient='h', palette=pal, saturation=1., showcaps=False,
-            order=order, notch=notch, flierprops=self.FLIERPROPS, ax=ax
+            x=x,
+            y=y,
+            data=dataframe,
+            orient="h",
+            palette=pal,
+            saturation=1.0,
+            showcaps=False,
+            order=order,
+            notch=notch,
+            flierprops=cls.FLIERPROPS,
+            ax=ax,
         )
 
         #
@@ -200,7 +314,7 @@ class DTracePlot(CrispyPlot):
 
         for i, c in enumerate(order):
             n = np.sum(dataframe[y] == c)
-            ax.text(text_x, i, f'N={n}', ha='left', va='center', fontsize=n_fontsize)
+            ax.text(text_x, i, f"N={n}", ha="left", va="center", fontsize=n_fontsize)
 
         # x_lim = ax.get_xlim()
         # ax.set_xlim(x_lim[0], text_x)

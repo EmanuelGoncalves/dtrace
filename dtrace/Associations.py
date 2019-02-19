@@ -2,6 +2,7 @@
 # Copyright (C) 2018 Emanuel Goncalves
 
 import numpy as np
+import DataImporter
 import pandas as pd
 import itertools as it
 from limix.qtl import scan
@@ -9,46 +10,39 @@ from sklearn.linear_model import RidgeCV
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import ShuffleSplit
 from statsmodels.stats.multitest import multipletests
-from dtrace.DataImporter import (
-    DrugResponse,
-    CRISPR,
-    Genomic,
-    Sample,
-    PPI,
-    GeneExpression,
-    Proteomics,
-    PhosphoProteomics,
-    CopyNumber,
-    Apoptosis,
-    RPPA,
-    WES,
-    RNAi,
-    CRISPRComBat,
-)
 
 
 class Association:
-    def __init__(self, dtype_drug="ic50", pval_method="fdr_bh"):
+    """
+    Main module to test linear associations bewteen data-sets (e.g. drug-response and CRISPR-Cas9 knockout viability
+    measurements).
+
+    """
+
+    def __init__(self, dtype="ic50", pval_method="fdr_bh", load_associations=False, data_dir=""):
+        """
+        :param dtype: Drug-response of a drug in a cell line was represented either as an IC50 (ic50) or
+            area-under the drug-response curve (auc).
+
+        :param pval_method: Multiple hypothesis adjustment method. Any option available in the multipletests
+            (statsmodels.stats.multitest).
+
+        :param load_associations: Load associations (this implies the associations were already tested).
+
+        :param data_dir: Data directory.
+
+        """
         # Import
-        self.dtype_drug = dtype_drug
+        self.dtype = dtype
         self.pval_method = pval_method
 
-        self.samplesheet = Sample()
+        self.ppi = DataImporter.PPI()
+        self.samplesheet = DataImporter.Sample()
 
-        self.ppi = PPI()
-
-        self.crispr_obj = CRISPR()
-        self.drespo_obj = DrugResponse()
-        self.genomic_obj = Genomic()
-        self.gexp_obj = GeneExpression()
-        self.prot_obj = Proteomics()
-        self.phospho_obj = PhosphoProteomics()
-        self.cn_obj = CopyNumber()
-        self.apoptosis_obj = Apoptosis()
-        self.rppa_obj = RPPA()
-        self.wes_obj = WES()
-        self.rnai_obj = RNAi()
-        self.crisprcb_obj = CRISPRComBat()
+        self.crispr_obj = DataImporter.CRISPR()
+        self.drespo_obj = DataImporter.DrugResponse()
+        self.genomic_obj = DataImporter.Genomic()
+        self.gexp_obj = DataImporter.GeneExpression()
 
         self.samples = list(
             set.intersection(
@@ -60,22 +54,30 @@ class Association:
 
         # Filter
         self.crispr = self.crispr_obj.filter(subset=self.samples, scale=True)
-        self.drespo = self.drespo_obj.filter(subset=self.samples, dtype=dtype_drug)
+        self.drespo = self.drespo_obj.filter(subset=self.samples, dtype=self.dtype)
         self.genomic = self.genomic_obj.filter(subset=self.samples, min_events=5)
         self.gexp = self.gexp_obj.filter(subset=self.samples)
-        self.prot = self.prot_obj.filter(subset=self.samples)
-        self.phospho = self.phospho_obj.filter(subset=self.samples)
-        self.cn = self.cn_obj.filter(subset=self.samples)
-        self.apoptosis = self.apoptosis_obj.filter(subset=self.samples)
-        self.rppa = self.rppa_obj.filter(subset=self.samples)
-        self.wes = self.wes_obj.filter(subset=self.samples)
-        self.rnai = self.rnai_obj.filter(subset=self.samples)
-        self.crisprcb = self.crisprcb_obj.filter(subset=self.samples).loc[
-            self.crispr.index
-        ]
         print(
             f"#(Drugs)={self.drespo.shape[0]}; #(Genes)={self.crispr.shape[0]}; #(Genomic)={self.genomic.shape[0]}"
         )
+
+        # Load associations
+        if load_associations:
+            self.lmm_drug = pd.read_csv(
+                f"{data_dir}/data/drug_lmm_regressions_{self.dtype}.csv.gz"
+            )
+
+            self.lmm_drug_gexp = pd.read_csv(
+                f"{data_dir}/data/drug_lmm_regressions_{self.dtype}_gexp.csv.gz"
+            )
+
+            self.lmm_drug_genomic = pd.read_csv(
+                f"{data_dir}/data/drug_lmm_regressions_{self.dtype}_genomic.csv.gz"
+            )
+
+            self.lmm_multi = pd.read_csv(
+                f"{data_dir}/data/drug_lm_regressions_multiple_{self.dtype}.csv.gz"
+            )
 
     def get_covariates(self):
         # Samples CRISPR QC (recall essential genes)

@@ -90,7 +90,7 @@ ENV/
 
 # Custom
 .DS_Store
-data/*
+dtrace/data/*
 resources/*
 .idea/*
 .Rhistory
