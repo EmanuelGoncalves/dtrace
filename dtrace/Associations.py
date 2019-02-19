@@ -40,10 +40,12 @@ class Association:
         :param data_dir: Data directory.
 
         """
-        # Import
+
         self.dtype = dtype
         self.pval_method = pval_method
+        self.dcols = DataImporter.DrugResponse.DRUG_COLUMNS
 
+        # Import
         self.ppi = DataImporter.PPI()
         self.samplesheet = DataImporter.Sample()
 
@@ -172,7 +174,7 @@ class Association:
     def multipletests_per_drug(
         associations, method, field="pval", fdr_field="fdr", index_cols=None
     ):
-        index_cols = DrugResponse.DRUG_COLUMNS if index_cols is None else index_cols
+        index_cols = DataImporter.DrugResponse.DRUG_COLUMNS if index_cols is None else index_cols
 
         d_unique = {tuple(i) for i in associations[index_cols].values}
 
@@ -202,9 +204,9 @@ class Association:
     @staticmethod
     def get_association(lmm_associations, drug, gene):
         return lmm_associations[
-            (lmm_associations[DrugResponse.DRUG_COLUMNS[0]] == drug[0])
-            & (lmm_associations[DrugResponse.DRUG_COLUMNS[1]] == drug[1])
-            & (lmm_associations[DrugResponse.DRUG_COLUMNS[2]] == drug[2])
+            (lmm_associations[DataImporter.DrugResponse.DRUG_COLUMNS[0]] == drug[0])
+            & (lmm_associations[DataImporter.DrugResponse.DRUG_COLUMNS[1]] == drug[1])
+            & (lmm_associations[DataImporter.DrugResponse.DRUG_COLUMNS[2]] == drug[2])
             & (lmm_associations["GeneSymbol"] == gene)
         ]
 
@@ -322,7 +324,7 @@ class Association:
         lmm_res_signif = lmm_dsingle.query(f"fdr < {fdr_thres}")
 
         genes = set(lmm_res_signif["GeneSymbol"])
-        drugs = {tuple(d) for d in lmm_res_signif[DrugResponse.DRUG_COLUMNS].values}
+        drugs = {tuple(d) for d in lmm_res_signif[self.dcols].values}
 
         X = self.gexp if is_gexp else self.genomic
         samples = set(X).intersection(self.samples)
@@ -649,53 +651,31 @@ class Association:
 
 
 if __name__ == "__main__":
-    dtype = "ic50"
+    assoc = Association(dtype="ic50")
 
-    assoc = Association(dtype=dtype)
-    # lmm_dsingle = pd.read_csv(f'data/drug_lmm_regressions_{dtype}.csv.gz')
-
+    # - Associations with drug-response
     lmm_dsingle = assoc.lmm_single_associations()
-    lmm_dsingle.sort_values(["pval", "fdr"]).to_csv(
-        f"data/drug_lmm_regressions_{dtype}.csv.gz", index=False, compression="gzip"
+    lmm_dsingle.sort_values(["fdr", "pval"]).to_csv(
+        assoc.lmm_drug_crispr_file, index=False, compression="gzip"
     )
 
     lmm_dgexp = assoc.lmm_gexp_drug()
-    lmm_dgexp.sort_values(["pval", "fdr"]).to_csv(
-        f"data/drug_lmm_regressions_{dtype}_gexp.csv.gz",
-        index=False,
-        compression="gzip",
+    lmm_dgexp.sort_values(["fdr", "pval"]).to_csv(
+        assoc.lmm_drug_gexp_file, index=False, compression="gzip",
     )
 
     lmm_dgenomic = assoc.lmm_single_associations_genomic()
-    lmm_dgenomic.sort_values(["pval", "fdr"]).to_csv(
-        f"data/drug_lmm_regressions_{dtype}_genomic.csv.gz",
-        index=False,
-        compression="gzip",
+    lmm_dgenomic.sort_values(["fdr", "pval"]).to_csv(
+        assoc.lmm_drug_genomic_file, index=False, compression="gzip",
     )
 
+    # - Robust associations
     lmm_robust = assoc.lmm_robust_association(lmm_dsingle, is_gexp=False)
-    lmm_robust.sort_values(["drug_pval", "drug_fdr"]).to_csv(
-        f"data/drug_lmm_regressions_robust_{dtype}.csv.gz",
-        index=False,
-        compression="gzip",
+    lmm_robust.sort_values(["drug_fdr", "drug_pval"]).to_csv(
+        assoc.lmm_robust_genomic_file, index=False, compression="gzip",
     )
 
     lmm_robust_gexp = assoc.lmm_robust_association(lmm_dsingle, is_gexp=True)
-    lmm_robust_gexp.sort_values(["drug_pval", "drug_fdr"]).to_csv(
-        f"data/drug_lmm_regressions_robust_gexp_{dtype}.csv.gz",
-        index=False,
-        compression="gzip",
-    )
-
-    lmm_multi = assoc.lmm_multiple_association(lmm_dsingle)
-    lmm_multi.to_csv(
-        f"data/drug_lm_regressions_multiple_{dtype}.csv.gz",
-        index=False,
-        compression="gzip",
-    )
-
-    genes = ["MARCH5", "MCL1", "BCL2", "BCL2L1", "BCL2L11", "BAX", "PMAIP1", "CYCS"]
-    lmm_gexp_crispr = assoc.lmm_gexp_crispr(crispr_genes=genes)
-    lmm_gexp_crispr.sort_values(["pval", "fdr"]).to_csv(
-        f"data/crispr_lmm_regressions_gexp.csv.gz", index=False, compression="gzip"
+    lmm_robust_gexp.sort_values(["drug_fdr", "drug_pval"]).to_csv(
+        assoc.lmm_robust_gexp_file, index=False, compression="gzip",
     )
