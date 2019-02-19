@@ -3,6 +3,7 @@
 
 import pydot
 import igraph
+import logging
 import warnings
 import numpy as np
 import pandas as pd
@@ -13,7 +14,7 @@ from dtrace.DTracePlot import DTracePlot
 
 class DrugResponse:
     """
-    Importer module for drug-response Sanger Institute GDSC (https://cancerrxgene.org) drug-response measurements.
+    Importer module for drug-response measurements acquired at Sanger Institute GDSC (https://cancerrxgene.org).
 
     """
 
@@ -36,7 +37,9 @@ class DrugResponse:
         self.drugsheet = self.get_drugsheet()
 
         # Import and Merge drug response matrices
-        self.d_v17 = pd.read_csv(f"{dpath}/{drugresponse_file_v17}").assign(VERSION="v17")
+        self.d_v17 = pd.read_csv(f"{dpath}/{drugresponse_file_v17}").assign(
+            VERSION="v17"
+        )
         self.d_rs = pd.read_csv(f"{dpath}/{drugresponse_file_rs}").assign(VERSION="RS")
 
         self.drugresponse = dict()
@@ -69,7 +72,7 @@ class DrugResponse:
         ).sort_values()
 
     @staticmethod
-    def get_drugsheet(drugsheet_file="meta/drugsheet_20190210.xlsx"):
+    def get_drugsheet(drugsheet_file="meta/drugsheet_20190219.xlsx"):
         return pd.read_excel(f"{dpath}/{drugsheet_file}", index_col=0)
 
     @classmethod
@@ -191,170 +194,30 @@ class DrugResponse:
         return g_corr
 
 
-class CRISPRComBat:
-    LOW_QUALITY_SAMPLES = ["SIDM00096", "SIDM01085", "SIDM00958"]
-
-    def __init__(
-        self,
-        datadir="data/crispr/",
-        dmatrix_file="InitialCombat_BroadSanger_Matrix.csv",
-    ):
-        self.ss = Sample()
-        self.datadir = datadir
-        self.dmatrix_file = dmatrix_file
-
-        self.crispr = pd.read_csv(f"{self.datadir}/{self.dmatrix_file}", index_col=0)
-
-    def __generate_merged_matrix(self, dmatrix="InitialCombat_BroadSanger.csv"):
-        df = pd.read_csv(f"{self.datadir}/{dmatrix}")
-
-        # Split Sanger matrix
-        idmap_sanger = (
-            self.ss.samplesheet.reset_index()
-            .dropna(subset=["model_name"])
-            .set_index("model_name")
-        )
-        crispr_sanger = df[
-            [i for i in df if i in self.ss.samplesheet["model_name"].values]
-        ]
-        crispr_sanger = crispr_sanger.rename(columns=idmap_sanger["model_id"])
-
-        # Split Broad matrix
-        idmap_broad = (
-            self.ss.samplesheet.reset_index()
-            .dropna(subset=["model_name"])
-            .set_index("BROAD_ID")
-        )
-        crispr_broad = df[
-            [i for i in df if i in self.ss.samplesheet["BROAD_ID"].values]
-        ]
-        crispr_broad = crispr_broad.rename(columns=idmap_broad["model_id"])
-
-        # Merge matrices
-        crispr = pd.concat(
-            [
-                crispr_sanger,
-                crispr_broad[[i for i in crispr_broad if i not in crispr_sanger]],
-            ],
-            axis=1,
-            sort=False,
-        ).dropna()
-        crispr.to_csv(f"{self.datadir}/InitialCombat_BroadSanger_Matrix.csv")
-
-        # Store isntitute sample origin
-        institute = pd.Series(
-            {s: "Sanger" if s in crispr_sanger else "Broad" for s in crispr}
-        )
-        institute.to_csv(f"{self.datadir}/InitialCombat_BroadSanger_Institute.csv")
-
-    def __qc_recall_curves(self):
-        qc_ess = pd.Series(
-            {
-                i: cy.QCplot.recall_curve(
-                    self.crispr[i], cy.Utils.get_essential_genes()
-                )[2]
-                for i in self.crispr
-            }
-        )
-        qc_ess.to_csv(f"{self.datadir}/InitialCombat_BroadSanger_Essential_AURC.csv")
-
-        qc_ness = pd.Series(
-            {
-                i: cy.QCplot.recall_curve(
-                    self.crispr[i], cy.Utils.get_non_essential_genes()
-                )[2]
-                for i in self.crispr
-            }
-        )
-        qc_ness.to_csv(
-            f"{self.datadir}/InitialCombat_BroadSanger_NonEssential_AURC.csv"
-        )
-
-    def get_data(self, scale=True, drop_lowquality=True):
-        df = self.crispr.copy()
-
-        if drop_lowquality:
-            df = df.drop(columns=self.LOW_QUALITY_SAMPLES)
-
-        if scale:
-            df = self.scale(df)
-
-        return df
-
-    def filter(
-        self,
-        subset=None,
-        scale=True,
-        abs_thres=None,
-        drop_core_essential=False,
-        min_events=5,
-        drop_core_essential_broad=False,
-    ):
-        df = self.get_data(scale=True)
-
-        # - Filters
-        # Subset matrices
-        if subset is not None:
-            df = df.loc[:, df.columns.isin(subset)]
-
-        # Filter by scaled scores
-        if abs_thres is not None:
-            df = df[(df.abs() > abs_thres).sum(1) >= min_events]
-
-        # Filter out core essential genes
-        if drop_core_essential:
-            df = df[~df.index.isin(cy.Utils.get_adam_core_essential())]
-
-        if drop_core_essential_broad:
-            df = df[~df.index.isin(cy.Utils.get_broad_core_essential())]
-
-        # - Subset matrices
-        return self.get_data(scale=scale).loc[df.index].reindex(columns=df.columns)
-
-    @staticmethod
-    def scale(df, essential=None, non_essential=None, metric=np.median):
-        if essential is None:
-            essential = cy.Utils.get_essential_genes(return_series=False)
-
-        if non_essential is None:
-            non_essential = cy.Utils.get_non_essential_genes(return_series=False)
-
-        assert (
-            len(essential.intersection(df.index)) != 0
-        ), "DataFrame has no index overlapping with essential list"
-
-        assert (
-            len(non_essential.intersection(df.index)) != 0
-        ), "DataFrame has no index overlapping with non essential list"
-
-        essential_metric = metric(df.reindex(essential).dropna(), axis=0)
-        non_essential_metric = metric(df.reindex(non_essential).dropna(), axis=0)
-
-        df = df.subtract(non_essential_metric).divide(
-            non_essential_metric - essential_metric
-        )
-
-        return df
-
-
 class CRISPR:
+    """
+    Importer module for CRISPR-Cas9 screens acquired at Sanger and Broad Institutes.
+
+    """
+
     LOW_QUALITY_SAMPLES = ["SIDM00096", "SIDM01085", "SIDM00958"]
 
     def __init__(
         self,
-        datadir="data/crispr/",
-        sanger_fc_file="sanger_depmap18_fc_corrected.csv",
-        sanger_qc_file="sanger_depmap18_fc_ess_aucs.csv",
-        broad_fc_file="broad_depmap18q4_fc_corrected.csv",
-        broad_qc_file="broad_depmap18q4_fc_ess_aucs.csv",
+        sanger_fc_file="crispr/sanger_depmap18_fc_corrected.csv",
+        sanger_qc_file="crispr/sanger_depmap18_fc_ess_aucs.csv",
+        broad_fc_file="crispr/broad_depmap18q4_fc_corrected.csv",
+        broad_qc_file="crispr/broad_depmap18q4_fc_ess_aucs.csv",
+        ess_broad_file="crispr/depmap19Q1_essential_genes.txt",
+        ess_sanger_file="crispr/projectscore_essential_genes.txt",
     ):
-        self.DATADIR = datadir
-
         self.SANGER_FC_FILE = sanger_fc_file
         self.SANGER_QC_FILE = sanger_qc_file
+        self.SANGER_ESS_FILE = ess_sanger_file
 
         self.BROAD_FC_FILE = broad_fc_file
         self.BROAD_QC_FILE = broad_qc_file
+        self.BROAD_ESS_FILE = ess_broad_file
 
         self.crispr, self.institute = self.__merge_matricies()
 
@@ -362,22 +225,23 @@ class CRISPR:
 
         self.qc_ess = self.__merge_qc_arrays()
 
-        self.essential_broad = "depmap19Q1_essential_genes.txt"
-        self.essential_sanger = "projectscore_essential_genes.csv"
-
     def import_broad_essential_genes(self):
-        broad_ess = pd.read_csv(f"{self.DATADIR}/{self.essential_broad}")["gene"]
+        broad_ess = pd.read_csv(f"{dpath}/{self.BROAD_ESS_FILE}")["gene"]
         broad_ess = list(set(broad_ess.apply(lambda v: v.split(" ")[0])))
         return broad_ess
 
     def import_sanger_essential_genes(self):
-        sanger_ess = pd.read_csv(f"{self.DATADIR}/{self.essential_sanger}")
+        sanger_ess = pd.read_csv(f"{dpath}/{self.SANGER_ESS_FILE}")
         sanger_ess = list(set(sanger_ess[sanger_ess["CoreFitness"]]["GeneSymbol"]))
         return sanger_ess
 
     def __merge_qc_arrays(self):
-        gdsc_qc = pd.Series.from_csv(f"{self.DATADIR}/{self.SANGER_QC_FILE}")
-        broad_qc = pd.Series.from_csv(f"{self.DATADIR}/{self.BROAD_QC_FILE}")
+        gdsc_qc = pd.read_csv(
+            f"{dpath}/{self.SANGER_QC_FILE}", header=None, index_col=0
+        ).iloc[:, 0]
+        broad_qc = pd.read_csv(
+            f"{dpath}/{self.BROAD_QC_FILE}", header=None, index_col=0
+        ).iloc[:, 0]
 
         qcs = pd.concat(
             [
@@ -389,12 +253,8 @@ class CRISPR:
         return qcs
 
     def __merge_matricies(self):
-        gdsc_fc = pd.read_csv(
-            f"{self.DATADIR}/{self.SANGER_FC_FILE}", index_col=0
-        ).dropna()
-        broad_fc = pd.read_csv(
-            f"{self.DATADIR}/{self.BROAD_FC_FILE}", index_col=0
-        ).dropna()
+        gdsc_fc = pd.read_csv(f"{dpath}/{self.SANGER_FC_FILE}", index_col=0).dropna()
+        broad_fc = pd.read_csv(f"{dpath}/{self.BROAD_FC_FILE}", index_col=0).dropna()
 
         genes = list(set(gdsc_fc.index).intersection(broad_fc.index))
 
@@ -492,28 +352,39 @@ class CRISPR:
 
 
 class Sample:
+    """
+    Import module that handles the sample list (i.e. list of cell lines) and their descriptive information.
+
+    """
+
     def __init__(
         self,
-        samplesheet_file="data/meta/model_list_2018-09-28_1452.csv",
-        growthrate_file="data/meta/growth_rates_rapid_screen_1536_v1.2.2_20181113.csv",
-        samples_origin="data/meta/samples_origin.csv",
+        index="model_id",
+        samplesheet_file="meta/model_list_2018-09-28_1452.csv",
+        growthrate_file="meta/growth_rates_rapid_screen_1536_v1.2.2_20181113.csv",
+        samples_origin="meta/samples_origin.csv",
     ):
-        self.index = "model_id"
+        self.index = index
 
+        # Import samplesheet
         self.samplesheet = (
-            pd.read_csv(samplesheet_file)
+            pd.read_csv(f"{dpath}/{samplesheet_file}")
             .dropna(subset=[self.index])
             .set_index(self.index)
         )
 
-        self.growth = pd.read_csv(growthrate_file)
+        # Add growth information
+        self.growth = pd.read_csv(f"{dpath}/{growthrate_file}")
         self.samplesheet["growth"] = (
             self.growth.groupby(self.index)["GROWTH_RATE"]
             .mean()
             .reindex(self.samplesheet.index)
         )
 
-        self.institute = pd.Series.from_csv(samples_origin)
+        # Add institute of origin
+        self.institute = pd.read_csv(
+            f"{dpath}/{samples_origin}", header=None, index_col=0
+        ).iloc[:, 0]
         self.samplesheet["institute"] = self.institute.reindex(self.samplesheet.index)
 
     def __assemble_growth_rates(self, dfile):
@@ -574,11 +445,14 @@ class Sample:
 
 
 class Genomic:
+    """
+    Import module for Genomic binary feature table (containing mutations and copy-number calls)
+    Iorio et al., Cell, 2016.
+
+    """
+
     def __init__(
-        self,
-        mobem_file="data/genomic/PANCAN_mobem.csv",
-        drop_factors=True,
-        add_msi=True,
+        self, mobem_file="genomic/PANCAN_mobem.csv", drop_factors=True, add_msi=True
     ):
         self.sample = Sample()
 
@@ -588,7 +462,7 @@ class Genomic:
             .set_index("COSMIC_ID")["model_id"]
         )
 
-        mobem = pd.read_csv(mobem_file, index_col=0)
+        mobem = pd.read_csv(f"{dpath}/{mobem_file}", index_col=0)
         mobem = mobem[mobem.index.astype(str).isin(idmap.index)]
         mobem = mobem.set_index(idmap[mobem.index.astype(str)].values)
 
@@ -650,96 +524,17 @@ class Genomic:
             raise ValueError("{} is not a valid MOBEM feature.".format(f))
 
 
-class GeneExpression:
-    def __init__(
-        self,
-        voom_file="data/genomic/rnaseq_voom.csv.gz",
-        rpkm_file="data/genomic/rnaseq_rpkm.csv.gz",
-    ):
-        self.voom = pd.read_csv(voom_file, index_col=0)
-        self.rpkm = pd.read_csv(rpkm_file, index_col=0)
-
-    def get_data(self, dtype="voom"):
-        if dtype.lower() == "rpkm":
-            return self.rpkm.copy()
-
-        else:
-            return self.voom.copy()
-
-    def filter(self, dtype="voom", subset=None):
-        df = self.get_data(dtype=dtype)
-
-        # Subset matrices
-        if subset is not None:
-            df = df.loc[:, df.columns.isin(subset)]
-
-        return df
-
-    def is_not_expressed(self, rpkm_threshold=1, subset=None):
-        rpkm = self.filter(dtype="rpkm", subset=subset)
-        rpkm = (rpkm < rpkm_threshold).astype(int)
-        return rpkm
-
-
-class Proteomics:
-    def __init__(self, proteomics_file="data/genomic/proteomics_coread.csv.gz"):
-        self.proteomics = pd.read_csv(proteomics_file, index_col=0)
-
-    def get_data(self):
-        return self.proteomics.copy()
-
-    def filter(self, subset=None):
-        df = self.get_data()
-
-        # Subset matrices
-        if subset is not None:
-            df = df.loc[:, df.columns.isin(subset)]
-
-        return df
-
-
-class PhosphoProteomics:
-    def __init__(
-        self, phosphoproteomics_file="data/genomic/phosphoproteomics_coread.csv.gz"
-    ):
-        self.phosphoproteomics = pd.read_csv(phosphoproteomics_file, index_col=0)
-
-    def get_data(self):
-        return self.phosphoproteomics.copy()
-
-    def filter(self, subset=None):
-        df = self.get_data()
-
-        # Subset matrices
-        if subset is not None:
-            df = df.loc[:, df.columns.isin(subset)]
-
-        return df
-
-
-class CopyNumber:
-    def __init__(self, cnv_file="data/genomic/copynumber_total_new_map.csv.gz"):
-        self.copynumber = pd.read_csv(cnv_file, index_col=0)
-
-    def get_data(self):
-        return self.copynumber.copy()
-
-    def filter(self, subset=None):
-        df = self.get_data()
-
-        # Subset matrices
-        if subset is not None:
-            df = df.loc[:, df.columns.isin(subset)]
-
-        return df
-
-
 class PPI:
+    """
+    Module used to import protein-protein interaction networks from multiple resources (e.g. STRING, BioGRID).
+
+    """
+
     def __init__(
         self,
-        string_file="data/ppi/9606.protein.links.full.v10.5.txt",
-        string_alias_file="data/ppi/9606.protein.aliases.v10.5.txt",
-        biogrid_file="data/ppi/BIOGRID-ORGANISM-Homo_sapiens-3.4.157.tab2.txt",
+        string_file="ppi/9606.protein.links.full.v10.5.txt",
+        string_alias_file="ppi/9606.protein.aliases.v10.5.txt",
+        biogrid_file="ppi/BIOGRID-ORGANISM-Homo_sapiens-3.4.157.tab2.txt",
     ):
         self.string_file = string_file
         self.string_alias_file = string_alias_file
@@ -857,7 +652,7 @@ class PPI:
         # 'Reconstituted Complex', 'PCA', 'Two-hybrid', 'Co-crystal Structure', 'Co-purification'
 
         # Import
-        biogrid = pd.read_csv(self.biogrid_file, sep="\t")
+        biogrid = pd.read_csv(f"{dpath}/{self.biogrid_file}", sep="\t")
 
         # Filter organism
         biogrid = biogrid[
@@ -876,19 +671,19 @@ class PPI:
             biogrid = biogrid[
                 [i in int_type for i in biogrid["Experimental System Type"]]
             ]
-        print(
-            "Experimental System Type considered: {}".format(
-                "; ".join(set(biogrid["Experimental System Type"]))
-            )
+
+        logger.log(
+            logger.INFO,
+            f"Experimental System Type considered: {'; '.join(set(biogrid['Experimental System Type']))}",
         )
 
         # Filter by experimental type
         if exp_type is not None:
             biogrid = biogrid[[i in exp_type for i in biogrid["Experimental System"]]]
-        print(
-            "Experimental System considered: {}".format(
-                "; ".join(set(biogrid["Experimental System"]))
-            )
+
+        logger.log(
+            logger.INFO,
+            f"Experimental System considered: {'; '.join(set(biogrid['Experimental System']))}",
         )
 
         # Interaction source map
@@ -934,7 +729,7 @@ class PPI:
 
     def build_string_ppi(self, score_thres=900, export_pickle=None):
         # ENSP map to gene symbol
-        gmap = pd.read_csv(self.string_alias_file, sep="\t")
+        gmap = pd.read_csv(f"{dpath}/{self.string_alias_file}", sep="\t")
         gmap = gmap[["BioMart_HUGO" in i.split(" ") for i in gmap["source"]]]
         gmap = (
             gmap.groupby("string_protein_id")["alias"].agg(lambda x: set(x)).to_dict()
@@ -943,7 +738,7 @@ class PPI:
         print("ENSP gene map: ", len(gmap))
 
         # Load String network
-        net = pd.read_csv(self.string_file, sep=" ")
+        net = pd.read_csv(f"{dpath}/{self.string_file}", sep=" ")
 
         # Filter by moderate confidence
         net = net[net["combined_score"] > score_thres]
@@ -1110,8 +905,99 @@ class PPI:
         return nodes_df
 
 
+class GeneExpression:
+    """
+    Import module of gene-expression data-set.
+
+    """
+
+    def __init__(
+        self,
+        voom_file="genomic/rnaseq_voom.csv.gz",
+        rpkm_file="genomic/rnaseq_rpkm.csv.gz",
+    ):
+        self.voom = pd.read_csv(f"{dpath}/{voom_file}", index_col=0)
+        self.rpkm = pd.read_csv(f"{dpath}/{rpkm_file}", index_col=0)
+
+    def get_data(self, dtype="voom"):
+        if dtype.lower() == "rpkm":
+            return self.rpkm.copy()
+
+        else:
+            return self.voom.copy()
+
+    def filter(self, dtype="voom", subset=None):
+        df = self.get_data(dtype=dtype)
+
+        # Subset matrices
+        if subset is not None:
+            df = df.loc[:, df.columns.isin(subset)]
+
+        return df
+
+    def is_not_expressed(self, rpkm_threshold=1, subset=None):
+        rpkm = self.filter(dtype="rpkm", subset=subset)
+        rpkm = (rpkm < rpkm_threshold).astype(int)
+        return rpkm
+
+
+class Proteomics:
+    def __init__(self, proteomics_file="genomic/proteomics_coread.csv.gz"):
+        self.proteomics = pd.read_csv(f"{dpath}/{proteomics_file}", index_col=0)
+
+    def get_data(self):
+        return self.proteomics.copy()
+
+    def filter(self, subset=None):
+        df = self.get_data()
+
+        # Subset matrices
+        if subset is not None:
+            df = df.loc[:, df.columns.isin(subset)]
+
+        return df
+
+
+class PhosphoProteomics:
+    def __init__(
+        self, phosphoproteomics_file="genomic/phosphoproteomics_coread.csv.gz"
+    ):
+        self.phosphoproteomics = pd.read_csv(
+            f"{dpath}/{phosphoproteomics_file}", index_col=0
+        )
+
+    def get_data(self):
+        return self.phosphoproteomics.copy()
+
+    def filter(self, subset=None):
+        df = self.get_data()
+
+        # Subset matrices
+        if subset is not None:
+            df = df.loc[:, df.columns.isin(subset)]
+
+        return df
+
+
+class CopyNumber:
+    def __init__(self, cnv_file="genomic/copynumber_total_new_map.csv.gz"):
+        self.copynumber = pd.read_csv(f"{dpath}/{cnv_file}", index_col=0)
+
+    def get_data(self):
+        return self.copynumber.copy()
+
+    def filter(self, subset=None):
+        df = self.get_data()
+
+        # Subset matrices
+        if subset is not None:
+            df = df.loc[:, df.columns.isin(subset)]
+
+        return df
+
+
 class Apoptosis:
-    def __init__(self, dfile="data/apoptosis/AUC_data.csv"):
+    def __init__(self, dfile="apoptosis/AUC_data.csv"):
         crename = dict(
             HT29="HT-29",
             CW2="CW-2",
@@ -1152,7 +1038,7 @@ class Apoptosis:
 
         self.samplesheet = Sample().samplesheet
 
-        self.screen = pd.read_csv(dfile)
+        self.screen = pd.read_csv(f"{dpath}/{dfile}")
         self.screen = self.screen.replace(dict(CELL_LINE=crename))
         self.screen = self.screen[
             self.screen["CELL_LINE"].isin(self.samplesheet["model_name"])
@@ -1181,22 +1067,24 @@ class Apoptosis:
 
 
 class CTDR2:
-    def __init__(self, data_dir="data/CTRPv2.2/"):
+    def __init__(self, data_dir="CTRPv2.2/"):
         self.data_dir = data_dir
         self.samplesheet = self.import_samplesheet()
         self.drugsheet = self.import_compound_sheet()
         self.drespo = self.import_ctrp_aucs()
 
     def import_samplesheet(self):
-        return pd.read_csv(f"{self.data_dir}/v22.meta.per_cell_line.txt", sep="\t")
+        return pd.read_csv(
+            f"{dpath}/{self.data_dir}/v22.meta.per_cell_line.txt", sep="\t"
+        )
 
     def import_compound_sheet(self):
         return pd.read_csv(
-            f"{self.data_dir}/v22.meta.per_compound.txt", sep="\t", index_col=0
+            f"{dpath}/{self.data_dir}/v22.meta.per_compound.txt", sep="\t", index_col=0
         )
 
     def import_depmap18q4_samplesheet(self):
-        ss = pd.read_csv(f"{self.data_dir}/sample_info.csv")
+        ss = pd.read_csv(f"{dpath}/{self.data_dir}/sample_info.csv")
         ss["CCLE_ID"] = ss["CCLE_name"].apply(lambda v: v.split("_")[0])
         return ss
 
@@ -1204,7 +1092,7 @@ class CTDR2:
         ctrp_samples = self.import_samplesheet()
 
         ctrp_aucs = pd.read_csv(
-            f"{self.data_dir}/v22.data.auc_sensitivities.txt", sep="\t"
+            f"{dpath}/{self.data_dir}/v22.data.auc_sensitivities.txt", sep="\t"
         )
         ctrp_aucs = pd.pivot_table(
             ctrp_aucs, index="index_cpd", columns="index_ccl", values="area_under_curve"
@@ -1218,7 +1106,7 @@ class CTDR2:
     def import_ceres(self):
         ss = self.import_depmap18q4_samplesheet().set_index("Broad_ID")
 
-        ceres = pd.read_csv(f"{self.data_dir}/gene_effect.csv", index_col=0).T
+        ceres = pd.read_csv(f"{dpath}/{self.data_dir}/gene_effect.csv", index_col=0).T
         ceres = ceres.rename(columns=ss["CCLE_ID"])
         ceres.index = [i.split(" ")[0] for i in ceres.index]
 
@@ -1245,7 +1133,7 @@ class CTDR2:
 
 
 class RPPA:
-    def __init__(self, rppa_file="data/genomic/CCLE_MDAnderson_RPPA_combined.csv"):
+    def __init__(self, rppa_file="genomic/CCLE_MDAnderson_RPPA_combined.csv"):
         self.info = [
             "model_id",
             "model_name",
@@ -1305,7 +1193,7 @@ class RPPA:
         ]
 
         self.rppa_matrix = (
-            pd.read_csv(rppa_file)
+            pd.read_csv(f"{dpath}/{rppa_file}")
             .groupby("model_id")
             .mean()
             .drop(columns=self.info, errors="ignore")
@@ -1326,8 +1214,8 @@ class RPPA:
 
 
 class WES:
-    def __init__(self, wes_file="data/genomic/WES_variants.csv.gz"):
-        self.wes = pd.read_csv(wes_file)
+    def __init__(self, wes_file="genomic/WES_variants.csv.gz"):
+        self.wes = pd.read_csv(f"{dpath}/{wes_file}")
 
     def get_data(self):
         return self.wes.copy()
@@ -1343,10 +1231,13 @@ class WES:
 
 
 class RNAi:
-    def __init__(self, rnai_file="data/rnai/D2_combined_gene_dep_scores.csv"):
-        self.sinfo = pd.read_csv("data/rnai/DepMap-2018q4-celllines.csv")
-
-        self.rnai = self.read_data(rnai_file)
+    def __init__(
+        self,
+        rnai_file="rnai/D2_combined_gene_dep_scores.csv",
+        samplesheet_file="rnai/DepMap-2018q4-celllines.csv",
+    ):
+        self.sinfo = pd.read_csv(f"{dpath}/{samplesheet_file}")
+        self.rnai = self.read_data(f"{dpath}/{rnai_file}")
 
     def read_data(self, rnai_file):
         rnai = pd.read_csv(rnai_file, index_col=0)
@@ -1384,21 +1275,162 @@ class RNAi:
         return df
 
 
+class CRISPRComBat:
+    LOW_QUALITY_SAMPLES = ["SIDM00096", "SIDM01085", "SIDM00958"]
+
+    def __init__(self, dmatrix_file="InitialCombat_BroadSanger_Matrix.csv"):
+        self.ss = Sample()
+        self.datadir = f"{dpath}/crispr/"
+        self.dmatrix_file = dmatrix_file
+
+        self.crispr = pd.read_csv(f"{self.datadir}/{self.dmatrix_file}", index_col=0)
+
+    def __generate_merged_matrix(self, dmatrix="InitialCombat_BroadSanger.csv"):
+        df = pd.read_csv(f"{self.datadir}/{dmatrix}")
+
+        # Split Sanger matrix
+        idmap_sanger = (
+            self.ss.samplesheet.reset_index()
+            .dropna(subset=["model_name"])
+            .set_index("model_name")
+        )
+        crispr_sanger = df[
+            [i for i in df if i in self.ss.samplesheet["model_name"].values]
+        ]
+        crispr_sanger = crispr_sanger.rename(columns=idmap_sanger["model_id"])
+
+        # Split Broad matrix
+        idmap_broad = (
+            self.ss.samplesheet.reset_index()
+            .dropna(subset=["model_name"])
+            .set_index("BROAD_ID")
+        )
+        crispr_broad = df[
+            [i for i in df if i in self.ss.samplesheet["BROAD_ID"].values]
+        ]
+        crispr_broad = crispr_broad.rename(columns=idmap_broad["model_id"])
+
+        # Merge matrices
+        crispr = pd.concat(
+            [
+                crispr_sanger,
+                crispr_broad[[i for i in crispr_broad if i not in crispr_sanger]],
+            ],
+            axis=1,
+            sort=False,
+        ).dropna()
+        crispr.to_csv(f"{self.datadir}/InitialCombat_BroadSanger_Matrix.csv")
+
+        # Store isntitute sample origin
+        institute = pd.Series(
+            {s: "Sanger" if s in crispr_sanger else "Broad" for s in crispr}
+        )
+        institute.to_csv(f"{self.datadir}/InitialCombat_BroadSanger_Institute.csv")
+
+    def __qc_recall_curves(self):
+        qc_ess = pd.Series(
+            {
+                i: cy.QCplot.recall_curve(
+                    self.crispr[i], cy.Utils.get_essential_genes()
+                )[2]
+                for i in self.crispr
+            }
+        )
+        qc_ess.to_csv(f"{self.datadir}/InitialCombat_BroadSanger_Essential_AURC.csv")
+
+        qc_ness = pd.Series(
+            {
+                i: cy.QCplot.recall_curve(
+                    self.crispr[i], cy.Utils.get_non_essential_genes()
+                )[2]
+                for i in self.crispr
+            }
+        )
+        qc_ness.to_csv(
+            f"{self.datadir}/InitialCombat_BroadSanger_NonEssential_AURC.csv"
+        )
+
+    def get_data(self, scale=True, drop_lowquality=True):
+        df = self.crispr.copy()
+
+        if drop_lowquality:
+            df = df.drop(columns=self.LOW_QUALITY_SAMPLES)
+
+        if scale:
+            df = self.scale(df)
+
+        return df
+
+    def filter(
+        self,
+        subset=None,
+        scale=True,
+        abs_thres=None,
+        drop_core_essential=False,
+        min_events=5,
+        drop_core_essential_broad=False,
+    ):
+        df = self.get_data(scale=True)
+
+        # - Filters
+        # Subset matrices
+        if subset is not None:
+            df = df.loc[:, df.columns.isin(subset)]
+
+        # Filter by scaled scores
+        if abs_thres is not None:
+            df = df[(df.abs() > abs_thres).sum(1) >= min_events]
+
+        # Filter out core essential genes
+        if drop_core_essential:
+            df = df[~df.index.isin(cy.Utils.get_adam_core_essential())]
+
+        if drop_core_essential_broad:
+            df = df[~df.index.isin(cy.Utils.get_broad_core_essential())]
+
+        # - Subset matrices
+        return self.get_data(scale=scale).loc[df.index].reindex(columns=df.columns)
+
+    @staticmethod
+    def scale(df, essential=None, non_essential=None, metric=np.median):
+        if essential is None:
+            essential = cy.Utils.get_essential_genes(return_series=False)
+
+        if non_essential is None:
+            non_essential = cy.Utils.get_non_essential_genes(return_series=False)
+
+        assert (
+            len(essential.intersection(df.index)) != 0
+        ), "DataFrame has no index overlapping with essential list"
+
+        assert (
+            len(non_essential.intersection(df.index)) != 0
+        ), "DataFrame has no index overlapping with non essential list"
+
+        essential_metric = metric(df.reindex(essential).dropna(), axis=0)
+        non_essential_metric = metric(df.reindex(non_essential).dropna(), axis=0)
+
+        df = df.subtract(non_essential_metric).divide(
+            non_essential_metric - essential_metric
+        )
+
+        return df
+
+
 if __name__ == "__main__":
-    # -
     crispr = CRISPR()
     drug_response = DrugResponse()
-    ctr2 = CTDR2()
 
-    # -
     samples = list(
         set.intersection(
             set(drug_response.get_data().columns), set(crispr.get_data().columns)
         )
     )
-    print(f"#(Samples)={len(samples)}")
 
     drug_respo = drug_response.filter(subset=samples, min_meas=0.75)
-    print(
-        f"Spaseness={(1 - drug_respo.count().sum() / np.prod(drug_respo.shape)) * 100:.1f}%"
+
+    logger.log(logging.INFO, f"Samples={len(samples)}")
+    logger.log(
+        logging.INFO,
+        f"Spaseness={(1 - drug_respo.count().sum() / np.prod(drug_respo.shape)) * 100:.1f}%",
     )

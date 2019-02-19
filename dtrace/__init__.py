@@ -29,5 +29,7 @@ __all__ = ["DTracePlot", "logger", "dpath"]
 logger = logging.getLogger()
 
 ch = logging.StreamHandler(sys.stdout)
-ch.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - upload - %(message)s"))
+ch.setFormatter(logging.Formatter("[%(asctime)s - %(levelname)s]: %(message)s"))
 logger.addHandler(ch)
+
+logger.setLevel(logging.INFO)

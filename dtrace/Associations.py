@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # Copyright (C) 2018 Emanuel Goncalves
 
+import logging
 import numpy as np
 import DataImporter
 import pandas as pd
@@ -58,7 +59,7 @@ class Association:
             )
         )
 
-        logger.log(logger.INFO, f"Associations: #(samples)={len(self.samples)}")
+        logger.log(logging.INFO, f"#(Samples)={len(self.samples)}")
 
         # Filter
         self.crispr = self.crispr_obj.filter(subset=self.samples, scale=True)
@@ -67,8 +68,8 @@ class Association:
         self.gexp = self.gexp_obj.filter(subset=self.samples)
 
         logger.log(
-            logger.INFO,
-            f"Associations: #(Drugs)={self.drespo.shape[0]}; "
+            logging.INFO,
+            f"#(Drugs)={self.drespo.shape[0]}; "
             f"#(Genes)={self.crispr.shape[0]}; "
             f"#(Genomic)={self.genomic.shape[0]}; ",
         )
@@ -103,9 +104,7 @@ class Association:
         crispr_insitute = pd.get_dummies(self.samplesheet.samplesheet["institute"])
 
         # Cell lines growth rate
-        drug_growth = pd.read_csv("data/drug_pca_column_pcs.csv", index_col=0)[
-            "PC1"
-        ].rename("drug_growth")
+        drug_growth = self.samplesheet.samplesheet["growth"]
 
         # Cell lines culture conditions
         culture = pd.get_dummies(
