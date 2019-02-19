@@ -6,6 +6,7 @@ import DataImporter
 import pandas as pd
 import itertools as it
 from limix.qtl import scan
+from dtrace import logger, dpath
 from sklearn.linear_model import RidgeCV
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import ShuffleSplit
@@ -19,7 +20,13 @@ class Association:
 
     """
 
-    def __init__(self, dtype="ic50", pval_method="fdr_bh", load_associations=False, data_dir=""):
+    def __init__(
+        self,
+        dtype="ic50",
+        pval_method="fdr_bh",
+        load_associations=False,
+        load_robust=False
+    ):
         """
         :param dtype: Drug-response of a drug in a cell line was represented either as an IC50 (ic50) or
             area-under the drug-response curve (auc).
@@ -50,34 +57,40 @@ class Association:
                 set(self.crispr_obj.get_data().columns),
             )
         )
-        print(f"#(Samples)={len(self.samples)}")
+
+        logger.log(logger.INFO, f"Associations: #(samples)={len(self.samples)}")
 
         # Filter
         self.crispr = self.crispr_obj.filter(subset=self.samples, scale=True)
         self.drespo = self.drespo_obj.filter(subset=self.samples, dtype=self.dtype)
         self.genomic = self.genomic_obj.filter(subset=self.samples, min_events=5)
         self.gexp = self.gexp_obj.filter(subset=self.samples)
-        print(
-            f"#(Drugs)={self.drespo.shape[0]}; #(Genes)={self.crispr.shape[0]}; #(Genomic)={self.genomic.shape[0]}"
+
+        logger.log(
+            logger.INFO,
+            f"Associations: #(Drugs)={self.drespo.shape[0]}; "
+            f"#(Genes)={self.crispr.shape[0]}; "
+            f"#(Genomic)={self.genomic.shape[0]}; ",
         )
+
+        # Association files
+        self.lmm_drug_crispr_file = f"{dpath}/drug_lmm_regressions_{self.dtype}_crispr.csv.gz"
+        self.lmm_drug_gexp_file = f"{dpath}data/drug_lmm_regressions_{self.dtype}_gexp.csv.gz"
+        self.lmm_drug_genomic_file = f"{dpath}data/drug_lmm_regressions_{self.dtype}_genomic.csv.gz"
+
+        self.lmm_robust_gexp_file = f"{dpath}data/drug_lmm_regressions_robust_{self.dtype}_gexp.csv.gz"
+        self.lmm_robust_genomic_file = f"{dpath}data/drug_lmm_regressions_robust_{self.dtype}_genomic.csv.gz"
 
         # Load associations
         if load_associations:
-            self.lmm_drug = pd.read_csv(
-                f"{data_dir}/data/drug_lmm_regressions_{self.dtype}.csv.gz"
-            )
+            self.lmm_drug_crispr = pd.read_csv(self.lmm_drug_crispr_file)
+            self.lmm_drug_gexp = pd.read_csv(self.lmm_drug_gexp_file)
+            self.lmm_drug_genomic = pd.read_csv(self.lmm_drug_genomic_file)
 
-            self.lmm_drug_gexp = pd.read_csv(
-                f"{data_dir}/data/drug_lmm_regressions_{self.dtype}_gexp.csv.gz"
-            )
-
-            self.lmm_drug_genomic = pd.read_csv(
-                f"{data_dir}/data/drug_lmm_regressions_{self.dtype}_genomic.csv.gz"
-            )
-
-            self.lmm_multi = pd.read_csv(
-                f"{data_dir}/data/drug_lm_regressions_multiple_{self.dtype}.csv.gz"
-            )
+        # Load robust associations
+        if load_robust:
+            self.lmm_robust_gexp = pd.read_csv(self.lmm_robust_gexp_file)
+            self.lmm_robust_genomic = pd.read_csv(self.lmm_robust_genomic_file)
 
     def get_covariates(self):
         # Samples CRISPR QC (recall essential genes)
@@ -639,7 +652,7 @@ class Association:
 if __name__ == "__main__":
     dtype = "ic50"
 
-    assoc = Association(dtype_drug=dtype)
+    assoc = Association(dtype=dtype)
     # lmm_dsingle = pd.read_csv(f'data/drug_lmm_regressions_{dtype}.csv.gz')
 
     lmm_dsingle = assoc.lmm_single_associations()
