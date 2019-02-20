@@ -53,6 +53,7 @@ class Association:
         self.drespo_obj = DataImporter.DrugResponse()
         self.genomic_obj = DataImporter.Genomic()
         self.gexp_obj = DataImporter.GeneExpression()
+        self.cn_obj = DataImporter.CopyNumber()
 
         self.samples = list(
             set.intersection(
@@ -68,6 +69,7 @@ class Association:
         self.drespo = self.drespo_obj.filter(subset=self.samples, dtype=self.dtype)
         self.genomic = self.genomic_obj.filter(subset=self.samples, min_events=5)
         self.gexp = self.gexp_obj.filter(subset=self.samples)
+        self.cn = self.cn_obj.filter(subset=self.samples)
 
         logger.log(
             logging.INFO,

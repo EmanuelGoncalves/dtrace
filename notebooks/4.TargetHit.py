@@ -18,11 +18,13 @@
 # %load_ext autoreload
 # %autoreload 2
 
+import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 from dtrace import rpath
 from dtrace.TargetHit import TargetHit
+from dtrace.DTracePlot import DTracePlot
 from dtrace.Associations import Association
 
 
@@ -69,9 +71,9 @@ plt.savefig(f"{rpath}/hit_topbarplot.pdf", bbox_inches="tight", transparent=True
 
 order = [
     tuple(d)
-    for d in assoc.lmm_drug_crispr.query(f"(DRUG_TARGETS == 'MCL1') & (GeneSymbol == 'MCL1')")[
-        hit.dinfo
-    ].values
+    for d in assoc.lmm_drug_crispr.query(
+        f"(DRUG_TARGETS == 'MCL1') & (GeneSymbol == 'MCL1')"
+    )[hit.dinfo].values
 ]
 for g in ["MCL1", "MARCH5"]:
     hit.plot_target_drugs_corr(assoc, g, order=order)
@@ -91,7 +93,14 @@ plt.gcf().set_size_inches(1.5, 1.5)
 plt.savefig(f"{rpath}/hit_BCLi_crispr~gexp.pdf", bbox_inches="tight", transparent=True)
 
 
-# -
+# ### MCL1i drug-response predictive features
+#
+# A l2-regularised linear regression model with internal cross-validation for parameter optimisation [RidgeCV](https://scikit-learn.org/stable/modules/generated/sklearn.linear_model.RidgeCV.html#sklearn.linear_model.RidgeCV) was used
+# to estimate the predictive capacity [R-squared](https://scikit-learn.org/stable/modules/generated/sklearn.metrics.r2_score.html) of MCL1i drug-response and the features contribution.
+
+# Both gene-essentiality and gene-expression measurements of BCL family members and regulators, defined in features
+# variable, were considered.
+
 features = [
     "MARCH5",
     "MCL1",
@@ -106,27 +115,28 @@ features = [
     "BIK",
     "BAD",
 ]
-drug_lms = hit.predict_drugresponse(data, features)
+drug_lms = hit.predict_drugresponse(assoc, features)
 
 hit.predict_r2_barplot(drug_lms)
 plt.gcf().set_size_inches(1.5, 2.5)
-plt.savefig(f"reports/hit_rsqaured_barplot.pdf", bbox_inches="tight", transparent=True)
-plt.close("all")
+plt.savefig(f"{rpath}/hit_rsqaured_barplot.pdf", bbox_inches="tight", transparent=True)
 
 hit.predict_feature_plot(drug_lms)
 plt.gcf().set_size_inches(1.5, 3)
 plt.savefig(
-    f"reports/hit_features_stripplot.pdf", bbox_inches="tight", transparent=True
+    f"{rpath}/hit_features_stripplot.pdf", bbox_inches="tight", transparent=True
 )
-plt.close("all")
 
-# - CRISPR gene pair corr
-for gene_x, gene_y in [("MARCH5", "MCL1")]:
+
+# ### Gene-essentiality correlation plots
+
+genes = [("MARCH5", "MCL1")]
+for gene_x, gene_y in genes:
     plot_df = pd.concat(
         [
-            data.crispr.loc[gene_x].rename(gene_x),
-            data.crispr.loc[gene_y].rename(gene_y),
-            data.crispr_obj.institute.rename("Institute"),
+            assoc.crispr.loc[gene_x].rename(gene_x),
+            assoc.crispr.loc[gene_y].rename(gene_y),
+            assoc.crispr_obj.institute.rename("Institute"),
         ],
         axis=1,
         sort=False,
@@ -138,13 +148,16 @@ for gene_x, gene_y in [("MARCH5", "MCL1")]:
 
     plt.gcf().set_size_inches(1.5, 1.5)
     plt.savefig(
-        f"reports/hit_scatter_{gene_x}_{gene_y}.pdf",
+        f"{rpath}/hit_scatter_{gene_x}_{gene_y}.pdf",
         bbox_inches="tight",
         transparent=True,
     )
-    plt.close("all")
 
-# -
+
+# ## Stratification of MCL1i drug-response
+
+# ### MCL1i inhibitors across all essential cell lines.
+
 ctypes = ["Breast Carcinoma", "Colorectal Carcinoma", "Acute Myeloid Leukemia"]
 genes = ["MCL1", "MARCH5"]
 order = ["None", "MARCH5", "MCL1", "MCL1 + MARCH5"]
@@ -154,24 +167,22 @@ hue_order = [
     "Colorectal Carcinoma",
     "Acute Myeloid Leukemia",
 ]
-
-#
 hit.drugresponse_boxplots(
-    data, ctypes=ctypes, hue_order=hue_order, order=order, genes=genes
+    assoc, ctypes=ctypes, hue_order=hue_order, order=order, genes=genes
 )
 plt.savefig(
-    f"reports/hit_drugresponse_boxplot.pdf", bbox_inches="tight", transparent=True
+    f"{rpath}/hit_drugresponse_boxplot.pdf", bbox_inches="tight", transparent=True
 )
-plt.close("all")
 
-#
-# drug = (1956, 'MCL1_1284', 'RS')
+
+# ### Drug-response of highly selective MCL1i (MCL1_1284 and AZD5991) in breast and colorectal carcinomas.
+
 for drug in [(1956, "MCL1_1284", "RS"), (2235, "AZD5991", "RS")]:
     plot_df = pd.concat(
         [
-            data.drespo.loc[drug].rename("drug"),
-            hit.discretise_essentiality(genes).rename("essentiality"),
-            data.samplesheet.samplesheet.loc[data.samples, "cancer_type"],
+            assoc.drespo.loc[drug].rename("drug"),
+            hit.discretise_essentiality(genes, assoc).rename("essentiality"),
+            assoc.samplesheet.samplesheet.loc[assoc.samples, "cancer_type"],
         ],
         axis=1,
         sort=False,
@@ -193,7 +204,7 @@ for drug in [(1956, "MCL1_1284", "RS"), (2235, "AZD5991", "RS")]:
 
         sns.despine(ax=axs[i])
 
-        dmax = np.log(data.drespo_obj.maxconcentration[drug])
+        dmax = np.log(assoc.drespo_obj.maxconcentration[drug])
         axs[i].axvline(
             dmax, linewidth=0.3, color=DTracePlot.PAL_DTRACE[2], ls=":", zorder=0
         )
@@ -210,33 +221,35 @@ for drug in [(1956, "MCL1_1284", "RS"), (2235, "AZD5991", "RS")]:
 
     plt.gcf().set_size_inches(2 * len(ctypes), 0.75)
     plt.savefig(
-        f"reports/hit_drugresponse_boxplot_tissue_{drug[1]}.pdf",
+        f"{rpath}/hit_drugresponse_boxplot_tissue_{drug[1]}.pdf",
         bbox_inches="tight",
         transparent=True,
     )
-    plt.close("all")
 
-# - MCL1 amplification
+
+# ### MCL1 copy-number amplification
+
+# MCL1 copy-number amplification association with drug-response of MCL1 gene-essentiality and inhibitor.
+
 d, c = ("MCL1_1284", "MCL1")
-
-assoc = lmm_drug[(lmm_drug["DRUG_NAME"] == d) & (lmm_drug["GeneSymbol"] == c)].iloc[0]
-
-drug = tuple(assoc[data.drespo_obj.DRUG_COLUMNS])
-
-dmax = np.log(data.drespo_obj.maxconcentration[drug])
+drug = assoc.lmm_drug_crispr[
+    (assoc.lmm_drug_crispr["DRUG_NAME"] == d)
+    & (assoc.lmm_drug_crispr["GeneSymbol"] == c)
+].iloc[0]
+drug = tuple(drug[assoc.drespo_obj.DRUG_COLUMNS])
+dmax = np.log(assoc.drespo_obj.maxconcentration[drug])
 
 plot_df = pd.concat(
     [
-        data.drespo.loc[drug].rename("drug"),
-        data.crispr.loc[c].rename("crispr"),
-        data.cn.loc["MCL1"].rename("cn"),
-        data.crispr_obj.institute.rename("Institute"),
-        data.samplesheet.samplesheet["ploidy"],
+        assoc.drespo.loc[drug].rename("drug"),
+        assoc.crispr.loc[c].rename("crispr"),
+        assoc.cn.loc["MCL1"].rename("cn"),
+        assoc.crispr_obj.institute.rename("Institute"),
+        assoc.samplesheet.samplesheet["ploidy"],
     ],
     axis=1,
     sort=False,
 ).dropna()
-
 plot_df = plot_df.assign(
     amp=[
         1 if ((p <= 2.7) and (c >= 5)) or ((p > 2.7) and (c >= 9)) else 0
@@ -245,17 +258,14 @@ plot_df = plot_df.assign(
 )
 
 grid = DTracePlot.plot_corrplot_discrete("crispr", "drug", "amp", "Institute", plot_df)
-
 grid.ax_joint.axhline(
     y=dmax, linewidth=0.3, color=DTracePlot.PAL_DTRACE[2], ls=":", zorder=0
 )
-
 grid.set_axis_labels(f"{c} (scaled log2 FC)", f"{d} (ln IC50)")
-
 plt.suptitle("MCL1 amplification", y=1.05, fontsize=8)
-
 plt.gcf().set_size_inches(1.5, 1.5)
 plt.savefig(
-    f"reports/hit_scatter_{d}_{c}_amp.pdf", bbox_inches="tight", transparent=True
+    f"{rpath}/hit_scatter_{d}_{c}_amp.pdf", bbox_inches="tight", transparent=True
 )
-plt.close("all")
+
+
