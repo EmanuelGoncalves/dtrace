@@ -1,15 +1,12 @@
 #!/usr/bin/env python
-# Copyright (C) 2018 Emanuel Goncalves
+# Copyright (C) 2019 Emanuel Goncalves
 
-import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 from DTracePlot import DTracePlot
 from scipy.stats import pearsonr
-from Associations import Association
 from sklearn.decomposition import PCA
-from DataImporter import DrugResponse, CRISPR
 
 
 class Preliminary:
@@ -201,7 +198,6 @@ class DrugPreliminary(Preliminary):
                 label=s,
                 kde_kws=cls.HIST_KDE_KWS,
             )
-            sns.despine(top=True, right=True)
 
         plt.xlabel("Number of cell lines screened")
         plt.ylabel(f"Fraction of {df.shape[0]} drugs")
@@ -221,7 +217,6 @@ class DrugPreliminary(Preliminary):
             kde_kws=cls.HIST_KDE_KWS,
             label=None,
         )
-        sns.despine(top=True, right=True)
 
         plt.xlabel("Number of drugs screened")
         plt.ylabel(f"Fraction of {df.shape[0]} cell lines")
@@ -239,7 +234,6 @@ class DrugPreliminary(Preliminary):
             kde_kws=cls.HIST_KDE_KWS,
             label=None,
         )
-        sns.despine(top=True, right=True)
 
         plt.xlabel("Number of drugs")
         plt.ylabel("Fraction")
@@ -247,6 +241,8 @@ class DrugPreliminary(Preliminary):
         plt.title(
             "Cumulative distribution of drug measurements lower than\n50% of the maximum screened concentration"
         )
+
+        plt.legend().remove()
 
     @classmethod
     def growth_correlation_histogram(cls, g_corr):
@@ -262,8 +258,6 @@ class DrugPreliminary(Preliminary):
                 bins=15,
                 label=s,
             )
-
-        sns.despine(right=True, top=True)
 
         plt.axvline(0, c=DTracePlot.PAL_DTRACE[1], lw=0.1, ls="-", zorder=0)
 
@@ -281,7 +275,6 @@ class DrugPreliminary(Preliminary):
             color=DTracePlot.PAL_DTRACE[2],
             linewidth=0,
         )
-        sns.despine(top=True, right=True)
 
         plt.axvline(0, c=DTracePlot.PAL_DTRACE[1], lw=0.1, ls="-", zorder=0)
 
@@ -324,183 +317,3 @@ class CrisprPreliminary(Preliminary):
         g.set_axis_labels(
             "Gene significantly essential count", "{} ({:.1f}%)".format(pc, vexp * 100)
         )
-
-
-if __name__ == "__main__":
-    # - Import data
-    datasets = Association()
-
-    # - Drug PCAs
-    pca_drug = Preliminary.perform_pca(datasets.drespo)
-    pca_crispr = Preliminary.perform_pca(datasets.crispr)
-
-    for n, pcas in [("drug", pca_drug), ("crispr", pca_crispr)]:
-        for by in pcas:
-            pcas[by]["pcs"].round(5).to_csv(f"data/{n}_pca_{by}_pcs.csv")
-
-    # - Growth ~ Drug-response correlation
-    g_corr = DrugResponse.growth_corr(
-        datasets.drespo, datasets.samplesheet.samplesheet["growth"]
-    )
-    g_corr.to_csv("data/drug_growth_correlation.csv", index=False)
-
-    # - Growth ~ CRISPR correlation
-    c_corr = CRISPR.growth_corr(
-        datasets.crispr, datasets.samplesheet.samplesheet["growth"]
-    )
-    c_corr.to_csv("data/crispr_growth_correlation.csv", index=False)
-
-    # - Number of responses
-    num_resp = pd.Series(
-        {
-            drug: (
-                datasets.drespo.loc[drug].dropna()
-                < np.log(datasets.drespo_obj.maxconcentration[drug] * 0.5)
-            ).sum()
-            for drug in datasets.drespo.index
-        }
-    ).reset_index()
-    num_resp.columns = ["DRUG_ID", "DRUG_NAME", "VERSION", "n_resp"]
-    num_resp.to_csv("data/drug_number_responses.csv", index=False)
-
-    # - Plots
-    # Drug response
-    DrugPreliminary.histogram_drug(datasets.drespo.count(1))
-    plt.gcf().set_size_inches(3, 2)
-    plt.savefig(
-        "reports/preliminary_drug_histogram_drug.pdf",
-        bbox_inches="tight",
-        transparent=True,
-    )
-    plt.close("all")
-
-    DrugPreliminary.histogram_drug_response(num_resp)
-    plt.gcf().set_size_inches(3, 2)
-    plt.savefig(
-        "reports/preliminary_drug_response_histogram.pdf",
-        bbox_inches="tight",
-        transparent=True,
-    )
-    plt.close("all")
-
-    DrugPreliminary.histogram_sample(datasets.drespo.count(0))
-    plt.gcf().set_size_inches(3, 2)
-    plt.savefig(
-        "reports/preliminary_drug_histogram_samples.pdf",
-        bbox_inches="tight",
-        transparent=True,
-    )
-    plt.close("all")
-
-    DrugPreliminary.pairplot_pca_by_rows(pca_drug)
-    plt.suptitle("PCA drug response (Drugs)", y=1.05, fontsize=9)
-    plt.savefig(
-        "reports/preliminary_drug_pca_pairplot.pdf",
-        bbox_inches="tight",
-        transparent=True,
-    )
-    plt.close("all")
-
-    DrugPreliminary.pairplot_pca_by_columns(pca_drug)
-    plt.suptitle("PCA drug response (Cell lines)", y=1.05, fontsize=9)
-    plt.savefig(
-        "reports/preliminary_drug_pca_pairplot_samples.pdf",
-        bbox_inches="tight",
-        transparent=True,
-    )
-    plt.close("all")
-
-    DrugPreliminary.pairplot_pca_samples_cancertype(
-        pca_drug, datasets.samplesheet.samplesheet["cancer_type"]
-    )
-    plt.suptitle("PCA drug response (Cell lines)", y=1.05, fontsize=9)
-    plt.savefig(
-        "reports/preliminary_drug_pca_pairplot_cancertype.pdf",
-        bbox_inches="tight",
-        transparent=True,
-    )
-    plt.close("all")
-
-    DrugPreliminary.corrplot_pcs_growth(
-        pca_drug, datasets.samplesheet.samplesheet["growth"], "PC1"
-    )
-    plt.gcf().set_size_inches(2, 2)
-    plt.savefig(
-        "reports/preliminary_drug_pca_growth_corrplot.pdf",
-        bbox_inches="tight",
-        transparent=True,
-    )
-    plt.close("all")
-
-    DrugPreliminary.growth_correlation_histogram(g_corr)
-    plt.gcf().set_size_inches(2, 2)
-    plt.savefig(
-        "reports/preliminary_drug_pca_growth_corrplot_histogram.pdf",
-        bbox_inches="tight",
-        transparent=True,
-    )
-    plt.close("all")
-
-    DrugPreliminary.growth_correlation_top_drugs(g_corr)
-    plt.gcf().set_size_inches(2, 4)
-    plt.savefig(
-        "reports/preliminary_drug_pca_growth_corrplot_top.pdf",
-        bbox_inches="tight",
-        transparent=True,
-    )
-    plt.close("all")
-
-    # Crispr
-    CrisprPreliminary.pairplot_pca_by_rows(pca_crispr, hue=None)
-    plt.suptitle("PCA CRISPR-Cas9 (Genes)", y=1.05, fontsize=9)
-    plt.savefig(
-        "reports/preliminary_crispr_pca_pairplot.png",
-        bbox_inches="tight",
-        transparent=True,
-        dpi=300,
-    )
-    plt.close("all")
-
-    CrisprPreliminary.pairplot_pca_by_columns(
-        pca_crispr,
-        hue="institute",
-        hue_vars=datasets.samplesheet.samplesheet["institute"],
-    )
-    plt.suptitle("PCA CRISPR-Cas9 (Cell lines)", y=1.05, fontsize=9)
-    plt.savefig(
-        "reports/preliminary_crispr_pca_pairplot_samples.pdf",
-        bbox_inches="tight",
-        transparent=True,
-    )
-    plt.close("all")
-
-    CrisprPreliminary.pairplot_pca_samples_cancertype(
-        pca_crispr, datasets.samplesheet.samplesheet["cancer_type"]
-    )
-    plt.suptitle("PCA CRISPR-Cas9 (Cell lines)", y=1.05, fontsize=9)
-    plt.savefig(
-        "reports/preliminary_crispr_pca_pairplot_cancertype.pdf",
-        bbox_inches="tight",
-        transparent=True,
-    )
-    plt.close("all")
-
-    CrisprPreliminary.corrplot_pcs_growth(
-        pca_crispr, datasets.samplesheet.samplesheet["growth"], "PC4"
-    )
-    plt.gcf().set_size_inches(2, 2)
-    plt.savefig(
-        "reports/preliminary_crispr_pca_growth_corrplot.pdf",
-        bbox_inches="tight",
-        transparent=True,
-    )
-    plt.close("all")
-
-    CrisprPreliminary.corrplot_pcs_essentiality(pca_crispr, datasets.crispr, "PC1")
-    plt.gcf().set_size_inches(2, 2)
-    plt.savefig(
-        "reports/preliminary_crispr_pca_essentiality_corrplot.pdf",
-        bbox_inches="tight",
-        transparent=True,
-    )
-    plt.close("all")

@@ -10,8 +10,9 @@ from DTracePlot import DTracePlot
 # - Version
 __version__ = "0.5.0"
 
-# - Package data path
+# - Package paths
 dpath = pkg_resources.resource_filename("dtrace", "data/")
+rpath = pkg_resources.resource_filename("notebooks", "reports/")
 
 # - Plot main default aesthetics
 sns.set(
@@ -23,7 +24,7 @@ sns.set(
 )
 
 # - DTrace handlers
-__all__ = ["DTracePlot", "logger", "dpath"]
+__all__ = ["DTracePlot", "logger", "dpath", "rpath"]
 
 # - Logging
 logger = logging.getLogger()
