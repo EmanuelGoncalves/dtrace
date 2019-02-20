@@ -78,11 +78,11 @@ class Association:
 
         # Association files
         self.lmm_drug_crispr_file = f"{dpath}/drug_lmm_regressions_{self.dtype}_crispr.csv.gz"
-        self.lmm_drug_gexp_file = f"{dpath}data/drug_lmm_regressions_{self.dtype}_gexp.csv.gz"
-        self.lmm_drug_genomic_file = f"{dpath}data/drug_lmm_regressions_{self.dtype}_genomic.csv.gz"
+        self.lmm_drug_gexp_file = f"{dpath}/drug_lmm_regressions_{self.dtype}_gexp.csv.gz"
+        self.lmm_drug_genomic_file = f"{dpath}/drug_lmm_regressions_{self.dtype}_genomic.csv.gz"
 
-        self.lmm_robust_gexp_file = f"{dpath}data/drug_lmm_regressions_robust_{self.dtype}_gexp.csv.gz"
-        self.lmm_robust_genomic_file = f"{dpath}data/drug_lmm_regressions_robust_{self.dtype}_genomic.csv.gz"
+        self.lmm_robust_gexp_file = f"{dpath}/drug_lmm_regressions_robust_{self.dtype}_gexp.csv.gz"
+        self.lmm_robust_genomic_file = f"{dpath}/drug_lmm_regressions_robust_{self.dtype}_genomic.csv.gz"
 
         # Load associations
         if load_associations:
