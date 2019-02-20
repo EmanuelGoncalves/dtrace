@@ -51,6 +51,8 @@ included_files = {"dtrace": [
     "data/pathways/c5.cc.v6.2.symbols.gmt",
     "data/pathways/c5.mf.v6.2.symbols.gmt",
     "data/pathways/h.all.v6.2.symbols.gmt",
+
+    "data/ubq/Definite Ligase List.xlsx",
 ]}
 
 setuptools.setup(

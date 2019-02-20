@@ -1,7 +1,7 @@
 .. -*- mode: rst -*-
 
 
-Jupyter and Jupytext notebooks
+Notebooks
 ============
 
 This folder contains all the analysis generated within this project. Plots generated from the analysis are displayed

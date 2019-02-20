@@ -26,7 +26,9 @@ class Association:
         dtype="ic50",
         pval_method="fdr_bh",
         load_associations=False,
-        load_robust=False
+        load_robust=False,
+        load_ppi=False,
+        ppi_thres=900,
     ):
         """
         :param dtype: Drug-response of a drug in a cell line was represented either as an IC50 (ic50) or
@@ -42,6 +44,7 @@ class Association:
         """
 
         self.dtype = dtype
+        self.ppi_thres = ppi_thres
         self.pval_method = pval_method
         self.dcols = DataImporter.DrugResponse.DRUG_COLUMNS
 
@@ -79,12 +82,22 @@ class Association:
         )
 
         # Association files
-        self.lmm_drug_crispr_file = f"{dpath}/drug_lmm_regressions_{self.dtype}_crispr.csv.gz"
-        self.lmm_drug_gexp_file = f"{dpath}/drug_lmm_regressions_{self.dtype}_gexp.csv.gz"
-        self.lmm_drug_genomic_file = f"{dpath}/drug_lmm_regressions_{self.dtype}_genomic.csv.gz"
+        self.lmm_drug_crispr_file = (
+            f"{dpath}/drug_lmm_regressions_{self.dtype}_crispr.csv.gz"
+        )
+        self.lmm_drug_gexp_file = (
+            f"{dpath}/drug_lmm_regressions_{self.dtype}_gexp.csv.gz"
+        )
+        self.lmm_drug_genomic_file = (
+            f"{dpath}/drug_lmm_regressions_{self.dtype}_genomic.csv.gz"
+        )
 
-        self.lmm_robust_gexp_file = f"{dpath}/drug_lmm_regressions_robust_{self.dtype}_gexp.csv.gz"
-        self.lmm_robust_genomic_file = f"{dpath}/drug_lmm_regressions_robust_{self.dtype}_genomic.csv.gz"
+        self.lmm_robust_gexp_file = (
+            f"{dpath}/drug_lmm_regressions_robust_{self.dtype}_gexp.csv.gz"
+        )
+        self.lmm_robust_genomic_file = (
+            f"{dpath}/drug_lmm_regressions_robust_{self.dtype}_genomic.csv.gz"
+        )
 
         # Load associations
         if load_associations:
@@ -96,6 +109,11 @@ class Association:
         if load_robust:
             self.lmm_robust_gexp = pd.read_csv(self.lmm_robust_gexp_file)
             self.lmm_robust_genomic = pd.read_csv(self.lmm_robust_genomic_file)
+
+        # Load PPI
+        if load_ppi:
+            self.ppi_string = self.ppi.build_string_ppi(score_thres=self.ppi_thres)
+            self.ppi_string = self.ppi.ppi_corr(self.ppi, self.crispr)
 
     def get_covariates(self):
         # Samples CRISPR QC (recall essential genes)
@@ -176,7 +194,9 @@ class Association:
     def multipletests_per_drug(
         associations, method, field="pval", fdr_field="fdr", index_cols=None
     ):
-        index_cols = DataImporter.DrugResponse.DRUG_COLUMNS if index_cols is None else index_cols
+        index_cols = (
+            DataImporter.DrugResponse.DRUG_COLUMNS if index_cols is None else index_cols
+        )
 
         d_unique = {tuple(i) for i in associations[index_cols].values}
 
@@ -192,16 +212,6 @@ class Association:
         ).reset_index()
 
         return df
-
-    def annotate_drug_target(self, associations):
-        d_targets = self.drespo_obj.get_drugtargets()
-
-        associations["DRUG_TARGETS"] = [
-            ";".join(d_targets[d]) if d in d_targets else np.nan
-            for d in associations["DRUG_ID"]
-        ]
-
-        return associations
 
     @staticmethod
     def get_association(lmm_associations, drug, gene):
@@ -470,23 +480,6 @@ class Association:
 
         return lmm_robust
 
-    def get_drug_top(self, lmm_associations, drug, top_features):
-        d_genes = (
-            lmm_associations.query(
-                f"DRUG_ID == {drug[0]} & DRUG_NAME == '{drug[1]}' & VERSION == '{drug[2]}'"
-            )
-            .sort_values("pval")
-            .head(top_features)["GeneSymbol"]
-        )
-
-        return (
-            pd.concat(
-                [self.drespo.loc[drug], self.crispr.loc[d_genes].T], axis=1, sort=False
-            )
-            .dropna()
-            .T
-        )
-
     @staticmethod
     def lm_outofsample(y, x, n_splits, test_size):
         y = y[x.index].dropna()
@@ -651,6 +644,80 @@ class Association:
 
         return lmm_gexp_crispr
 
+    def annotate_drug_target(self, associations):
+        d_targets = self.drespo_obj.get_drugtargets()
+
+        associations["DRUG_TARGETS"] = [
+            ";".join(d_targets[d]) if d in d_targets else np.nan
+            for d in associations["DRUG_ID"]
+        ]
+
+        return associations
+
+    def get_drug_top(self, associations, drug, top_features):
+        d_genes = self.filter_associations_by(
+            associations, drug_id=drug[0], drug_name=drug[1], drug_version=drug[2]
+        )
+        d_genes = d_genes.sort_values("pval").head(top_features)["GeneSymbol"]
+
+        d_genes_top = pd.concat(
+            [self.drespo.loc[drug], self.crispr.loc[d_genes].T], axis=1, sort=False
+        )
+        d_genes_top = d_genes_top.dropna().T
+
+        return d_genes_top
+
+    @staticmethod
+    def filter_associations_by(
+        associations,
+        drug_id=None,
+        drug_name=None,
+        drug_version=None,
+        gene_name=None,
+        target=None,
+        fdr=None,
+        pval=None,
+    ):
+        df = associations
+
+        if drug_id is not None:
+            if (type(drug_id) == list) or (type(drug_id) == set):
+                df = df[df["DRUG_ID"].isn(drug_id)]
+            else:
+                df = df[df["DRUG_ID"] == drug_id]
+
+        if drug_name is not None:
+            if (type(drug_name) == list) or (type(drug_name) == set):
+                df = df[df["DRUG_NAME"].isn(drug_name)]
+            else:
+                df = df[df["DRUG_NAME"] == drug_name]
+
+        if drug_version is not None:
+            if (type(drug_version) == list) or (type(drug_version) == set):
+                df = df[df["VERSION"].isn(drug_version)]
+            else:
+                df = df[df["VERSION"] == drug_version]
+
+        if gene_name is not None:
+            if (type(gene_name) == list) or (type(gene_name) == set):
+                df = df[df["GeneSymbol"].isn(gene_name)]
+            else:
+                df = df[df["GeneSymbol"] == gene_name]
+
+        if target is not None:
+            if (type(target) == list) or (type(target) == set):
+                df = df[df["Target"].isn(target)]
+            else:
+                df = df[df["Target"] == target]
+
+        if fdr is not None:
+            df = df[df["fdr"] < fdr]
+
+        if pval is not None:
+            df = df[df["pval"] < pval]
+
+        return df
+
 
 if __name__ == "__main__":
     assoc = Association(dtype="ic50")
@@ -663,21 +730,21 @@ if __name__ == "__main__":
 
     lmm_dgexp = assoc.lmm_gexp_drug()
     lmm_dgexp.sort_values(["fdr", "pval"]).to_csv(
-        assoc.lmm_drug_gexp_file, index=False, compression="gzip",
+        assoc.lmm_drug_gexp_file, index=False, compression="gzip"
     )
 
     lmm_dgenomic = assoc.lmm_single_associations_genomic()
     lmm_dgenomic.sort_values(["fdr", "pval"]).to_csv(
-        assoc.lmm_drug_genomic_file, index=False, compression="gzip",
+        assoc.lmm_drug_genomic_file, index=False, compression="gzip"
     )
 
     # - Robust associations
     lmm_robust = assoc.lmm_robust_association(lmm_dsingle, is_gexp=False)
     lmm_robust.sort_values(["drug_fdr", "drug_pval"]).to_csv(
-        assoc.lmm_robust_genomic_file, index=False, compression="gzip",
+        assoc.lmm_robust_genomic_file, index=False, compression="gzip"
     )
 
     lmm_robust_gexp = assoc.lmm_robust_association(lmm_dsingle, is_gexp=True)
     lmm_robust_gexp.sort_values(["drug_fdr", "drug_pval"]).to_csv(
-        assoc.lmm_robust_gexp_file, index=False, compression="gzip",
+        assoc.lmm_robust_gexp_file, index=False, compression="gzip"
     )

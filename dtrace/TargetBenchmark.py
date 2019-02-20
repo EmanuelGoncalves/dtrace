@@ -7,17 +7,14 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
-from DTraceEnrichment import DTraceEnrichment
 from scipy.stats import gaussian_kde
 from DTracePlot import DTracePlot
 from natsort import natsorted
 from crispy.utils import Utils
 from crispy.qc_plot import QCplot
 from matplotlib.lines import Line2D
-from Associations import Association
-from DataImporter import DrugResponse, PPI
 from sklearn.preprocessing import MinMaxScaler
-from scipy.stats import ttest_ind, mannwhitneyu, gmean, pearsonr
+from scipy.stats import ttest_ind, mannwhitneyu, gmean
 
 
 class TargetBenchmark(DTracePlot):
@@ -47,16 +44,9 @@ class TargetBenchmark(DTracePlot):
         "#bbbbbb": {"Multiple targets"},
     }
 
-    def __init__(
-        self,
-        fdr=0.1,
-        dtype="ic50"
-    ):
+    def __init__(self, assoc, fdr=0.1):
         self.fdr = fdr
-        self.dtype = dtype
-
-        # Imports
-        self.datasets = Association(dtype_drug=dtype)
+        self.assoc = assoc
 
         # PPI misc variables
         self.ppi_order = ["T", "1", "2", "3", "4", "5+", "-"]
@@ -68,17 +58,18 @@ class TargetBenchmark(DTracePlot):
         ).to_dict()
 
         # Define sets of drugs
-        self.df_genes = set(self.lmm_drug["GeneSymbol"])
-        self.d_targets = self.datasets.drespo_obj.get_drugtargets(by="Name")
-        self.d_targets_id = self.datasets.drespo_obj.get_drugtargets(by="id")
+        self.df_genes = set(self.assoc.lmm_drug_crispr["GeneSymbol"])
+        self.d_targets = self.assoc.drespo_obj.get_drugtargets(by="Name")
+        self.d_targets_id = self.assoc.drespo_obj.get_drugtargets(by="id")
 
-        self.drugs_all = set(self.lmm_drug["DRUG_NAME"])
+        self.drugs_all = set(self.assoc.lmm_drug_crispr["DRUG_NAME"])
         self.drugs_signif = {
-            d for d in self.lmm_drug.query(f"fdr < {self.fdr}")["DRUG_NAME"]
+            d
+            for d in self.assoc.lmm_drug_crispr.query(f"fdr < {self.fdr}")["DRUG_NAME"]
         }
         self.drugs_not_signif = {
             d
-            for d in self.lmm_drug.query(f"fdr > {self.fdr}")["DRUG_NAME"]
+            for d in self.assoc.lmm_drug_crispr.query(f"fdr > {self.fdr}")["DRUG_NAME"]
             if d not in self.drugs_signif
         }
 
@@ -90,19 +81,19 @@ class TargetBenchmark(DTracePlot):
         }
         self.drugs_tested_signif = {
             d
-            for d in self.lmm_drug.query(f"fdr < {self.fdr}")["DRUG_NAME"]
+            for d in self.assoc.lmm_drug_crispr.query(f"fdr < {self.fdr}")["DRUG_NAME"]
             if d in self.drugs_tested
         }
         self.drugs_tested_correct = {
             d
-            for d in self.lmm_drug.query(f"fdr < {self.fdr} & target == 'T'")[
-                "DRUG_NAME"
-            ]
+            for d in self.assoc.lmm_drug_crispr.query(
+                f"fdr < {self.fdr} & target == 'T'"
+            )["DRUG_NAME"]
             if d in self.drugs_tested_signif
         }
 
         # -
-        df = self.lmm_drug.query(f"fdr < {self.fdr}")
+        df = self.assoc.lmm_drug_crispr.query(f"fdr < {self.fdr}")
         df = df[df["DRUG_NAME"].isin(self.drugs_tested_signif)]
 
         d_signif_ppi = []
@@ -163,8 +154,8 @@ class TargetBenchmark(DTracePlot):
             int(t in self.d_targets[d]) for d, t in catds_m[["drug", "target"]].values
         ]
 
-        lmm_drug_subset = self.lmm_drug[
-            self.lmm_drug["DRUG_NAME"].isin(catds_m["drug"])
+        lmm_drug_subset = self.assoc.lmm_drug_crispr[
+            self.assoc.lmm_drug_crispr["DRUG_NAME"].isin(catds_m["drug"])
         ]
         catds_m["lmm_pval"] = (
             lmm_drug_subset.groupby(["GeneSymbol", "DRUG_NAME"])["fdr"]
@@ -227,7 +218,7 @@ class TargetBenchmark(DTracePlot):
         hist_kws = dict(alpha=0.4, zorder=1, linewidth=0)
 
         sns.distplot(
-            self.lmm_drug.query("target != 'T'")["beta"],
+            self.assoc.lmm_drug_crispr.query("target != 'T'")["beta"],
             color=self.PAL_DTRACE[2],
             kde_kws=kde_kws,
             hist_kws=hist_kws,
@@ -236,7 +227,7 @@ class TargetBenchmark(DTracePlot):
         )
 
         sns.distplot(
-            self.lmm_drug.query("target == 'T'")["beta"],
+            self.assoc.lmm_drug_crispr.query("target == 'T'")["beta"],
             color=self.PAL_DTRACE[0],
             kde_kws=kde_kws,
             hist_kws=hist_kws,
@@ -245,12 +236,12 @@ class TargetBenchmark(DTracePlot):
         )
 
         mannwhitneyu(
-            self.lmm_drug.query("target != 'T'")["beta"],
-            self.lmm_drug.query("target == 'T'")["beta"],
+            self.assoc.lmm_drug_crispr.query("target != 'T'")["beta"],
+            self.assoc.lmm_drug_crispr.query("target == 'T'")["beta"],
         )
         ttest_ind(
-            self.lmm_drug.query("target != 'T'")["beta"],
-            self.lmm_drug.query("target == 'T'")["beta"],
+            self.assoc.lmm_drug_crispr.query("target != 'T'")["beta"],
+            self.assoc.lmm_drug_crispr.query("target == 'T'")["beta"],
             equal_var=False,
         )
 
@@ -265,7 +256,7 @@ class TargetBenchmark(DTracePlot):
         hist_kws = dict(alpha=0.5, zorder=1, linewidth=0.3, density=True)
 
         sns.distplot(
-            self.lmm_drug.query("target != 'T'")["pval"],
+            self.assoc.lmm_drug_crispr.query("target != 'T'")["pval"],
             hist_kws=hist_kws,
             bins=30,
             kde=False,
@@ -274,7 +265,7 @@ class TargetBenchmark(DTracePlot):
         )
 
         sns.distplot(
-            self.lmm_drug.query("target == 'T'")["pval"],
+            self.assoc.lmm_drug_crispr.query("target == 'T'")["pval"],
             hist_kws=hist_kws,
             bins=30,
             kde=False,
@@ -291,7 +282,7 @@ class TargetBenchmark(DTracePlot):
         plot_df = (
             pd.Series(
                 {
-                    "All": self.datasets.drespo.shape[0],
+                    "All": self.assoc.drespo.shape[0],
                     "Unique": len(self.drugs_all),
                     "Annotated": len(self.drugs_annot),
                     "Target tested": len(self.drugs_tested),
@@ -354,10 +345,10 @@ class TargetBenchmark(DTracePlot):
 
     def drugs_ppi(self, dtype="crispr"):
         if dtype == "crispr":
-            df = self.lmm_drug[self.lmm_drug["DRUG_NAME"].isin(self.drugs_tested)]
+            df = self.assoc.lmm_drug_crispr[self.assoc.lmm_drug_crispr["DRUG_NAME"].isin(self.drugs_tested)]
 
         elif dtype == "gexp":
-            df = self.lmm_drug_gexp[self.lmm_drug["DRUG_NAME"].isin(self.drugs_tested)]
+            df = self.assoc.lmm_drug_gexp[self.assoc.lmm_drug_crispr["DRUG_NAME"].isin(self.drugs_tested)]
 
         QCplot.bias_boxplot(
             df.query(f"fdr < {self.fdr}"),
@@ -376,10 +367,10 @@ class TargetBenchmark(DTracePlot):
 
     def drugs_ppi_countplot(self, dtype="crispr"):
         if dtype == "crispr":
-            df = self.lmm_drug[self.lmm_drug["DRUG_NAME"].isin(self.drugs_tested)]
+            df = self.assoc.lmm_drug_crispr[self.assoc.lmm_drug_crispr["DRUG_NAME"].isin(self.drugs_tested)]
 
         elif dtype == "gexp":
-            df = self.lmm_drug_gexp[self.lmm_drug["DRUG_NAME"].isin(self.drugs_tested)]
+            df = self.assoc.lmm_drug_gexp[self.assoc.lmm_drug_crispr["DRUG_NAME"].isin(self.drugs_tested)]
 
         plot_df = (
             df.query(f"fdr < {self.fdr}")["target"]
@@ -400,10 +391,10 @@ class TargetBenchmark(DTracePlot):
 
     def drugs_ppi_countplot_background(self, dtype="crispr"):
         if dtype == "crispr":
-            df = self.lmm_drug[self.lmm_drug["DRUG_NAME"].isin(self.drugs_tested)]
+            df = self.assoc.lmm_drug_crispr[self.assoc.lmm_drug_crispr["DRUG_NAME"].isin(self.drugs_tested)]
 
         elif dtype == "gexp":
-            df = self.lmm_drug_gexp[self.lmm_drug["DRUG_NAME"].isin(self.drugs_tested)]
+            df = self.assoc.lmm_drug_gexp[self.assoc.lmm_drug_crispr["DRUG_NAME"].isin(self.drugs_tested)]
 
         plot_df = df["target"].value_counts().rename("count").reset_index()
 
@@ -420,7 +411,7 @@ class TargetBenchmark(DTracePlot):
     def top_associations_barplot(self, ntop=50, n_cols=10):
         # Filter for signif associations
         df = (
-            self.lmm_drug.query("fdr < {}".format(self.fdr))
+            self.assoc.lmm_drug_crispr.query("fdr < {}".format(self.fdr))
             .sort_values("fdr")
             .groupby(["DRUG_NAME", "GeneSymbol"])
             .first()
@@ -543,7 +534,7 @@ class TargetBenchmark(DTracePlot):
         )
 
         # Plot data-frame
-        df = self.lmm_drug.copy()
+        df = self.assoc.lmm_drug_crispr.copy()
         df = df.assign(pos=crispr_lib.loc[df["GeneSymbol"], "start"].values)
         df = df.assign(
             chr=crispr_lib.loc[df["GeneSymbol"], "chr"]
@@ -554,7 +545,7 @@ class TargetBenchmark(DTracePlot):
 
         # Most frequently associated genes
         top_genes = (
-            self.lmm_drug.groupby("GeneSymbol")["fdr"].min().sort_values().head(n_genes)
+            self.assoc.lmm_drug_crispr.groupby("GeneSymbol")["fdr"].min().sort_values().head(n_genes)
         )
         top_genes_pal = dict(
             zip(
@@ -651,7 +642,7 @@ class TargetBenchmark(DTracePlot):
         )
 
     def drug_notarget_barplot(self, drug, genes):
-        df = self.lmm_drug.query(f"DRUG_NAME == '{drug}'")
+        df = self.assoc.lmm_drug_crispr.query(f"DRUG_NAME == '{drug}'")
         df = df[df["GeneSymbol"].isin(genes)]
         df = df.groupby(["DRUG_NAME", "GeneSymbol"]).first()
         df = df.sort_values(["pval", "fdr"], ascending=False).reset_index()
@@ -731,11 +722,11 @@ class TargetBenchmark(DTracePlot):
         )
 
     def signif_essential_heatmap(self):
-        ess_genes = self.datasets.crispr_obj.import_sanger_essential_genes()
+        ess_genes = self.assoc.crispr_obj.import_sanger_essential_genes()
 
         plot_df = pd.concat(
             [
-                self.lmm_drug.groupby("DRUG_NAME")["fdr"]
+                self.assoc.lmm_drug_crispr.groupby("DRUG_NAME")["fdr"]
                 .min()
                 .apply(lambda v: "Yes" if v < self.fdr else "No")
                 .rename("crispr_fdr"),
@@ -768,7 +759,7 @@ class TargetBenchmark(DTracePlot):
 
     def signif_per_screen(self):
         df = (
-            self.lmm_drug.groupby(self.datasets.drespo_obj.DRUG_COLUMNS)
+            self.assoc.lmm_drug_crispr.groupby(self.assoc.dcols)
             .first()
             .reset_index()
         )
@@ -801,11 +792,11 @@ class TargetBenchmark(DTracePlot):
     def signif_genomic_markers(self):
         plot_df = pd.concat(
             [
-                self.lmm_drug.groupby("DRUG_NAME")["fdr"]
+                self.assoc.lmm_drug_crispr.groupby("DRUG_NAME")["fdr"]
                 .min()
                 .apply(lambda v: "Yes" if v < self.fdr else "No")
                 .rename("crispr_fdr"),
-                self.lmm_drug_genomic.groupby("DRUG_NAME")["fdr"]
+                self.assoc.lmm_drug_genomic.groupby("DRUG_NAME")["fdr"]
                 .min()
                 .apply(lambda v: "Yes" if v < self.fdr else "No")
                 .rename("genomic_fdr"),
@@ -829,15 +820,15 @@ class TargetBenchmark(DTracePlot):
         g.set_title("Drug association")
 
     def signif_upset(self):
-        ess_genes = self.datasets.crispr_obj.import_sanger_essential_genes()
+        ess_genes = self.assoc.crispr_obj.import_sanger_essential_genes()
 
         plot_df = pd.concat(
             [
-                self.lmm_drug.groupby("DRUG_NAME")["fdr"]
+                self.assoc.lmm_drug_crispr.groupby("DRUG_NAME")["fdr"]
                 .min()
                 .apply(lambda v: v < self.fdr)
                 .rename("crispr_fdr"),
-                self.lmm_drug_genomic.groupby("DRUG_NAME")["fdr"]
+                self.assoc.lmm_drug_genomic.groupby("DRUG_NAME")["fdr"]
                 .min()
                 .apply(lambda v: v < self.fdr)
                 .rename("genomic_fdr"),
@@ -893,18 +884,18 @@ class TargetBenchmark(DTracePlot):
 
     def signif_maxconcentration_scatter(self):
         # Build data-frame
-        d_frist = self.lmm_drug.groupby(self.datasets.drespo_obj.DRUG_COLUMNS).first()
+        d_frist = self.assoc.lmm_drug_crispr.groupby(self.assoc.dcols).first()
 
         plot_df = pd.DataFrame(
             {
                 d: {
                     "below": (
-                        self.datasets.drespo.loc[d].dropna()
-                        < np.log(self.datasets.drespo_obj.maxconcentration[d])
+                        self.assoc.drespo.loc[d].dropna()
+                        < np.log(self.assoc.drespo_obj.maxconcentration[d])
                     ).sum(),
-                    "total": self.datasets.drespo.loc[d].dropna().shape[0],
+                    "total": self.assoc.drespo.loc[d].dropna().shape[0],
                 }
-                for d in self.datasets.drespo.index
+                for d in self.assoc.drespo.index
             }
         ).T
         plot_df = pd.concat([plot_df, d_frist], axis=1)
@@ -960,10 +951,10 @@ class TargetBenchmark(DTracePlot):
     def signif_fdr_scatter(self):
         plot_df = pd.concat(
             [
-                self.lmm_drug.groupby(self.datasets.drespo_obj.DRUG_COLUMNS)["fdr"]
+                self.assoc.lmm_drug_crispr.groupby(self.assoc.dcols)["fdr"]
                 .min()
                 .rename("crispr"),
-                self.lmm_drug_genomic.groupby(self.datasets.drespo_obj.DRUG_COLUMNS)[
+                self.assoc.lmm_drug_genomic.groupby(self.assoc.dcols)[
                     "fdr"
                 ]
                 .min()
@@ -991,7 +982,7 @@ class TargetBenchmark(DTracePlot):
     def drug_top_associations(self, drug, fdr_thres=None):
         fdr_thres = self.fdr if fdr_thres is None else fdr_thres
 
-        plot_df = self.lmm_drug.query(
+        plot_df = self.assoc.lmm_drug_crispr.query(
             f"(DRUG_NAME == '{drug}') & (fdr < {fdr_thres})"
         ).reset_index(drop=True)
         plot_df = (
@@ -1059,10 +1050,10 @@ class TargetBenchmark(DTracePlot):
         ax.axes.get_xaxis().set_ticks([])
 
         ax.set_ylabel("Drug-gene association\n(-log10 p-value)")
-        ax.set_title(f"{d} associations")
+        ax.set_title(f"{drug} associations")
 
     def signif_volcano(self):
-        plot_df = self.lmm_drug.query(f"fdr < {self.fdr}")
+        plot_df = self.assoc.filter_associations_by(self.assoc.lmm_drug_crispr, fdr=self.fdr)
         plot_df["size"] = (
             MinMaxScaler().fit_transform(plot_df[["beta"]].abs())[:, 0] * 10 + 1
         )
@@ -1088,539 +1079,3 @@ class TargetBenchmark(DTracePlot):
 
         plt.xlabel("Effect size")
         plt.ylabel("Association p-value (-log10)")
-
-
-if __name__ == "__main__":
-    # Import target benchmark
-    trg = TargetBenchmark(fdr=0.1)
-
-    ppi = PPI().build_string_ppi(score_thres=900)
-    ppi = PPI.ppi_corr(ppi, trg.datasets.crispr)
-
-    # -
-    e3_ligases = pd.read_excel("data/ubq/Definite Ligase List.xlsx")
-
-    plot_df = self.lmm_drug.query(f"fdr < {self.fdr}")
-    plot_df["ligase"] = (
-        plot_df["GeneSymbol"].isin(e3_ligases["Gene Symbol"]).astype(int).values
-    )
-
-    background = set(self.lmm_drug["GeneSymbol"])
-    signature = set(e3_ligases["Gene Symbol"]).intersection(background)
-    sublist = set(plot_df["GeneSymbol"]).intersection(background)
-
-    pval, int_len = DTraceEnrichment.hypergeom_test(
-        signature=signature, background=background, sublist=sublist
-    )
-    print(pval, int_len)
-
-    # -
-    c_signif = (
-        self.lmm_drug.query(f"(fdr < {self.fdr}) & (target == 'T')")
-        .groupby(["DRUG_NAME", "GeneSymbol"])
-        .first()
-    )
-
-    g_signif = (
-        self.lmm_drug_gexp.query(f"(fdr < {self.fdr}) & (target == 'T')")
-        .groupby(["DRUG_NAME", "GeneSymbol"])
-        .first()
-    )
-
-    trg_signif = pd.concat([c_signif, g_signif], axis=1, sort=False).dropna()
-
-    # -
-    atype_eval = ["r2_combined - r2_feature1", "r2_combined - r2_feature2"]
-
-    cols = self.datasets.drespo_obj.DRUG_COLUMNS + ["feature1", "feature2"]
-
-    #
-    df_prod = self.lmm_multi.query("atype == '*'").groupby(cols).median()
-    df_prod = df_prod.eval("d_r2_f1 = r2_combined - r2_feature1").eval(
-        "d_r2_f2 = r2_combined - r2_feature2"
-    )
-    df_prod = df_prod.assign(d_r2_min=df_prod[["d_r2_f1", "d_r2_f2"]].min(1))
-
-    df_add = self.lmm_multi.query("atype == '+'").groupby(cols).median()
-    df_add = df_add.eval("d_r2_f1 = r2_combined - r2_feature1").eval(
-        "d_r2_f2 = r2_combined - r2_feature2"
-    )
-    df_add = df_add.assign(d_r2_min=df_add[["d_r2_f1", "d_r2_f2"]].min(1))
-
-    plot_df = pd.concat(
-        [df_prod.add_prefix("prod"), df_add.add_prefix("add")], axis=1, sort=False
-    )
-    plot_df["fdr"] = (
-        self.lmm_drug.groupby(self.datasets.drespo_obj.DRUG_COLUMNS)["fdr"]
-        .min()
-        .loc[[tuple(i[:3]) for i in plot_df.index]]
-        .values
-    )
-    plot_df["signif"] = plot_df["fdr"].apply(lambda v: int(v < self.fdr))
-
-    #
-    x, y = plot_df["prod"], plot_df["add"]
-    xy = np.vstack([x, y])
-    z = gaussian_kde(xy)(xy)
-
-    ax = plt.gca()
-
-    ax.scatter(x, y, c=z, marker="o", edgecolor="", cmap="viridis", s=3, alpha=0.85)
-
-    ax.axhline(0, ls="-", lw=0.1, zorder=0, alpha=0.7, color="k")
-    ax.axvline(0, ls="-", lw=0.1, zorder=0, alpha=0.7, color="k")
-
-    ax.set_xlabel("f1*f2 dela R2")
-    ax.set_ylabel("f1+f2 dela R2")
-
-    (x0, x1), (y0, y1) = ax.get_xlim(), ax.get_ylim()
-    lims = [max(x0, y0), min(x1, y1)]
-    ax.plot(lims, lims, "k-", lw=0.1, zorder=0, alpha=0.7)
-
-    plt.gcf().set_size_inches(2, 2)
-    plt.savefig(
-        "reports/target_benchmark_multi_scatter.pdf",
-        bbox_inches="tight",
-        transparent=True,
-    )
-    plt.close("all")
-
-    # - Non-significant associations description
-    #
-    trg.signif_essential_heatmap()
-    plt.gcf().set_size_inches(1, 1)
-    plt.savefig(
-        "reports/target_benchmark_signif_essential_heatmap.pdf",
-        bbox_inches="tight",
-        transparent=True,
-    )
-    plt.close("all")
-
-    #
-    trg.signif_per_screen()
-    plt.gcf().set_size_inches(0.75, 1.5)
-    plt.savefig(
-        "reports/target_benchmark_significant_by_screen.pdf",
-        bbox_inches="tight",
-        transparent=True,
-    )
-    plt.close("all")
-
-    #
-    trg.signif_genomic_markers()
-    plt.gcf().set_size_inches(1, 1)
-    plt.savefig(
-        "reports/target_benchmark_signif_genomic_heatmap.pdf",
-        bbox_inches="tight",
-        transparent=True,
-    )
-    plt.close("all")
-
-    #
-    trg.signif_maxconcentration_scatter()
-    plt.gcf().set_size_inches(2.5, 2.5)
-    plt.savefig(
-        "reports/target_benchmark_signif_scatter_maxconcentration.pdf",
-        bbox_inches="tight",
-        transparent=True,
-    )
-    plt.close("all")
-
-    #
-    trg.signif_fdr_scatter()
-    plt.gcf().set_size_inches(2, 2)
-    plt.savefig(
-        "reports/target_benchmark_signif_fdr_scatter.pdf",
-        bbox_inches="tight",
-        transparent=True,
-    )
-    plt.close("all")
-
-    # -
-    trg.signif_volcano()
-    plt.gcf().set_size_inches(1.5, 3)
-    plt.savefig(
-        "reports/target_benchmark_volcano.pdf", bbox_inches="tight", transparent=True
-    )
-    plt.close("all")
-
-    trg.countplot_drugs()
-    plt.gcf().set_size_inches(2, 0.75)
-    plt.savefig(
-        "reports/target_benchmark_association_countplot.pdf",
-        bbox_inches="tight",
-        transparent=True,
-    )
-    plt.close("all")
-
-    trg.countplot_drugs_significant()
-    plt.gcf().set_size_inches(2, 1)
-    plt.savefig(
-        "reports/target_benchmark_association_signif_countplot.pdf",
-        bbox_inches="tight",
-        transparent=True,
-    )
-    plt.close("all")
-
-    trg.pichart_drugs_significant()
-    plt.gcf().set_size_inches(2, 2)
-    plt.savefig(
-        "reports/target_benchmark_association_signif_piechart.pdf",
-        bbox_inches="tight",
-        transparent=True,
-    )
-    plt.close("all")
-
-    trg.boxplot_kinobead()
-    plt.gcf().set_size_inches(2.5, 0.75)
-    plt.savefig(
-        f"reports/target_benchmark_kinobeads.pdf", bbox_inches="tight", transparent=True
-    )
-    plt.close("all")
-
-    trg.beta_histogram()
-    plt.gcf().set_size_inches(2, 2)
-    plt.savefig(
-        "reports/target_benchmark_beta_histogram.pdf",
-        bbox_inches="tight",
-        transparent=True,
-    )
-    plt.close("all")
-
-    trg.pval_histogram()
-    plt.gcf().set_size_inches(3, 2)
-    plt.savefig(
-        "reports/target_benchmark_pval_histogram.pdf",
-        bbox_inches="tight",
-        transparent=True,
-    )
-    plt.close("all")
-
-    for dtype in ["crispr", "gexp"]:
-        trg.drugs_ppi(dtype)
-        plt.gcf().set_size_inches(2.5, 2.5)
-        plt.savefig(
-            f"reports/target_benchmark_ppi_distance_{dtype}.pdf",
-            bbox_inches="tight",
-            transparent=True,
-        )
-        plt.close("all")
-
-        trg.drugs_ppi_countplot(dtype)
-        plt.gcf().set_size_inches(2.5, 2.5)
-        plt.savefig(
-            f"reports/target_benchmark_ppi_distance_{dtype}_countplot.pdf",
-            bbox_inches="tight",
-            transparent=True,
-        )
-        plt.close("all")
-
-    trg.drugs_ppi_countplot_background()
-    plt.gcf().set_size_inches(2.5, 2.5)
-    plt.savefig(
-        f"reports/target_benchmark_ppi_distance_{dtype}_countplot_bkg.pdf",
-        bbox_inches="tight",
-        transparent=True,
-    )
-    plt.close("all")
-
-    #
-    trg.top_associations_barplot()
-    plt.savefig(
-        "reports/target_benchmark_associations_barplot.pdf",
-        bbox_inches="tight",
-        transparent=True,
-    )
-    plt.close("all")
-
-    trg.manhattan_plot(n_genes=20)
-    plt.gcf().set_size_inches(7, 3)
-    plt.savefig(
-        "reports/drug_associations_manhattan.png",
-        bbox_inches="tight",
-        transparent=True,
-        dpi=600,
-    )
-    plt.close("all")
-
-    # -
-    drugs = [
-        "SN1021632995",
-        "AZD5582",
-        "SN1043546339",
-        "VE-821",
-        "AZ20",
-        "VE821",
-        "VX-970",
-        "AZD6738",
-        "VE-822",
-    ]
-
-    for d in drugs:
-        trg.drug_top_associations(d, fdr_thres=0.25)
-        plt.gcf().set_size_inches(1.5, 2)
-        plt.savefig(
-            f"reports/target_benchmark_{d}_top_associations_barplot.pdf",
-            bbox_inches="tight",
-            transparent=True,
-            dpi=600,
-        )
-        plt.close("all")
-
-    # - Drug targets
-    genes = [
-        "STAG1",
-        "LIG1",
-        "FLI1",
-        "PARP1",
-        "PARP2",
-        "PARP3",
-        "PCGF5",
-        "XRCC1",
-        "RHNO1",
-    ]
-
-    for drug in ["Olaparib", "Talazoparib"]:
-        trg.drug_notarget_barplot(drug, genes)
-
-        plt.gcf().set_size_inches(2, 1.5)
-        plt.savefig(
-            f"reports/target_benchmark_drug_notarget_{drug}.pdf",
-            bbox_inches="tight",
-            transparent=True,
-        )
-        plt.close("all")
-
-    # - Single feature examples
-    dgs = [
-        ("Alpelisib", "PIK3CA"),
-        ("Nutlin-3a (-)", "MDM2"),
-        ("MCL1_1284", "MCL1"),
-        ("MCL1_1284", "MARCH5"),
-        ("Venetoclax", "BCL2"),
-        ("AZD4320", "BCL2"),
-        ("Volasertib", "PLK1"),
-        ("Rigosertib", "PLK1"),
-    ]
-
-    # dg = ('Rigosertib', 'PLK1')
-    for dg in dgs:
-        assoc = trg.lmm_drug[
-            (trg.lmm_drug["DRUG_NAME"] == dg[0]) & (trg.lmm_drug["GeneSymbol"] == dg[1])
-        ].iloc[0]
-
-        drug = tuple(assoc[DrugResponse.DRUG_COLUMNS])
-
-        dmax = np.log(trg.datasets.drespo_obj.maxconcentration[drug])
-        annot_text = f"Beta={assoc['beta']:.2g}, FDR={assoc['fdr']:.1e}"
-
-        plot_df = pd.concat(
-            [
-                trg.datasets.drespo.loc[drug].rename("drug"),
-                trg.datasets.crispr.loc[dg[1]].rename("crispr"),
-                trg.datasets.crispr_obj.institute.rename("Institute"),
-            ],
-            axis=1,
-            sort=False,
-        ).dropna()
-
-        g = DTracePlot.plot_corrplot(
-            "crispr",
-            "drug",
-            "Institute",
-            plot_df,
-            add_hline=False,
-            add_vline=False,
-            annot_text=annot_text,
-        )
-
-        g.ax_joint.axhline(
-            y=dmax, linewidth=0.3, color=DTracePlot.PAL_DTRACE[2], ls=":", zorder=0
-        )
-
-        g.set_axis_labels(f"{dg[1]} (scaled log2 FC)", f"{dg[0]} (ln IC50)")
-
-        plt.gcf().set_size_inches(1.5, 1.5)
-        plt.savefig(
-            f"reports/association_drug_scatter_{dg[0]}_{dg[1]}.pdf",
-            bbox_inches="tight",
-            transparent=True,
-        )
-        plt.close("all")
-
-    # Drug ~ Gexp
-    dgs = [
-        ("Nutlin-3a (-)", "MDM2"),
-        ("Poziotinib", "ERBB2"),
-        ("Afatinib", "ERBB2"),
-        ("WEHI-539", "BCL2L1"),
-    ]
-    for dg in dgs:
-        assoc = trg.lmm_drug[
-            (trg.lmm_drug["DRUG_NAME"] == dg[0]) & (trg.lmm_drug["GeneSymbol"] == dg[1])
-        ].iloc[0]
-
-        drug = tuple(assoc[DrugResponse.DRUG_COLUMNS])
-
-        dmax = np.log(trg.datasets.drespo_obj.maxconcentration[drug])
-        annot_text = f"Beta={assoc['beta']:.2g}, FDR={assoc['fdr']:.1e}"
-
-        plot_df = pd.concat(
-            [
-                trg.datasets.drespo.loc[drug].rename("drug"),
-                trg.datasets.gexp.loc[dg[1]].rename("crispr"),
-            ],
-            axis=1,
-            sort=False,
-        ).dropna()
-        plot_df["Institute"] = "Sanger"
-
-        g = DTracePlot.plot_corrplot(
-            "crispr",
-            "drug",
-            "Institute",
-            plot_df,
-            add_hline=True,
-            annot_text=annot_text,
-        )
-
-        g.ax_joint.axhline(
-            y=dmax, linewidth=0.3, color=DTracePlot.PAL_DTRACE[2], ls=":", zorder=0
-        )
-
-        g.set_axis_labels(f"{dg[1]} (voom)", f"{dg[0]} (ln IC50)")
-
-        plt.gcf().set_size_inches(2, 2)
-        plt.savefig(
-            f"reports/association_drug_gexp_scatter_{dg[0]}_{dg[1]}.pdf",
-            bbox_inches="tight",
-            transparent=True,
-        )
-        plt.close("all")
-
-    # CRISPR gene pair corr
-    for gene_x, gene_y in [("MARCH5", "MCL1"), ("SHC1", "EGFR")]:
-        plot_df = pd.concat(
-            [
-                trg.datasets.crispr.loc[gene_x].rename(gene_x),
-                trg.datasets.crispr.loc[gene_y].rename(gene_y),
-                trg.datasets.crispr_obj.institute.rename("Institute"),
-            ],
-            axis=1,
-            sort=False,
-        ).dropna()
-
-        g = DTracePlot().plot_corrplot(
-            gene_x, gene_y, "Institute", plot_df, add_hline=True
-        )
-
-        g.set_axis_labels(f"{gene_x} (scaled log2 FC)", f"{gene_y} (scaled log2 FC)")
-
-        plt.gcf().set_size_inches(1.5, 1.5)
-        plt.savefig(
-            f"reports/association_scatter_{gene_x}_{gene_y}.pdf",
-            bbox_inches="tight",
-            transparent=True,
-        )
-        plt.close("all")
-
-    # PPI
-    ppi_examples = [
-        ("Nutlin-3a (-)", 0.4, 1, ["RPL37", "UBE3B"]),
-        ("AZD3759", 0.3, 1, None),
-    ]
-    # d, t, o = ('Nutlin-3a (-)', .4, 1, ['RPL37', 'UBE3B'])
-    for d, t, o, e in ppi_examples:
-        graph = PPI.plot_ppi(
-            d, trg.lmm_drug, ppi, corr_thres=t, norder=o, fdr=0.05, exclude_nodes=e
-        )
-        graph.write_pdf(f"reports/association_ppi_{d}.pdf")
-
-    # - Betas clustermap
-    betas_crispr = pd.pivot_table(
-        trg.lmm_drug.query("VERSION == 'RS'"),
-        index=["DRUG_ID", "DRUG_NAME"],
-        columns="GeneSymbol",
-        values="beta",
-    )
-
-    #
-    trg.lmm_betas_clustermap(betas_crispr)
-    plt.gcf().set_size_inches(8, 8)
-    plt.savefig(
-        "reports/target_benchmark_clustermap_betas_crispr.png",
-        bbox_inches="tight",
-        dpi=300,
-    )
-    plt.close("all")
-
-    #
-    trg.lmm_betas_clustermap_legend()
-    plt.savefig(
-        "reports/target_benchmark_clustermap_betas_crispr_legend.pdf",
-        bbox_inches="tight",
-    )
-    plt.close("all")
-
-    # - Export "all" drug scatter
-    for d in trg.datasets.drespo.index:
-        print(d)
-        dassoc = trg.lmm_drug[
-            (trg.lmm_drug["DRUG_NAME"] == d[1])
-            & (trg.lmm_drug["DRUG_ID"] == d[0])
-            & (trg.lmm_drug["VERSION"] == d[2])
-        ]
-
-        dselected = dassoc.iloc[:5]
-        if "T" in dassoc["target"].values:
-            dselected = pd.concat([dselected, dassoc[dassoc["target"] == "T"]])
-
-        dmax = np.log(trg.datasets.drespo_obj.maxconcentration[d])
-
-        for i, assoc in dselected.iterrows():
-            annot_text = f"Beta={assoc['beta']:.2g}, FDR={assoc['fdr']:.1e}"
-
-            plot_df = pd.concat(
-                [
-                    trg.datasets.drespo.loc[d].rename("drug"),
-                    trg.datasets.crispr.loc[assoc["GeneSymbol"]].rename("crispr"),
-                    trg.datasets.crispr_obj.institute.rename("Institute"),
-                ],
-                axis=1,
-                sort=False,
-            ).dropna()
-
-            g = DTracePlot.plot_corrplot(
-                "crispr",
-                "drug",
-                "Institute",
-                plot_df,
-                add_hline=False,
-                add_vline=False,
-                annot_text=annot_text,
-            )
-
-            g.ax_joint.axhline(
-                y=dmax, linewidth=0.3, color=DTracePlot.PAL_DTRACE[2], ls=":", zorder=0
-            )
-
-            g.set_axis_labels(
-                f"{assoc['GeneSymbol']} (scaled log2 FC)",
-                f"{d[1]} (ln IC50, {d[0]}, {d[2]})",
-            )
-
-            plot_name = "reports/association_drug_scatters/"
-            plot_name += f"{d[1].replace('/', '')} {d[0]} {d[2]} FDR{(assoc['fdr']*100):.2f} {assoc['target']} {assoc['GeneSymbol']}.pdf"
-
-            plt.gcf().set_size_inches(1.5, 1.5)
-            plt.savefig(plot_name, bbox_inches="tight", transparent=True)
-            plt.close("all")
-
-    # -
-    sublist = set(trg.lmm_drug.query(f"fdr < {trg.fdr}")["GeneSymbol"])
-    background = set(trg.lmm_drug["GeneSymbol"])
-
-    enr = DTraceEnrichment().hypergeom_enrichments(
-        sublist, background, "c5.bp.v6.2.symbols.gmt"
-    )
-    print(enr.head(60))

@@ -167,7 +167,7 @@ class DrugResponse:
         """
 
         if drug_id not in self.drugsheet.index:
-            print("{} Drug ID not in drug list".format(drug_id))
+            logger.log(logging.INFO, f"{drug_id} Drug ID not in drug list")
             return None
 
         drug_name = [self.drugsheet.loc[drug_id, "Name"]]
@@ -719,7 +719,7 @@ class PPI:
 
         # Simplify
         net_i = net_i.simplify()
-        print(net_i.summary())
+        logger.log(logging.INFO, net_i.summary())
 
         # Export
         if export_pickle is not None:
@@ -735,7 +735,7 @@ class PPI:
             gmap.groupby("string_protein_id")["alias"].agg(lambda x: set(x)).to_dict()
         )
         gmap = {k: list(gmap[k])[0] for k in gmap if len(gmap[k]) == 1}
-        print("ENSP gene map: ", len(gmap))
+        logger.log(logging.INFO, f"ENSP gene map: {len(gmap)}")
 
         # Load String network
         net = pd.read_csv(f"{dpath}/{self.string_file}", sep=" ")
@@ -752,7 +752,7 @@ class PPI:
         ]
         net["protein1"] = [gmap[p1] for p1 in net["protein1"]]
         net["protein2"] = [gmap[p2] for p2 in net["protein2"]]
-        print("String: ", len(net))
+        logger.log(logging.INFO, f"String: {len(net)}")
 
         #  String network
         net_i = igraph.Graph(directed=False)
@@ -772,7 +772,7 @@ class PPI:
 
         # Simplify
         net_i = net_i.simplify(combine_edges="max")
-        print(net_i.summary())
+        logger.log(logging.INFO, net_i.summary())
 
         # Export
         if export_pickle is not None:
@@ -804,7 +804,7 @@ class PPI:
                 [i.index for i in ppi.es if abs(i["corr"]) > m_corr_thres]
             )
 
-        print(ppi.summary())
+        logger.log(logging.INFO, ppi.summary())
 
         return ppi
 
