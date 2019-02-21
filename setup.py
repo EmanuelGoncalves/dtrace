@@ -53,6 +53,8 @@ included_files = {"dtrace": [
     "data/pathways/h.all.v6.2.symbols.gmt",
 
     "data/ubq/Definite Ligase List.xlsx",
+    "data/klaeger_et_al_catds_most_potent.csv",
+    "data/klaeger_et_al_catds.csv",
 ]}
 
 setuptools.setup(

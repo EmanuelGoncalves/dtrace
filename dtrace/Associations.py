@@ -113,7 +113,7 @@ class Association:
         # Load PPI
         if load_ppi:
             self.ppi_string = self.ppi.build_string_ppi(score_thres=self.ppi_thres)
-            self.ppi_string = self.ppi.ppi_corr(self.ppi, self.crispr)
+            self.ppi_string_corr = self.ppi.ppi_corr(self.ppi_string, self.crispr)
 
     def get_covariates(self):
         # Samples CRISPR QC (recall essential genes)
@@ -655,7 +655,7 @@ class Association:
         return associations
 
     def get_drug_top(self, associations, drug, top_features):
-        d_genes = self.filter_associations_by(
+        d_genes = self.by(
             associations, drug_id=drug[0], drug_name=drug[1], drug_version=drug[2]
         )
         d_genes = d_genes.sort_values("pval").head(top_features)["GeneSymbol"]
@@ -668,7 +668,7 @@ class Association:
         return d_genes_top
 
     @staticmethod
-    def filter_associations_by(
+    def by(
         associations,
         drug_id=None,
         drug_name=None,
@@ -676,7 +676,9 @@ class Association:
         gene_name=None,
         target=None,
         fdr=None,
+        fdr_reverse=False,
         pval=None,
+        pval_reverse=False,
     ):
         df = associations
 
@@ -711,10 +713,16 @@ class Association:
                 df = df[df["Target"] == target]
 
         if fdr is not None:
-            df = df[df["fdr"] < fdr]
+            if fdr_reverse:
+                df = df[df["fdr"] >= fdr]
+            else:
+                df = df[df["fdr"] < fdr]
 
         if pval is not None:
-            df = df[df["pval"] < pval]
+            if pval_reverse:
+                df = df[df["pval"] >= pval]
+            else:
+                df = df[df["pval"] < pval]
 
         return df
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# Copyright (C) 2018 Emanuel Goncalves
+# Copyright (C) 2019 Emanuel Goncalves
 
 import textwrap
 import upsetplot
@@ -7,17 +7,23 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
-from scipy.stats import gaussian_kde
-from DTracePlot import DTracePlot
+from dtrace import dpath
 from natsort import natsorted
 from crispy.utils import Utils
 from crispy.qc_plot import QCplot
 from matplotlib.lines import Line2D
+from scipy.stats import gaussian_kde
+from dtrace.DTracePlot import DTracePlot
 from sklearn.preprocessing import MinMaxScaler
 from scipy.stats import ttest_ind, mannwhitneyu, gmean
 
 
 class TargetBenchmark(DTracePlot):
+    """
+    Main class containing the analysis and plotting of the drug association analysis.
+
+    """
+
     DRUG_TARGETS_COLORS = {
         "#8ebadb": {"RAF1", "BRAF"},
         "#5f9ecc": {"MAPK1", "MAPK3"},
@@ -44,77 +50,97 @@ class TargetBenchmark(DTracePlot):
         "#bbbbbb": {"Multiple targets"},
     }
 
+    PPI_ORDER = ["T", "1", "2", "3", "4", "5+", "-"]
+
+    PPI_PAL = {
+        "T": "#fc8d62",
+        "1": "#c3c3c3",
+        "2": "#ababab",
+        "3": "#949494",
+        "4": "#7c7c7c",
+        "5+": "#656565",
+        "-": "#2b8cbe",
+        "X": "#E1E1E1",
+    }
+
     def __init__(self, assoc, fdr=0.1):
         self.fdr = fdr
         self.assoc = assoc
 
-        # PPI misc variables
-        self.ppi_order = ["T", "1", "2", "3", "4", "5+", "-"]
-        self.ppi_pal = pd.Series(
-            [self.PAL_DTRACE[0]]
-            + self.get_palette_continuous(5, color=self.PAL_DTRACE[2])
-            + [self.PAL_DTRACE[3], self.PAL_DTRACE[1]],
-            index=self.ppi_order + ["X"],
-        ).to_dict()
-
-        # Define sets of drugs
-        self.df_genes = set(self.assoc.lmm_drug_crispr["GeneSymbol"])
+        # Drug targets
         self.d_targets = self.assoc.drespo_obj.get_drugtargets(by="Name")
         self.d_targets_id = self.assoc.drespo_obj.get_drugtargets(by="id")
 
-        self.drugs_all = set(self.assoc.lmm_drug_crispr["DRUG_NAME"])
-        self.drugs_signif = {
-            d
-            for d in self.assoc.lmm_drug_crispr.query(f"fdr < {self.fdr}")["DRUG_NAME"]
-        }
-        self.drugs_not_signif = {
-            d
-            for d in self.assoc.lmm_drug_crispr.query(f"fdr > {self.fdr}")["DRUG_NAME"]
-            if d not in self.drugs_signif
-        }
+        # Define sets of drugs
+        self.d_sets_name = self.define_drug_sets()
 
-        self.drugs_annot = {d for d in self.drugs_all if d in self.d_targets}
-        self.drugs_tested = {
-            d
-            for d in self.drugs_annot
-            if len(self.d_targets[d].intersection(self.df_genes)) > 0
-        }
-        self.drugs_tested_signif = {
-            d
-            for d in self.assoc.lmm_drug_crispr.query(f"fdr < {self.fdr}")["DRUG_NAME"]
-            if d in self.drugs_tested
-        }
-        self.drugs_tested_correct = {
-            d
-            for d in self.assoc.lmm_drug_crispr.query(
-                f"fdr < {self.fdr} & target == 'T'"
-            )["DRUG_NAME"]
-            if d in self.drugs_tested_signif
-        }
-
-        # -
-        df = self.assoc.lmm_drug_crispr.query(f"fdr < {self.fdr}")
-        df = df[df["DRUG_NAME"].isin(self.drugs_tested_signif)]
-
-        d_signif_ppi = []
-        for d in self.drugs_tested_signif:
-            df_ppi = df[df["DRUG_NAME"] == d].sort_values("fdr")
-            df_ppi["target"] = pd.Categorical(df_ppi["target"], self.ppi_order)
-            d_signif_ppi.append(df_ppi.sort_values("target").iloc[0])
-
-        self.d_signif_ppi = pd.DataFrame(d_signif_ppi)
-        self.d_signif_ppi["target"] = pd.Categorical(
-            self.d_signif_ppi["target"], self.ppi_order
-        )
-        self.d_signif_ppi = self.d_signif_ppi.set_index("DRUG_NAME").sort_values(
-            "target"
-        )
-
+        # Define sets of drugs PPI distance
+        self.d_signif_ppi = self.define_drug_sets_ppi()
         self.d_signif_ppi_count = self.d_signif_ppi["target"].value_counts()[
-            self.ppi_order
+            self.PPI_ORDER
         ]
 
         super().__init__()
+
+    def define_drug_sets(self):
+        df_genes = set(self.assoc.lmm_drug_crispr["GeneSymbol"])
+
+        d_sets_name = dict(all=set(self.assoc.lmm_drug_crispr["DRUG_NAME"]))
+
+        d_sets_name["significant"] = set(
+            self.assoc.by(self.assoc.lmm_drug_crispr, fdr=self.fdr)["DRUG_NAME"]
+        )
+
+        d_sets_name["not_significant"] = {
+            d for d in d_sets_name["all"] if d not in d_sets_name["significant"]
+        }
+
+        d_sets_name["annotated"] = {
+            d for d in d_sets_name["all"] if d in self.d_targets
+        }
+
+        d_sets_name["tested"] = {
+            d
+            for d in d_sets_name["annotated"]
+            if len(self.d_targets[d].intersection(df_genes)) > 0
+        }
+
+        d_sets_name["tested_significant"] = {
+            d for d in d_sets_name["tested"] if d in d_sets_name["significant"]
+        }
+
+        d_sets_name["tested_corrected"] = {
+            d
+            for d in d_sets_name["tested_significant"]
+            if d
+            in set(
+                self.assoc.by(self.assoc.lmm_drug_crispr, fdr=self.fdr, target="T")[
+                    "DRUG_NAME"
+                ]
+            )
+        }
+
+        return d_sets_name
+
+    def define_drug_sets_ppi(self):
+        df = self.assoc(
+            self.assoc.lmm_drug_crispr,
+            fdr=self.fdr,
+            drug_name=self.d_sets_name["tested_significant"],
+        )
+
+        d_signif_ppi = []
+        for d in self.d_sets_name["tested_significant"]:
+            df_ppi = df[df["DRUG_NAME"] == d].sort_values("fdr")
+            df_ppi["target"] = pd.Categorical(df_ppi["target"], self.PPI_ORDER)
+
+            d_signif_ppi.append(df_ppi.sort_values("target").iloc[0])
+
+        d_signif_ppi = pd.DataFrame(d_signif_ppi)
+        d_signif_ppi["target"] = pd.Categorical(d_signif_ppi["target"], self.PPI_ORDER)
+        d_signif_ppi = d_signif_ppi.set_index("DRUG_NAME").sort_values("target")
+
+        return d_signif_ppi
 
     def get_drug_target_color(self, drug_id):
         if drug_id not in self.d_targets_id:
@@ -138,12 +164,12 @@ class TargetBenchmark(DTracePlot):
 
     def boxplot_kinobead(self):
         dmap = (
-            pd.read_csv("data/klaeger_et_al_catds_most_potent.csv")
+            pd.read_csv(f"{dpath}/klaeger_et_al_catds_most_potent.csv")
             .set_index("Drug")["name"]
             .dropna()
         )
 
-        catds_m = pd.read_csv("data/klaeger_et_al_catds.csv", index_col=0)
+        catds_m = pd.read_csv(f"{dpath}/klaeger_et_al_catds.csv", index_col=0)
         catds_m = catds_m[catds_m.index.isin(dmap.index)]
         catds_m.index = dmap[catds_m.index].values
 
@@ -283,9 +309,9 @@ class TargetBenchmark(DTracePlot):
             pd.Series(
                 {
                     "All": self.assoc.drespo.shape[0],
-                    "Unique": len(self.drugs_all),
-                    "Annotated": len(self.drugs_annot),
-                    "Target tested": len(self.drugs_tested),
+                    "Unique": len(self.d_sets_name["all"]),
+                    "Annotated": len(self.d_sets_name["annotated"]),
+                    "Target tested": len(self.d_sets_name["tested"]),
                 }
             )
             .rename("count")
@@ -316,7 +342,7 @@ class TargetBenchmark(DTracePlot):
     def countplot_drugs_significant(self):
         plot_df = (
             self.d_signif_ppi["target"]
-            .value_counts()[reversed(self.ppi_order)]
+            .value_counts()[reversed(self.PPI_ORDER)]
             .reset_index()
         )
 
@@ -345,10 +371,17 @@ class TargetBenchmark(DTracePlot):
 
     def drugs_ppi(self, dtype="crispr"):
         if dtype == "crispr":
-            df = self.assoc.lmm_drug_crispr[self.assoc.lmm_drug_crispr["DRUG_NAME"].isin(self.drugs_tested)]
+            df = self.assoc.by(
+                self.assoc.lmm_drug_crispr, drug_name=self.d_sets_name["tested"]
+            )
 
         elif dtype == "gexp":
-            df = self.assoc.lmm_drug_gexp[self.assoc.lmm_drug_crispr["DRUG_NAME"].isin(self.drugs_tested)]
+            df = self.assoc.by(
+                self.assoc.lmm_drug_gexp, drug_name=self.d_sets_name["tested"]
+            )
+
+        else:
+            assert False, f"Dtype not supported: {dtype}"
 
         QCplot.bias_boxplot(
             df.query(f"fdr < {self.fdr}"),
@@ -357,8 +390,8 @@ class TargetBenchmark(DTracePlot):
             notch=False,
             add_n=True,
             n_text_offset=5e-3,
-            palette=self.ppi_pal,
-            order=self.ppi_order,
+            palette=self.PPI_PAL,
+            order=self.PPI_ORDER,
         )
 
         plt.xlabel("Associated gene position in PPI")
@@ -367,10 +400,17 @@ class TargetBenchmark(DTracePlot):
 
     def drugs_ppi_countplot(self, dtype="crispr"):
         if dtype == "crispr":
-            df = self.assoc.lmm_drug_crispr[self.assoc.lmm_drug_crispr["DRUG_NAME"].isin(self.drugs_tested)]
+            df = self.assoc.by(
+                self.assoc.lmm_drug_crispr, drug_name=self.d_sets_name["tested"]
+            )
 
         elif dtype == "gexp":
-            df = self.assoc.lmm_drug_gexp[self.assoc.lmm_drug_crispr["DRUG_NAME"].isin(self.drugs_tested)]
+            df = self.assoc.by(
+                self.assoc.lmm_drug_gexp, drug_name=self.d_sets_name["tested"]
+            )
+
+        else:
+            assert False, f"Dtype not supported: {dtype}"
 
         plot_df = (
             df.query(f"fdr < {self.fdr}")["target"]
@@ -380,7 +420,7 @@ class TargetBenchmark(DTracePlot):
         )
 
         sns.barplot(
-            "index", "count", data=plot_df, order=self.ppi_order, palette=self.ppi_pal
+            "index", "count", data=plot_df, order=self.PPI_ORDER, palette=self.PPI_PAL
         )
 
         plt.grid(axis="y", lw=0.3, color=self.PAL_DTRACE[1], zorder=0)
@@ -391,15 +431,22 @@ class TargetBenchmark(DTracePlot):
 
     def drugs_ppi_countplot_background(self, dtype="crispr"):
         if dtype == "crispr":
-            df = self.assoc.lmm_drug_crispr[self.assoc.lmm_drug_crispr["DRUG_NAME"].isin(self.drugs_tested)]
+            df = self.assoc.by(
+                self.assoc.lmm_drug_crispr, drug_name=self.d_sets_name["tested"]
+            )
 
         elif dtype == "gexp":
-            df = self.assoc.lmm_drug_gexp[self.assoc.lmm_drug_crispr["DRUG_NAME"].isin(self.drugs_tested)]
+            df = self.assoc.by(
+                self.assoc.lmm_drug_gexp, drug_name=self.d_sets_name["tested"]
+            )
+
+        else:
+            assert False, f"Dtype not supported: {dtype}"
 
         plot_df = df["target"].value_counts().rename("count").reset_index()
 
         sns.barplot(
-            "index", "count", data=plot_df, order=self.ppi_order, palette=self.ppi_pal
+            "index", "count", data=plot_df, order=self.PPI_ORDER, palette=self.PPI_PAL
         )
 
         plt.grid(axis="y", lw=0.3, color=self.PAL_DTRACE[1], zorder=0)
@@ -410,14 +457,9 @@ class TargetBenchmark(DTracePlot):
 
     def top_associations_barplot(self, ntop=50, n_cols=10):
         # Filter for signif associations
-        df = (
-            self.assoc.lmm_drug_crispr.query("fdr < {}".format(self.fdr))
-            .sort_values("fdr")
-            .groupby(["DRUG_NAME", "GeneSymbol"])
-            .first()
-            .sort_values("fdr")
-            .reset_index()
-        )
+        df = self.assoc.by(self.assoc.lmm_drug_crispr, fdr=self.fdr).sort_values("fdr")
+        df = df.groupby(["DRUG_NAME", "GeneSymbol"]).first()
+        df = df.sort_values("fdr").reset_index()
         df = df.assign(logpval=-np.log10(df["pval"]).values)
 
         # Drug order
@@ -527,7 +569,7 @@ class TargetBenchmark(DTracePlot):
 
         plt.gcf().set_size_inches(10, 8)
 
-    def manhattan_plot(self, n_genes=20, is_gexp=False):
+    def manhattan_plot(self, n_genes=20):
         # Import gene genomic coordinates from CRISPR-Cas9 library
         crispr_lib = (
             Utils.get_crispr_lib().groupby("gene").agg({"start": "min", "chr": "first"})
@@ -545,7 +587,10 @@ class TargetBenchmark(DTracePlot):
 
         # Most frequently associated genes
         top_genes = (
-            self.assoc.lmm_drug_crispr.groupby("GeneSymbol")["fdr"].min().sort_values().head(n_genes)
+            self.assoc.lmm_drug_crispr.groupby("GeneSymbol")["fdr"]
+            .min()
+            .sort_values()
+            .head(n_genes)
         )
         top_genes_pal = dict(
             zip(
@@ -633,8 +678,8 @@ class TargetBenchmark(DTracePlot):
         by_label = [(l, by_label[l]) for l in order_legend]
 
         plt.legend(
-            list(zip(*(by_label)))[1],
-            list(zip(*(by_label)))[0],
+            list(zip(*by_label))[1],
+            list(zip(*by_label))[0],
             loc="center left",
             bbox_to_anchor=(1.01, 0.5),
             prop={"size": 5},
@@ -642,7 +687,7 @@ class TargetBenchmark(DTracePlot):
         )
 
     def drug_notarget_barplot(self, drug, genes):
-        df = self.assoc.lmm_drug_crispr.query(f"DRUG_NAME == '{drug}'")
+        df = self.assoc.by(self.assoc.lmm_drug_crispr, drug_name=drug)
         df = df[df["GeneSymbol"].isin(genes)]
         df = df.groupby(["DRUG_NAME", "GeneSymbol"]).first()
         df = df.sort_values(["pval", "fdr"], ascending=False).reset_index()
@@ -735,7 +780,7 @@ class TargetBenchmark(DTracePlot):
                         d: "Yes"
                         if len(self.d_targets[d].intersection(ess_genes)) > 0
                         else "No"
-                        for d in self.drugs_tested
+                        for d in self.d_sets_name["tested"]
                     }
                 ).rename("essential"),
             ],
@@ -758,13 +803,11 @@ class TargetBenchmark(DTracePlot):
         g.set_title("Drug association")
 
     def signif_per_screen(self):
-        df = (
-            self.assoc.lmm_drug_crispr.groupby(self.assoc.dcols)
-            .first()
-            .reset_index()
-        )
-        df = df[df["DRUG_NAME"].isin(self.drugs_tested)]
+        df = self.assoc.lmm_drug_crispr.groupby(self.assoc.dcols).first().reset_index()
+        df = df[df["DRUG_NAME"].isin(self.d_sets_name["tested"])]
+
         df["signif"] = (df["fdr"] < self.fdr).astype(int)
+
         df = df.groupby("VERSION")["signif"].agg(["count", "sum"]).reset_index()
         df["perc"] = df["sum"] / df["count"] * 100
 
@@ -803,7 +846,7 @@ class TargetBenchmark(DTracePlot):
             ],
             axis=1,
         ).reset_index()
-        plot_df = plot_df[plot_df["DRUG_NAME"].isin(self.drugs_tested)]
+        plot_df = plot_df[plot_df["DRUG_NAME"].isin(self.d_sets_name["tested"])]
 
         plot_df = pd.pivot_table(
             plot_df.reset_index(),
@@ -835,7 +878,7 @@ class TargetBenchmark(DTracePlot):
             ],
             axis=1,
         ).reset_index()
-        plot_df = plot_df[plot_df["DRUG_NAME"].isin(self.drugs_tested)]
+        plot_df = plot_df[plot_df["DRUG_NAME"].isin(self.d_sets_name["tested"])]
         plot_df["target_ess"] = plot_df["DRUG_NAME"].apply(
             lambda v: (len(self.d_targets[v].intersection(ess_genes)) > 0)
         )
@@ -856,9 +899,9 @@ class TargetBenchmark(DTracePlot):
     def pichart_drugs_significant(self):
         plot_df = self.d_signif_ppi["target"].value_counts().to_dict()
         plot_df["X"] = len(
-            [d for d in self.drugs_tested if d not in self.drugs_tested_signif]
+            [d for d in self.d_sets_name["tested"] if d not in self.d_sets_name["not_significant"]]
         )
-        plot_df = pd.Series(plot_df)[self.ppi_order + ["X"]]
+        plot_df = pd.Series(plot_df)[self.PPI_ORDER + ["X"]]
 
         explode = [0, 0, 0, 0, 0, 0, 0, 0.1]
 
@@ -866,7 +909,7 @@ class TargetBenchmark(DTracePlot):
             plot_df,
             labels=plot_df.index,
             explode=explode,
-            colors=list(self.ppi_pal.values()),
+            colors=list(self.PPI_PAL.values()),
             autopct="%1.1f%%",
             shadow=False,
             startangle=90,
@@ -889,10 +932,10 @@ class TargetBenchmark(DTracePlot):
         plot_df = pd.DataFrame(
             {
                 d: {
-                    "below": (
+                    "below": np.sum(
                         self.assoc.drespo.loc[d].dropna()
                         < np.log(self.assoc.drespo_obj.maxconcentration[d])
-                    ).sum(),
+                    ),
                     "total": self.assoc.drespo.loc[d].dropna().shape[0],
                 }
                 for d in self.assoc.drespo.index
@@ -912,13 +955,13 @@ class TargetBenchmark(DTracePlot):
         #
         grid = sns.JointGrid("below_%", "fdr_log", data=plot_df, space=0)
 
-        for ppid in reversed(self.ppi_order + ["X"]):
+        for ppid in reversed(self.PPI_ORDER + ["X"]):
             df = plot_df.query(f"(target == '{ppid}')")
             grid.ax_joint.scatter(
                 df["below_%"],
                 df["fdr_log"],
                 s=df["size"],
-                color=self.ppi_pal[ppid],
+                color=self.PPI_PAL[ppid],
                 marker="o",
                 label=ppid,
                 edgecolor="white",
@@ -926,13 +969,13 @@ class TargetBenchmark(DTracePlot):
             )
 
             grid.ax_marg_x.hist(
-                df["below_%"], linewidth=0, bins=15, color=self.ppi_pal[ppid], alpha=0.5
+                df["below_%"], linewidth=0, bins=15, color=self.PPI_PAL[ppid], alpha=0.5
             )
             grid.ax_marg_y.hist(
                 df["fdr_log"],
                 linewidth=0,
                 bins=15,
-                color=self.ppi_pal[ppid],
+                color=self.PPI_PAL[ppid],
                 orientation="horizontal",
                 alpha=0.5,
             )
@@ -954,9 +997,7 @@ class TargetBenchmark(DTracePlot):
                 self.assoc.lmm_drug_crispr.groupby(self.assoc.dcols)["fdr"]
                 .min()
                 .rename("crispr"),
-                self.assoc.lmm_drug_genomic.groupby(self.assoc.dcols)[
-                    "fdr"
-                ]
+                self.assoc.lmm_drug_genomic.groupby(self.assoc.dcols)["fdr"]
                 .min()
                 .rename("drug"),
             ],
@@ -1053,7 +1094,7 @@ class TargetBenchmark(DTracePlot):
         ax.set_title(f"{drug} associations")
 
     def signif_volcano(self):
-        plot_df = self.assoc.filter_associations_by(self.assoc.lmm_drug_crispr, fdr=self.fdr)
+        plot_df = self.assoc.by(self.assoc.lmm_drug_crispr, fdr=self.fdr)
         plot_df["size"] = (
             MinMaxScaler().fit_transform(plot_df[["beta"]].abs())[:, 0] * 10 + 1
         )
@@ -1063,7 +1104,7 @@ class TargetBenchmark(DTracePlot):
                 df["beta"],
                 -np.log10(df["pval"]),
                 s=df["size"],
-                color=self.ppi_pal[t],
+                color=self.PPI_PAL[t],
                 marker="o",
                 label=t,
                 edgecolor="white",

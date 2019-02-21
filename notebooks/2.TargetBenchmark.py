@@ -33,6 +33,8 @@ from dtrace.DTraceEnrichment import DTraceEnrichment
 
 assoc = Association(dtype="ic50", load_associations=True, load_ppi=True)
 
+assoc.lmm_drug_crispr.head(15)
+
 target = TargetBenchmark(assoc=assoc, fdr=0.1)
 
 
