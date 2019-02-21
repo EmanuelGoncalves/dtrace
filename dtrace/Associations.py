@@ -680,37 +680,23 @@ class Association:
         pval=None,
         pval_reverse=False,
     ):
+        """
+        Utility function to select associations based on and operations between multiple parameters.
+
+        :param associations:
+        :param drug_id:
+        :param drug_name:
+        :param drug_version:
+        :param gene_name:
+        :param target:
+        :param fdr:
+        :param fdr_reverse:
+        :param pval:
+        :param pval_reverse:
+        :return:
+        """
+
         df = associations
-
-        if drug_id is not None:
-            if (type(drug_id) == list) or (type(drug_id) == set):
-                df = df[df["DRUG_ID"].isn(drug_id)]
-            else:
-                df = df[df["DRUG_ID"] == drug_id]
-
-        if drug_name is not None:
-            if (type(drug_name) == list) or (type(drug_name) == set):
-                df = df[df["DRUG_NAME"].isn(drug_name)]
-            else:
-                df = df[df["DRUG_NAME"] == drug_name]
-
-        if drug_version is not None:
-            if (type(drug_version) == list) or (type(drug_version) == set):
-                df = df[df["VERSION"].isn(drug_version)]
-            else:
-                df = df[df["VERSION"] == drug_version]
-
-        if gene_name is not None:
-            if (type(gene_name) == list) or (type(gene_name) == set):
-                df = df[df["GeneSymbol"].isn(gene_name)]
-            else:
-                df = df[df["GeneSymbol"] == gene_name]
-
-        if target is not None:
-            if (type(target) == list) or (type(target) == set):
-                df = df[df["Target"].isn(target)]
-            else:
-                df = df[df["Target"] == target]
 
         if fdr is not None:
             if fdr_reverse:
@@ -723,6 +709,36 @@ class Association:
                 df = df[df["pval"] >= pval]
             else:
                 df = df[df["pval"] < pval]
+
+        if drug_id is not None:
+            if (type(drug_id) == list) or (type(drug_id) == set):
+                df = df[df["DRUG_ID"].isin(drug_id)]
+            else:
+                df = df[df["DRUG_ID"] == drug_id]
+
+        if drug_name is not None:
+            if (type(drug_name) == list) or (type(drug_name) == set):
+                df = df[df["DRUG_NAME"].isin(drug_name)]
+            else:
+                df = df[df["DRUG_NAME"] == drug_name]
+
+        if drug_version is not None:
+            if (type(drug_version) == list) or (type(drug_version) == set):
+                df = df[df["VERSION"].isin(drug_version)]
+            else:
+                df = df[df["VERSION"] == drug_version]
+
+        if gene_name is not None:
+            if (type(gene_name) == list) or (type(gene_name) == set):
+                df = df[df["GeneSymbol"].isin(gene_name)]
+            else:
+                df = df[df["GeneSymbol"] == gene_name]
+
+        if target is not None:
+            if (type(target) == list) or (type(target) == set):
+                df = df[df["target"].isin(target)]
+            else:
+                df = df[df["target"] == target]
 
         return df
 

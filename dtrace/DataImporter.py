@@ -1417,6 +1417,36 @@ class CRISPRComBat:
         return df
 
 
+class KinobeadCATDS:
+    def __init__(
+            self,
+            catds_most_potent_file="klaeger_et_al_catds_most_potent.csv",
+            catds_matrix_file="klaeger_et_al_catds.csv",
+    ):
+        self.catds_most_potent_file = catds_most_potent_file
+        self.catds_matrix_file = catds_matrix_file
+
+    def import_matrix(self):
+        dmap = self.import_drug_names()
+
+        catds_m = pd.read_csv(f"{dpath}/{self.catds_matrix_file}", index_col=0)
+        catds_m = catds_m[catds_m.index.isin(dmap.index)]
+        catds_m.index = dmap[catds_m.index].values
+
+        return catds_m
+
+    def import_drug_names(self):
+        dmap = pd.read_csv(f"{dpath}/{self.catds_most_potent_file}")
+        dmap = dmap.set_index("Drug")["name"].dropna()
+        return dmap
+
+    def import_catds(self):
+        catds = self.import_matrix()
+        catds = catds.unstack().dropna().reset_index()
+        catds.columns = ["target", "drug", "catds"]
+        return catds
+
+
 if __name__ == "__main__":
     crispr = CRISPR()
     drug_response = DrugResponse()

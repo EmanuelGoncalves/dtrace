@@ -7,7 +7,6 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
-from dtrace import dpath
 from natsort import natsorted
 from crispy.utils import Utils
 from crispy.qc_plot import QCplot
@@ -16,6 +15,7 @@ from scipy.stats import gaussian_kde
 from dtrace.DTracePlot import DTracePlot
 from sklearn.preprocessing import MinMaxScaler
 from scipy.stats import ttest_ind, mannwhitneyu, gmean
+from dtrace.DataImporter import KinobeadCATDS
 
 
 class TargetBenchmark(DTracePlot):
@@ -123,7 +123,7 @@ class TargetBenchmark(DTracePlot):
         return d_sets_name
 
     def define_drug_sets_ppi(self):
-        df = self.assoc(
+        df = self.assoc.by(
             self.assoc.lmm_drug_crispr,
             fdr=self.fdr,
             drug_name=self.d_sets_name["tested_significant"],
@@ -163,18 +163,7 @@ class TargetBenchmark(DTracePlot):
             return "#bbbbbb"
 
     def boxplot_kinobead(self):
-        dmap = (
-            pd.read_csv(f"{dpath}/klaeger_et_al_catds_most_potent.csv")
-            .set_index("Drug")["name"]
-            .dropna()
-        )
-
-        catds_m = pd.read_csv(f"{dpath}/klaeger_et_al_catds.csv", index_col=0)
-        catds_m = catds_m[catds_m.index.isin(dmap.index)]
-        catds_m.index = dmap[catds_m.index].values
-
-        catds_m = catds_m.unstack().dropna().reset_index()
-        catds_m.columns = ["target", "drug", "catds"]
+        catds_m = KinobeadCATDS().import_catds()
 
         catds_m["is_target"] = [
             int(t in self.d_targets[d]) for d, t in catds_m[["drug", "target"]].values
@@ -369,7 +358,7 @@ class TargetBenchmark(DTracePlot):
         plt.ylabel("")
         plt.title("")
 
-    def drugs_ppi(self, dtype="crispr"):
+    def drugs_ppi(self, dtype="crispr", ax=None):
         if dtype == "crispr":
             df = self.assoc.by(
                 self.assoc.lmm_drug_crispr, drug_name=self.d_sets_name["tested"]
@@ -382,6 +371,9 @@ class TargetBenchmark(DTracePlot):
 
         else:
             assert False, f"Dtype not supported: {dtype}"
+
+        if ax is None:
+            ax = plt.gca()
 
         QCplot.bias_boxplot(
             df.query(f"fdr < {self.fdr}"),
@@ -392,13 +384,10 @@ class TargetBenchmark(DTracePlot):
             n_text_offset=5e-3,
             palette=self.PPI_PAL,
             order=self.PPI_ORDER,
+            ax=ax
         )
 
-        plt.xlabel("Associated gene position in PPI")
-        plt.ylabel("Bonferroni adj. p-value")
-        plt.title("Significant associations\n(adj. p-value < 10%)")
-
-    def drugs_ppi_countplot(self, dtype="crispr"):
+    def drugs_ppi_countplot(self, dtype="crispr", ax=None):
         if dtype == "crispr":
             df = self.assoc.by(
                 self.assoc.lmm_drug_crispr, drug_name=self.d_sets_name["tested"]
@@ -412,6 +401,9 @@ class TargetBenchmark(DTracePlot):
         else:
             assert False, f"Dtype not supported: {dtype}"
 
+        if ax is None:
+            ax = plt.gca()
+
         plot_df = (
             df.query(f"fdr < {self.fdr}")["target"]
             .value_counts()
@@ -420,14 +412,10 @@ class TargetBenchmark(DTracePlot):
         )
 
         sns.barplot(
-            "index", "count", data=plot_df, order=self.PPI_ORDER, palette=self.PPI_PAL
+            "index", "count", data=plot_df, order=self.PPI_ORDER, palette=self.PPI_PAL, ax=ax
         )
 
         plt.grid(axis="y", lw=0.3, color=self.PAL_DTRACE[1], zorder=0)
-
-        plt.xlabel("Associated gene position in PPI")
-        plt.ylabel("Number of associations")
-        plt.title("Significant associations\n(adj. p-value < 10%)")
 
     def drugs_ppi_countplot_background(self, dtype="crispr"):
         if dtype == "crispr":
@@ -888,18 +876,15 @@ class TargetBenchmark(DTracePlot):
         ].count()
 
         upsetplot.plot(plot_df)
-        plt.gcf().set_size_inches(4, 3)
-        plt.savefig(
-            "reports/target_benchmark_signif_upset.pdf",
-            bbox_inches="tight",
-            transparent=True,
-        )
-        plt.close("all")
 
     def pichart_drugs_significant(self):
         plot_df = self.d_signif_ppi["target"].value_counts().to_dict()
         plot_df["X"] = len(
-            [d for d in self.d_sets_name["tested"] if d not in self.d_sets_name["not_significant"]]
+            [
+                d
+                for d in self.d_sets_name["tested"]
+                if d not in self.d_sets_name["not_significant"]
+            ]
         )
         plot_df = pd.Series(plot_df)[self.PPI_ORDER + ["X"]]
 
@@ -916,14 +901,6 @@ class TargetBenchmark(DTracePlot):
             textprops={"fontsize": 7},
             wedgeprops=dict(linewidth=0),
         )
-
-        plt.gcf().set_size_inches(2, 2)
-        plt.savefig(
-            "reports/target_benchmark_association_signif_piechart.pdf",
-            bbox_inches="tight",
-            transparent=True,
-        )
-        plt.close("all")
 
     def signif_maxconcentration_scatter(self):
         # Build data-frame
@@ -1020,22 +997,21 @@ class TargetBenchmark(DTracePlot):
         plt.xlabel("Drug ~ CRISPR association FDR\n(-log10)")
         plt.ylabel("Drug ~ Genomic association FDR\n(-log10)")
 
-    def drug_top_associations(self, drug, fdr_thres=None):
+    def drug_top_associations(self, drug, fdr_thres=None, ax=None):
         fdr_thres = self.fdr if fdr_thres is None else fdr_thres
 
-        plot_df = self.assoc.lmm_drug_crispr.query(
-            f"(DRUG_NAME == '{drug}') & (fdr < {fdr_thres})"
-        ).reset_index(drop=True)
-        plot_df = (
-            plot_df.groupby(["DRUG_NAME", "GeneSymbol"])
-            .first()
-            .sort_values(["fdr", "pval"])
-            .reset_index()
+        plot_df = self.assoc.by(
+            self.assoc.lmm_drug_crispr, fdr=fdr_thres, drug_name=drug
         )
+
+        plot_df = plot_df.reset_index(drop=True)
+        plot_df = plot_df.groupby(["DRUG_NAME", "GeneSymbol"]).first()
+        plot_df = plot_df.sort_values(["fdr", "pval"]).reset_index()
         plot_df["logpval"] = -np.log10(plot_df["pval"])
 
         #
-        ax = plt.gca()
+        if ax is None:
+            ax = plt.gca()
 
         df = plot_df.query("target != 'T'")
         ax.bar(
@@ -1095,6 +1071,7 @@ class TargetBenchmark(DTracePlot):
 
     def signif_volcano(self):
         plot_df = self.assoc.by(self.assoc.lmm_drug_crispr, fdr=self.fdr)
+
         plot_df["size"] = (
             MinMaxScaler().fit_transform(plot_df[["beta"]].abs())[:, 0] * 10 + 1
         )
