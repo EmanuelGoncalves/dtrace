@@ -679,6 +679,7 @@ class Association:
         fdr_reverse=False,
         pval=None,
         pval_reverse=False,
+        feature=None,
     ):
         """
         Utility function to select associations based on and operations between multiple parameters.
@@ -693,6 +694,7 @@ class Association:
         :param fdr_reverse:
         :param pval:
         :param pval_reverse:
+        :param feature: For Robust Associations ONLY
         :return:
         """
 
@@ -739,6 +741,47 @@ class Association:
                 df = df[df["target"].isin(target)]
             else:
                 df = df[df["target"] == target]
+
+        if feature is not None:
+            if (type(feature) == list) or (type(feature) == set):
+                df = df[df["feature"].isin(feature)]
+            else:
+                df = df[df["feature"] == feature]
+
+        return df
+
+    def build_df(
+        self, drug=None, crispr=None, gexp=None, genomic=None, sinfo=None
+    ):
+        """
+        Utility function to build data-frames containing multiple types of measurements.
+
+        :param drug:
+        :param crispr:
+        :param gexp:
+        :param genomic:
+        :param sinfo:
+        :return:
+        """
+
+        df = []
+
+        if drug is not None:
+            df.append(self.drespo.loc[drug].T)
+
+        if crispr is not None:
+            df.append(self.crispr.loc[crispr].T.add_prefix('crispr_'))
+
+        if gexp is not None:
+            df.append(self.gexp.loc[gexp].T.add_prefix('gexp_'))
+
+        if genomic is not None:
+            df.append(self.genomic.loc[genomic].T)
+
+        if sinfo is not None:
+            df.append(self.samplesheet.samplesheet[sinfo])
+
+        df = pd.concat(df, axis=1, sort=False)
 
         return df
 

@@ -505,7 +505,7 @@ class Genomic:
             }
 
         else:
-            raise ValueError("{} is not a valid MOBEM feature.".format(f))
+            raise ValueError(f"{f} is not a valid MOBEM feature.")
 
         return genes
 
@@ -520,8 +520,11 @@ class Genomic:
         elif f.startswith("loss."):
             return "CN loss"
 
+        elif f == 'msi_status':
+            return f
+
         else:
-            raise ValueError("{} is not a valid MOBEM feature.".format(f))
+            raise ValueError(f"{f} is not a valid MOBEM feature.")
 
 
 class PPI:
