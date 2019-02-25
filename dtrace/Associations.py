@@ -47,6 +47,7 @@ class Association:
         self.ppi_thres = ppi_thres
         self.pval_method = pval_method
         self.dcols = DataImporter.DrugResponse.DRUG_COLUMNS
+        self.ppi_order = ["T", "1", "2", "3", "4", "5+", "-"]
 
         # Import
         self.ppi = DataImporter.PPI()
@@ -102,13 +103,28 @@ class Association:
         # Load associations
         if load_associations:
             self.lmm_drug_crispr = pd.read_csv(self.lmm_drug_crispr_file)
+            self.lmm_drug_crispr["target"] = pd.Categorical(
+                self.lmm_drug_crispr["target"], self.ppi_order, ordered=True
+            )
+
             self.lmm_drug_gexp = pd.read_csv(self.lmm_drug_gexp_file)
+            self.lmm_drug_gexp["target"] = pd.Categorical(
+                self.lmm_drug_gexp["target"], self.ppi_order, ordered=True
+            )
+
             self.lmm_drug_genomic = pd.read_csv(self.lmm_drug_genomic_file)
 
         # Load robust associations
         if load_robust:
             self.lmm_robust_gexp = pd.read_csv(self.lmm_robust_gexp_file)
+            self.lmm_robust_gexp["target"] = pd.Categorical(
+                self.lmm_robust_gexp["target"], self.ppi_order, ordered=True
+            )
+
             self.lmm_robust_genomic = pd.read_csv(self.lmm_robust_genomic_file)
+            self.lmm_robust_genomic["target"] = pd.Categorical(
+                self.lmm_robust_genomic["target"], self.ppi_order, ordered=True
+            )
 
         # Load PPI
         if load_ppi:
@@ -223,7 +239,15 @@ class Association:
         ]
 
     @staticmethod
-    def lmm_single_association(y, x, m=None, k=None, expand_drug_id=True):
+    def lmm_single_association(y, x, m=None, k=None, expand_drug_id=True, verbose=0):
+        drug = y.columns[0]
+
+        if verbose:
+            logger.log(
+                logging.INFO,
+                f"[lmm_single_association] Drug {drug[1]} from screen {drug[2]} with ID {drug[0]}",
+            )
+
         lmm, params = Association.lmm_association_limix(y, x, m, k)
 
         df = pd.DataFrame(
@@ -233,8 +257,6 @@ class Association:
                 GeneSymbol=params["x"].columns,
             )
         )
-
-        drug = y.columns[0]
 
         if expand_drug_id:
             df = df.assign(DRUG_ID=drug[0])
@@ -248,7 +270,7 @@ class Association:
 
         return df
 
-    def lmm_single_associations(self):
+    def lmm_single_associations(self, verbose=0):
         # - Kinship matrix (random effects)
         k = self.kinship(self.crispr.T)
         m = self.get_covariates()
@@ -258,7 +280,7 @@ class Association:
         lmm_single = pd.concat(
             [
                 self.lmm_single_association(
-                    self.drespo.loc[[d]].T, self.crispr.T, k=k, m=m
+                    self.drespo.loc[[d]].T, self.crispr.T, k=k, m=m, verbose=verbose
                 )
                 for d in self.drespo.index
             ]
@@ -750,9 +772,7 @@ class Association:
 
         return df
 
-    def build_df(
-        self, drug=None, crispr=None, gexp=None, genomic=None, sinfo=None
-    ):
+    def build_df(self, drug=None, crispr=None, gexp=None, genomic=None, sinfo=None):
         """
         Utility function to build data-frames containing multiple types of measurements.
 
@@ -770,10 +790,10 @@ class Association:
             df.append(self.drespo.loc[drug].T)
 
         if crispr is not None:
-            df.append(self.crispr.loc[crispr].T.add_prefix('crispr_'))
+            df.append(self.crispr.loc[crispr].T.add_prefix("crispr_"))
 
         if gexp is not None:
-            df.append(self.gexp.loc[gexp].T.add_prefix('gexp_'))
+            df.append(self.gexp.loc[gexp].T.add_prefix("gexp_"))
 
         if genomic is not None:
             df.append(self.genomic.loc[genomic].T)

@@ -17,6 +17,7 @@
 # %autosave 0
 # %load_ext autoreload
 # %autoreload 2
+
 from dtrace.Associations import Association
 
 
@@ -26,7 +27,7 @@ from dtrace.Associations import Association
 # a complete run this script takes over 3 hours (no parallelization, 3.1 GHz Intel Core i7). Executing can also be done
 # using the main function of Association class.
 
-assoc = Association(dtype="ic50")
+assoc = Association(dtype="ic50", pval_method="fdr_bh")
 
 
 # ## Linear drug-response associations
@@ -45,7 +46,7 @@ assoc = Association(dtype="ic50")
 
 # ### Drug-response ~ CRISPR-Cas9
 
-lmm_dsingle = assoc.lmm_single_associations()
+lmm_dsingle = assoc.lmm_single_associations(verbose=1)
 lmm_dsingle.sort_values(["fdr", "pval"]).to_csv(
     assoc.lmm_drug_crispr_file, index=False, compression="gzip"
 )

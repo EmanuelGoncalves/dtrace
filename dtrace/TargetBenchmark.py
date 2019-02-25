@@ -1,12 +1,14 @@
 #!/usr/bin/env python
 # Copyright (C) 2019 Emanuel Goncalves
 
+import logging
 import textwrap
 import upsetplot
 import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
+from dtrace import logger
 from natsort import natsorted
 from crispy.utils import Utils
 from crispy.qc_plot import QCplot
@@ -14,8 +16,8 @@ from matplotlib.lines import Line2D
 from scipy.stats import gaussian_kde
 from dtrace.DTracePlot import DTracePlot
 from sklearn.preprocessing import MinMaxScaler
-from scipy.stats import ttest_ind, mannwhitneyu, gmean
 from dtrace.DataImporter import KinobeadCATDS
+from scipy.stats import ttest_ind, mannwhitneyu, gmean
 
 
 class TargetBenchmark(DTracePlot):
@@ -163,39 +165,23 @@ class TargetBenchmark(DTracePlot):
             return "#bbbbbb"
 
     def boxplot_kinobead(self):
-        catds_m = KinobeadCATDS().import_catds()
-
-        catds_m["is_target"] = [
-            int(t in self.d_targets[d]) for d, t in catds_m[["drug", "target"]].values
-        ]
-
-        lmm_drug_subset = self.assoc.lmm_drug_crispr[
-            self.assoc.lmm_drug_crispr["DRUG_NAME"].isin(catds_m["drug"])
-        ]
-        catds_m["lmm_pval"] = (
-            lmm_drug_subset.groupby(["GeneSymbol", "DRUG_NAME"])["fdr"]
-            .min()[catds_m.set_index(["target", "drug"]).index]
-            .values
-        )
-        catds_m["lmm_signif"] = catds_m["lmm_pval"].apply(
-            lambda v: "Yes" if v < self.fdr else "No"
-        )
-
-        catds_m = catds_m.sort_values("catds").dropna()
+        catds = KinobeadCATDS(assoc=self.assoc).get_data()
 
         #
         t, p = mannwhitneyu(
-            catds_m.query("lmm_signif == 'Yes'")["catds"],
-            catds_m.query("lmm_signif == 'No'")["catds"],
+            catds.query("signif == 'Yes'")["catds"],
+            catds.query("signif == 'No'")["catds"],
         )
+
+        logger.log(logging.INFO, f"Mann-Whitney U statistic={t:.2f}, p-value={p:.2e}")
 
         # Plot
         order = ["No", "Yes"]
         pal = {"No": self.PAL_DTRACE[1], "Yes": self.PAL_DTRACE[0]}
 
         ax = sns.boxplot(
-            catds_m["catds"],
-            catds_m["lmm_signif"],
+            catds["catds"],
+            catds["signif"],
             palette=pal,
             linewidth=0.3,
             fliersize=1.5,
@@ -206,7 +192,7 @@ class TargetBenchmark(DTracePlot):
         )
 
         ax.scatter(
-            gmean(catds_m.query("lmm_signif == 'Yes'")["catds"]),
+            gmean(catds.query("signif == 'Yes'")["catds"]),
             1,
             marker="+",
             lw=0.3,
@@ -214,7 +200,7 @@ class TargetBenchmark(DTracePlot):
             s=3,
         )
         ax.scatter(
-            gmean(catds_m.query("lmm_signif == 'No'")["catds"]),
+            gmean(catds.query("signif == 'No'")["catds"]),
             0,
             marker="+",
             lw=0.3,
@@ -384,7 +370,7 @@ class TargetBenchmark(DTracePlot):
             n_text_offset=5e-3,
             palette=self.PPI_PAL,
             order=self.PPI_ORDER,
-            ax=ax
+            ax=ax,
         )
 
     def drugs_ppi_countplot(self, dtype="crispr", ax=None):
@@ -412,7 +398,12 @@ class TargetBenchmark(DTracePlot):
         )
 
         sns.barplot(
-            "index", "count", data=plot_df, order=self.PPI_ORDER, palette=self.PPI_PAL, ax=ax
+            "index",
+            "count",
+            data=plot_df,
+            order=self.PPI_ORDER,
+            palette=self.PPI_PAL,
+            ax=ax,
         )
 
         plt.grid(axis="y", lw=0.3, color=self.PAL_DTRACE[1], zorder=0)

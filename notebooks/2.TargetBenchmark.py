@@ -20,10 +20,12 @@
 
 import numpy as np
 import pandas as pd
+import seaborn as sns
 import matplotlib.pyplot as plt
 from dtrace import rpath
 from dtrace.DTracePlot import DTracePlot
 from dtrace.Associations import Association
+from dtrace.DataImporter import KinobeadCATDS
 from dtrace.TargetBenchmark import TargetBenchmark
 
 
@@ -93,6 +95,7 @@ dgs = [
     ("AZD4320", "BCL2"),
     ("Volasertib", "PLK1"),
     ("Rigosertib", "PLK1"),
+    ('Linsitinib', 'CNPY2'),
 ]
 
 for dg in dgs:
@@ -242,7 +245,8 @@ plt.savefig(
 )
 
 
-# Heatmap counting the number of drugs which have a significant association with CRISPR and/or target a core-essential gene.
+# Heatmap counting the number of drugs which have a significant association with CRISPR and/or target a core-essential
+# gene.
 
 target.signif_essential_heatmap()
 plt.gcf().set_size_inches(1, 1)
@@ -253,7 +257,8 @@ plt.savefig(
 )
 
 
-# Number of significant associations found with drugs from the two different types of screening proceedures, i.e. RS and V17.
+# Number of significant associations found with drugs from the two different types of screening proceedures, i.e. RS
+# and V17.
 
 target.signif_per_screen()
 plt.gcf().set_size_inches(0.75, 1.5)
@@ -275,7 +280,8 @@ plt.savefig(
 )
 
 
-# Significant associations p-value (y-axis) spread across the number of times a drug displayed an IC50 lower than the maximum screened concentration.
+# Significant associations p-value (y-axis) spread across the number of times a drug displayed an IC50 lower than the
+# maximum screened concentration.
 
 target.signif_maxconcentration_scatter()
 plt.gcf().set_size_inches(2.5, 2.5)
@@ -448,4 +454,8 @@ for d, t, o, e in ppi_examples:
     )
     graph.write_pdf(f"{rpath}/association_ppi_{d}.pdf")
 
+
+#
+
+catds = KinobeadCATDS(assoc=assoc).get_data()
 

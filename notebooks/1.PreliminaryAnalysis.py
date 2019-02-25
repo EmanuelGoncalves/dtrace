@@ -81,20 +81,21 @@ num_resp.to_csv(f"{dpath}/drug_number_responses.csv", index=False)
 # # Drug-response
 
 
-# ## Drug-response (IC50s) measurements across cell lines cumulative distribution
+# Drug-response (IC50s) measurements across cell lines cumulative distribution
 
-plt.figure(figsize=(3, 2), dpi=300)
 DrugPreliminary.histogram_drug(datasets.drespo.count(1))
+plt.gcf().set_size_inches(3, 1.5)
 plt.savefig(
     f"{rpath}/preliminary_drug_histogram_drug.pdf",
     bbox_inches="tight",
     transparent=True,
 )
+plt.figure(figsize=(3, 2), dpi=300)
+plt.show()
 
 
-# ## Cumulative distribution of strong drug-response measurements
-#
-# Strong response measurements are defined as IC50 < 50% Max. concentration
+# Cumulative distribution of strong drug-response measurements. Strong response measurements are defined as IC50 < 50%
+# Max. concentration
 
 plt.figure(figsize=(3, 2), dpi=300)
 DrugPreliminary.histogram_drug_response(num_resp)
@@ -103,6 +104,7 @@ plt.savefig(
     bbox_inches="tight",
     transparent=True,
 )
+plt.show()
 
 
 # ## Cumulative distribution of samples with measurements across all compounds screened
@@ -114,6 +116,7 @@ plt.savefig(
     bbox_inches="tight",
     transparent=True,
 )
+plt.show()
 
 
 # ## Principal components of drugs
@@ -124,6 +127,7 @@ plt.suptitle("PCA drug response (Drugs)", y=1.05, fontsize=9)
 plt.savefig(
     f"{rpath}/preliminary_drug_pca_pairplot.pdf", bbox_inches="tight", transparent=True
 )
+plt.show()
 
 
 # ## Principal components of samples in the drug-response
@@ -136,6 +140,7 @@ plt.savefig(
     bbox_inches="tight",
     transparent=True,
 )
+plt.show()
 
 
 # ## Principal components of samples in the drug-response coloured by cancer type
@@ -150,6 +155,7 @@ plt.savefig(
     bbox_inches="tight",
     transparent=True,
 )
+plt.show()
 
 
 # ## Samples drug-response PC1 correlation with growth-rate
@@ -164,6 +170,7 @@ plt.savefig(
     bbox_inches="tight",
     transparent=True,
 )
+plt.show()
 
 
 # ## Histogram of samples drug-response PC1 correlation with growth-rate
@@ -175,6 +182,7 @@ plt.savefig(
     bbox_inches="tight",
     transparent=True,
 )
+plt.show()
 
 
 # ## Top correlated drugs with growth-rate
@@ -186,6 +194,7 @@ plt.savefig(
     bbox_inches="tight",
     transparent=True,
 )
+plt.show()
 
 
 # # CRISPR-Cas9
@@ -202,6 +211,7 @@ plt.savefig(
     transparent=True,
     dpi=300,
 )
+plt.show()
 
 
 # ## Principal components of the samples in the CRISPR-Cas9 data-set
@@ -216,6 +226,7 @@ plt.savefig(
     bbox_inches="tight",
     transparent=True,
 )
+plt.show()
 
 
 # ## Principal components of the samples in the CRISPR-Cas9 data-set coloured by cancer type
@@ -230,6 +241,7 @@ plt.savefig(
     bbox_inches="tight",
     transparent=True,
 )
+plt.show()
 
 
 # ## CRISPR samples principal component correlation with growth rates
@@ -244,6 +256,7 @@ plt.savefig(
     bbox_inches="tight",
     transparent=True,
 )
+plt.show()
 
 
 # ## CRISPR gene principal component correlation with essentiality
@@ -259,3 +272,4 @@ plt.savefig(
     bbox_inches="tight",
     transparent=True,
 )
+plt.show()

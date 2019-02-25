@@ -25,7 +25,7 @@ class DrugResponse:
     def __init__(
         self,
         drugresponse_file_v17="drug/screening_set_384_all_owners_fitted_data_20180308_updated.csv",
-        drugresponse_file_rs="drug/fitted_rapid_screen_1536_v1.2.1_20181026_updated.csv",
+        drugresponse_file_rs="drug/fitted_rapid_screen_1536_v1.3.0_20190222_updated.csv",
     ):
         """
         Two experimental versions were used to acquire drug-response measurements, i.e. v17 and RS (chronologically
@@ -72,7 +72,7 @@ class DrugResponse:
         ).sort_values()
 
     @staticmethod
-    def get_drugsheet(drugsheet_file="meta/drugsheet_20190219.xlsx"):
+    def get_drugsheet(drugsheet_file="meta/drugsheet_20190225.xlsx"):
         return pd.read_excel(f"{dpath}/{drugsheet_file}", index_col=0)
 
     @classmethod
@@ -361,7 +361,7 @@ class Sample:
         self,
         index="model_id",
         samplesheet_file="meta/model_list_2018-09-28_1452.csv",
-        growthrate_file="meta/growth_rates_rapid_screen_1536_v1.2.2_20181113.csv",
+        growthrate_file="meta/growth_rates_rapid_screen_1536_v1.3.0_20190222.csv",
         samples_origin="meta/samples_origin.csv",
     ):
         self.index = index
@@ -520,7 +520,7 @@ class Genomic:
         elif f.startswith("loss."):
             return "CN loss"
 
-        elif f == 'msi_status':
+        elif f == "msi_status":
             return f
 
         else:
@@ -1422,32 +1422,99 @@ class CRISPRComBat:
 
 class KinobeadCATDS:
     def __init__(
-            self,
-            catds_most_potent_file="klaeger_et_al_catds_most_potent.csv",
-            catds_matrix_file="klaeger_et_al_catds.csv",
+        self,
+        catds_most_potent_file="klaeger_et_al_catds_most_potent.csv",
+        catds_matrix_file="klaeger_et_al_catds.csv",
+        assoc=None,
+        fdr_thres=0.1,
+        unstack=True,
     ):
         self.catds_most_potent_file = catds_most_potent_file
         self.catds_matrix_file = catds_matrix_file
 
-    def import_matrix(self):
+        self.catds = self.import_matrix(
+            unstack=unstack, assoc=assoc, fdr_thres=fdr_thres
+        )
+
+    def import_matrix(self, unstack, assoc, fdr_thres):
+        """
+        Imports Kinobeads CATDS from:
+
+        Klaeger S, Heinzlmeir S, Wilhelm M, Polzer H, Vick B, Koenig P-A, Reinecke M, Ruprecht B, Petzoldt S, Meng C,
+        Zecha J, Reiter K, Qiao H, Helm D, Koch H, Schoof M, Canevari G, Casale E, Depaolini SR, Feuchtinger A, et al.
+        (2017) The target landscape of clinical kinase drugs. Science 358: eaan4368
+
+        Merge information from the Drug ~ CRISPR LMM associations can only be done if the unstack is True.
+
+        :param unstack:
+        :param merge_lmm_info:
+        :param assoc:
+        :return:
+        """
         dmap = self.import_drug_names()
 
-        catds_m = pd.read_csv(f"{dpath}/{self.catds_matrix_file}", index_col=0)
-        catds_m = catds_m[catds_m.index.isin(dmap.index)]
-        catds_m.index = dmap[catds_m.index].values
+        catds = pd.read_csv(f"{dpath}/{self.catds_matrix_file}", index_col=0)
+        catds = catds[catds.index.isin(dmap.index)]
+        catds.index = dmap[catds.index].values
 
-        return catds_m
+        if unstack:
+            catds = catds.unstack().dropna().reset_index()
+            catds.columns = ["GeneSymbol", "DRUG_NAME", "catds"]
+
+        if unstack and (assoc is not None):
+            catds = self.merge_lmm_info(catds, assoc=assoc, fdr_thres=fdr_thres)
+
+        return catds
 
     def import_drug_names(self):
         dmap = pd.read_csv(f"{dpath}/{self.catds_most_potent_file}")
         dmap = dmap.set_index("Drug")["name"].dropna()
         return dmap
 
-    def import_catds(self):
-        catds = self.import_matrix()
-        catds = catds.unstack().dropna().reset_index()
-        catds.columns = ["target", "drug", "catds"]
+    def merge_lmm_info(self, catds, assoc, fdr_thres):
+        assoc_df = assoc.lmm_drug_crispr.copy()
+        assoc_df = assoc_df[assoc_df["DRUG_NAME"].isin(catds["DRUG_NAME"])]
+        assoc_df = assoc_df[assoc_df["GeneSymbol"].isin(catds["GeneSymbol"])]
+
+        catds_index = catds.set_index(["DRUG_NAME", "GeneSymbol"]).index
+
+        # Is drug-target
+        d_targets = assoc.drespo_obj.get_drugtargets(by="Name")
+        catds["is_target"] = [
+            int(t in d_targets[d]) for d, t in catds[["DRUG_NAME", "GeneSymbol"]].values
+        ]
+
+        # Annotate target distance to the drug targets
+        catds["target"] = (
+            assoc_df.groupby(["DRUG_NAME", "GeneSymbol"])["target"]
+            .min()[catds_index]
+            .values
+        )
+
+        # Annotate with p-value and FDR
+        for f in ["pval", "fdr"]:
+            catds[f] = (
+                assoc_df.groupby(["DRUG_NAME", "GeneSymbol"])[f]
+                .min()[catds_index]
+                .values
+            )
+
+        # Annotate if is significant
+        catds["signif"] = catds["fdr"].apply(lambda v: "Yes" if v < fdr_thres else "No")
+
         return catds
+
+    def get_data(self):
+        return self.catds.copy()
+
+    def filter(self, subset=None):
+        df = self.get_data()
+
+        # Subset matrices
+        if subset is not None:
+            df = df.loc[:, df.columns.isin(subset)]
+
+        return df
 
 
 if __name__ == "__main__":
