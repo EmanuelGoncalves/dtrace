@@ -4,37 +4,11 @@
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
-from DTracePlot import DTracePlot
 from scipy.stats import pearsonr
-from sklearn.decomposition import PCA
+from DTracePlot import DTracePlot
 
 
-class Preliminary:
-    @classmethod
-    def perform_pca(cls, dataframe, n_components=10):
-        df = dataframe.T.fillna(dataframe.T.mean()).T
-
-        pca = dict()
-
-        for by in ["row", "column"]:
-            pca[by] = dict()
-
-            df_by = df.T.copy() if by != "row" else df.copy()
-
-            df_by = df_by.subtract(df_by.mean())
-
-            pcs_labels = list(map(lambda v: f"PC{v + 1}", range(n_components)))
-
-            pca[by]["pca"] = PCA(n_components=n_components).fit(df_by)
-            pca[by]["vex"] = pd.Series(
-                pca[by]["pca"].explained_variance_ratio_, index=pcs_labels
-            )
-            pca[by]["pcs"] = pd.DataFrame(
-                pca[by]["pca"].transform(df_by), index=df_by.index, columns=pcs_labels
-            )
-
-        return pca
-
+class Preliminary(DTracePlot):
     @classmethod
     def _pairplot_fix_labels(cls, g, pca, by):
         for i, ax in enumerate(g.axes):
@@ -49,12 +23,8 @@ class Preliminary:
     def pairplot_pca_by_rows(cls, pca, hue="VERSION"):
         df = pca["row"]["pcs"].reset_index()
 
-        pal = (
-            None
-            if hue is None
-            else dict(v17=DTracePlot.PAL_DTRACE[2], RS=DTracePlot.PAL_DTRACE[0])
-        )
-        color = DTracePlot.PAL_DTRACE[2] if hue is None else None
+        pal = None if hue is None else dict(v17=cls.PAL_DTRACE[2], RS=cls.PAL_DTRACE[0])
+        color = cls.PAL_DTRACE[2] if hue is None else None
 
         g = sns.PairGrid(
             df,
@@ -86,9 +56,9 @@ class Preliminary:
         pal = (
             None
             if hue is None
-            else dict(Broad=DTracePlot.PAL_DTRACE[2], Sanger=DTracePlot.PAL_DTRACE[0])
+            else dict(Broad=cls.PAL_DTRACE[2], Sanger=cls.PAL_DTRACE[0])
         )
-        color = DTracePlot.PAL_DTRACE[2] if hue is None else None
+        color = cls.PAL_DTRACE[2] if hue is None else None
 
         g = sns.PairGrid(
             df,
@@ -126,7 +96,7 @@ class Preliminary:
         )
 
         order = ["Other"] + list(order[order >= min_cell_lines].index)
-        pal = [DTracePlot.PAL_DTRACE[1]] + sns.color_palette(
+        pal = [cls.PAL_DTRACE[1]] + sns.color_palette(
             "tab20", n_colors=len(order) - 1
         ).as_hex()
         pal = dict(zip(*(order, pal)))
@@ -155,7 +125,7 @@ class Preliminary:
         annot_kws = dict(stat="R")
         marginal_kws = dict(kde=False, hist_kws={"linewidth": 0})
 
-        line_kws = dict(lw=1.0, color=DTracePlot.PAL_DTRACE[0], alpha=1.0)
+        line_kws = dict(lw=1.0, color=cls.PAL_DTRACE[0], alpha=1.0)
         scatter_kws = dict(edgecolor="w", lw=0.3, s=10, alpha=0.6)
         joint_kws = dict(lowess=True, scatter_kws=scatter_kws, line_kws=line_kws)
 
@@ -165,7 +135,7 @@ class Preliminary:
             data=df,
             kind="reg",
             space=0,
-            color=DTracePlot.PAL_DTRACE[2],
+            color=cls.PAL_DTRACE[2],
             marginal_kws=marginal_kws,
             annot_kws=annot_kws,
             joint_kws=joint_kws,
@@ -173,7 +143,7 @@ class Preliminary:
 
         g.annotate(pearsonr, template="R={val:.2g}, p={p:.1e}", frameon=False)
 
-        g.ax_joint.axvline(0, ls="-", lw=0.1, c=DTracePlot.PAL_DTRACE[1], zorder=0)
+        g.ax_joint.axvline(0, ls="-", lw=0.1, c=cls.PAL_DTRACE[1], zorder=0)
 
         vexp = pca["column"]["vex"][pc]
         g.set_axis_labels(
@@ -182,7 +152,7 @@ class Preliminary:
 
 
 class DrugPreliminary(Preliminary):
-    DRUG_PAL = dict(v17=DTracePlot.PAL_DTRACE[2], RS=DTracePlot.PAL_DTRACE[0])
+    DRUG_PAL = dict(v17=Preliminary.PAL_DTRACE[2], RS=Preliminary.PAL_DTRACE[0])
 
     HIST_KDE_KWS = dict(cumulative=True, cut=0)
 
@@ -212,7 +182,7 @@ class DrugPreliminary(Preliminary):
 
         sns.distplot(
             df["count"],
-            color=DTracePlot.PAL_DTRACE[2],
+            color=cls.PAL_DTRACE[2],
             hist=False,
             kde_kws=cls.HIST_KDE_KWS,
             label=None,
@@ -229,7 +199,7 @@ class DrugPreliminary(Preliminary):
     def histogram_drug_response(cls, df):
         sns.distplot(
             df["n_resp"],
-            color=DTracePlot.PAL_DTRACE[2],
+            color=cls.PAL_DTRACE[2],
             hist=False,
             kde_kws=cls.HIST_KDE_KWS,
             label=None,
@@ -251,7 +221,7 @@ class DrugPreliminary(Preliminary):
             kde_kws = dict(cut=0, lw=1, zorder=i + 1, alpha=0.8)
 
             sns.distplot(
-                g_corr[g_corr["VERSION"] == s]["corr"],
+                g_corr[g_corr["VERSION"] == s]["pearson"],
                 color=cls.DRUG_PAL[s],
                 kde_kws=kde_kws,
                 hist_kws=hist_kws,
@@ -259,7 +229,7 @@ class DrugPreliminary(Preliminary):
                 label=s,
             )
 
-        plt.axvline(0, c=DTracePlot.PAL_DTRACE[1], lw=0.1, ls="-", zorder=0)
+        plt.axvline(0, c=cls.PAL_DTRACE[1], lw=0.1, ls="-", zorder=0)
 
         plt.xlabel("Drug correlation with growth rate\n(Pearson's R)")
         plt.ylabel("Density")
@@ -269,17 +239,27 @@ class DrugPreliminary(Preliminary):
     @classmethod
     def growth_correlation_top_drugs(cls, g_corr, n_features=20):
         sns.barplot(
-            "corr",
+            "pearson",
             "DRUG_NAME",
             data=g_corr.head(n_features),
-            color=DTracePlot.PAL_DTRACE[2],
+            color=cls.PAL_DTRACE[2],
             linewidth=0,
         )
 
-        plt.axvline(0, c=DTracePlot.PAL_DTRACE[1], lw=0.1, ls="-", zorder=0)
+        plt.axvline(0, c=cls.PAL_DTRACE[1], lw=0.1, ls="-", zorder=0)
 
         plt.xlabel("Drug correlation with growth rate\n(Pearson's R)")
         plt.ylabel("")
+
+    @classmethod
+    def growth_corrs_pcs_barplot(cls, df):
+        sns.barplot(df["pearson"], df["index"], color=cls.PAL_DTRACE[2])
+
+        plt.grid(axis="x", lw=0.1, color=cls.PAL_DTRACE[1], zorder=0)
+
+        plt.xlabel("Pearson correlation coefficient")
+        plt.ylabel("")
+        plt.title("Drug-response PCA\ncorrelation with growth rate")
 
 
 class CrisprPreliminary(Preliminary):
@@ -293,7 +273,7 @@ class CrisprPreliminary(Preliminary):
         marginal_kws = dict(kde=False, hist_kws={"linewidth": 0})
 
         scatter_kws = dict(edgecolor="w", lw=0.3, s=6, alpha=0.3)
-        line_kws = dict(lw=1.0, color=DTracePlot.PAL_DTRACE[0], alpha=1.0)
+        line_kws = dict(lw=1.0, color=cls.PAL_DTRACE[0], alpha=1.0)
         joint_kws = dict(lowess=True, scatter_kws=scatter_kws, line_kws=line_kws)
 
         g = sns.jointplot(
@@ -302,7 +282,7 @@ class CrisprPreliminary(Preliminary):
             data=df,
             kind="reg",
             space=0,
-            color=DTracePlot.PAL_DTRACE[2],
+            color=cls.PAL_DTRACE[2],
             marginal_kws=marginal_kws,
             annot_kws=annot_kws,
             joint_kws=joint_kws,
@@ -310,10 +290,20 @@ class CrisprPreliminary(Preliminary):
 
         g.annotate(pearsonr, template="R={val:.2g}, p={p:.1e}", frameon=False)
 
-        g.ax_joint.axhline(0, ls="-", lw=0.1, c=DTracePlot.PAL_DTRACE[1], zorder=0)
-        g.ax_joint.axvline(0, ls="-", lw=0.1, c=DTracePlot.PAL_DTRACE[1], zorder=0)
+        g.ax_joint.axhline(0, ls="-", lw=0.1, c=cls.PAL_DTRACE[1], zorder=0)
+        g.ax_joint.axvline(0, ls="-", lw=0.1, c=cls.PAL_DTRACE[1], zorder=0)
 
         vexp = pca["row"]["vex"][pc]
         g.set_axis_labels(
             "Gene significantly essential count", "{} ({:.1f}%)".format(pc, vexp * 100)
         )
+
+    @classmethod
+    def growth_corrs_pcs_barplot(cls, df):
+        sns.barplot(df["pearson"], df["index"], color=cls.PAL_DTRACE[2])
+
+        plt.grid(axis="x", lw=0.1, color=cls.PAL_DTRACE[1], zorder=0)
+
+        plt.xlabel("Pearson correlation coefficient")
+        plt.ylabel("")
+        plt.title("CRISPR-Cas9 PCA\ncorrelation with growth rate")

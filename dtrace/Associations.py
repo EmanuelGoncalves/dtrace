@@ -39,8 +39,6 @@ class Association:
 
         :param load_associations: Load associations (this implies the associations were already tested).
 
-        :param data_dir: Data directory.
-
         """
 
         self.dtype = dtype
@@ -49,10 +47,7 @@ class Association:
         self.dcols = DataImporter.DrugResponse.DRUG_COLUMNS
         self.ppi_order = ["T", "1", "2", "3", "4", "5+", "-"]
 
-        # Import
-        self.ppi = DataImporter.PPI()
-        self.samplesheet = DataImporter.Sample()
-
+        # Import data-sets
         self.crispr_obj = DataImporter.CRISPR()
         self.drespo_obj = DataImporter.DrugResponse()
         self.genomic_obj = DataImporter.Genomic()
@@ -67,6 +62,10 @@ class Association:
         )
 
         logger.log(logging.INFO, f"#(Samples)={len(self.samples)}")
+
+        # Import PPI and samplesheet
+        self.ppi = DataImporter.PPI()
+        self.samplesheet = DataImporter.Sample()
 
         # Filter
         self.crispr = self.crispr_obj.filter(subset=self.samples, scale=True)
@@ -142,7 +141,7 @@ class Association:
         crispr_insitute = pd.get_dummies(self.samplesheet.samplesheet["institute"])
 
         # Cell lines growth rate
-        drug_growth = self.samplesheet.samplesheet["growth"]
+        drug_growth = self.drespo_obj.import_pca()[self.dtype]["column"]["pcs"]["PC1"]
 
         # Cell lines culture conditions
         culture = pd.get_dummies(

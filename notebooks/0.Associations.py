@@ -24,10 +24,18 @@ from dtrace.Associations import Association
 # ### Import data-sets
 
 # Association files are exported to "dtrace/data/" folder (dpath). Warning, due to the large number of tests executed
-# a complete run this script takes over 3 hours (no parallelization, 3.1 GHz Intel Core i7). Executing can also be done
-# using the main function of Association class.
+# a complete run of this script takes over 3 hours (3.1 GHz Intel Core i7). Executing can also be done using the main
+# function of Association module.
 
 assoc = Association(dtype="ic50", pval_method="fdr_bh")
+
+
+# Perform PCA analysis on drug-response and gene-essentiality data-sets. Principal component 1 for the drug-response
+# correlates significantly with growth measurements and therefore is generated before the associations so that is
+# considered as a covariate in the linear regressions.
+
+assoc.drespo_obj.perform_pca(subset=assoc.samples)
+assoc.crispr_obj.perform_pca(subset=assoc.samples)
 
 
 # ## Linear drug-response associations
@@ -46,7 +54,7 @@ assoc = Association(dtype="ic50", pval_method="fdr_bh")
 
 # ### Drug-response ~ CRISPR-Cas9
 
-lmm_dsingle = assoc.lmm_single_associations(verbose=1)
+lmm_dsingle = assoc.lmm_single_associations()
 lmm_dsingle.sort_values(["fdr", "pval"]).to_csv(
     assoc.lmm_drug_crispr_file, index=False, compression="gzip"
 )

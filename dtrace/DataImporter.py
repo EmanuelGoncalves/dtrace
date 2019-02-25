@@ -9,7 +9,85 @@ import numpy as np
 import pandas as pd
 import crispy as cy
 from dtrace import logger, dpath
+from sklearn.decomposition import PCA
 from dtrace.DTracePlot import DTracePlot
+
+
+class DataPCA:
+    @staticmethod
+    def perform_pca(dataframe, n_components=10):
+        df = dataframe.T.fillna(dataframe.T.mean()).T
+
+        pca = dict()
+
+        for by in ["row", "column"]:
+            pca[by] = dict()
+
+            df_by = df.T.copy() if by != "row" else df.copy()
+
+            df_by = df_by.subtract(df_by.mean())
+
+            pcs_labels = list(map(lambda v: f"PC{v + 1}", range(n_components)))
+
+            pca[by]["pca"] = PCA(n_components=n_components).fit(df_by)
+            pca[by]["vex"] = pd.Series(
+                pca[by]["pca"].explained_variance_ratio_, index=pcs_labels
+            )
+            pca[by]["pcs"] = pd.DataFrame(
+                pca[by]["pca"].transform(df_by), index=df_by.index, columns=pcs_labels
+            )
+
+        return pca
+
+
+class Sample:
+    """
+    Import module that handles the sample list (i.e. list of cell lines) and their descriptive information.
+
+    """
+
+    def __init__(
+        self,
+        index="model_id",
+        samplesheet_file="meta/model_list_2018-09-28_1452.csv",
+        growthrate_file="meta/growth_rates_rapid_screen_1536_v1.3.0_20190222.csv",
+        samples_origin="meta/samples_origin.csv",
+    ):
+        self.index = index
+
+        # Import samplesheet
+        self.samplesheet = (
+            pd.read_csv(f"{dpath}/{samplesheet_file}")
+            .dropna(subset=[self.index])
+            .set_index(self.index)
+        )
+
+        # Add growth information
+        self.growth = pd.read_csv(f"{dpath}/{growthrate_file}")
+        self.samplesheet["growth"] = (
+            self.growth.groupby(self.index)["GROWTH_RATE"]
+            .mean()
+            .reindex(self.samplesheet.index)
+        )
+
+        # Add institute of origin
+        self.institute = pd.read_csv(
+            f"{dpath}/{samples_origin}", header=None, index_col=0
+        ).iloc[:, 0]
+        self.samplesheet["institute"] = self.institute.reindex(self.samplesheet.index)
+
+    def growth_corr(self, df):
+        growth = self.samplesheet["growth"].dropna()
+        samples = list(set(growth.index).intersection(df.columns))
+
+        logger.log(
+            logging.INFO, f"Correlation with growth using {len(samples)} cell lines"
+        )
+
+        corr = df[samples].T.corrwith(growth[samples])
+        corr = corr.sort_values().rename("pearson").reset_index()
+
+        return corr
 
 
 class DrugResponse:
@@ -34,15 +112,32 @@ class DrugResponse:
         :param drugresponse_file_v17:
         :param drugresponse_file_rs:
         """
+        self.drugresponse_file_v17 = drugresponse_file_v17
+        self.drugresponse_file_rs = drugresponse_file_rs
+
         self.drugsheet = self.get_drugsheet()
 
-        # Import and Merge drug response matrices
-        self.d_v17 = pd.read_csv(f"{dpath}/{drugresponse_file_v17}").assign(
+        # Import and Merge drug response matrices (IC50s and AUCs) and RMSE estimates
+        self.drugresponse = self.__import_matrices__()
+
+        # Drug max concentration
+        self.maxconcentration = pd.concat(
+            [
+                self.d_rs.groupby(self.DRUG_COLUMNS)["maxc"].min(),
+                self.d_v17.groupby(self.DRUG_COLUMNS)["maxc"].min(),
+            ],
+            sort=False,
+        ).sort_values()
+
+    def __import_matrices__(self):
+        self.d_v17 = pd.read_csv(f"{dpath}/{self.drugresponse_file_v17}").assign(
             VERSION="v17"
         )
-        self.d_rs = pd.read_csv(f"{dpath}/{drugresponse_file_rs}").assign(VERSION="RS")
+        self.d_rs = pd.read_csv(f"{dpath}/{self.drugresponse_file_rs}").assign(
+            VERSION="RS"
+        )
 
-        self.drugresponse = dict()
+        drugresponse = dict()
         for index_value, n in [("ln_IC50", "ic50"), ("AUC", "auc"), ("RMSE", "rmse")]:
             d_v17_matrix = pd.pivot_table(
                 self.d_v17,
@@ -60,16 +155,68 @@ class DrugResponse:
 
             df = pd.concat([d_v17_matrix, d_vrs_matrix], axis=0, sort=False)
 
-            self.drugresponse[n] = df.copy()
+            drugresponse[n] = df.copy()
 
-        # Read drug max concentration
-        self.maxconcentration = pd.concat(
-            [
-                self.d_rs.groupby(self.DRUG_COLUMNS)["maxc"].min(),
-                self.d_v17.groupby(self.DRUG_COLUMNS)["maxc"].min(),
-            ],
-            sort=False,
-        ).sort_values()
+        return drugresponse
+
+    def perform_pca(self, n_components=10, subset=None):
+        for dtype in ["ic50", "auc"]:
+            df = DataPCA.perform_pca(
+                self.filter(dtype, subset=subset), n_components=n_components
+            )
+
+            for by in df:
+                df[by]["pcs"].round(5).to_csv(f"{dpath}/PCA_drug_{dtype}_{by}_pcs.csv")
+                df[by]["vex"].round(5).to_csv(f"{dpath}/PCA_drug_{dtype}_{by}_vex.csv")
+
+    @staticmethod
+    def import_pca():
+        pca = {}
+        for dtype in ["ic50", "auc"]:
+            pca[dtype] = {}
+
+            for by in ["row", "column"]:
+                pca[dtype][by] = {}
+
+                pca[dtype][by]["pcs"] = pd.read_csv(
+                    f"{dpath}/PCA_drug_{dtype}_{by}_pcs.csv",
+                    index_col=[0, 1, 2] if by == "row" else 0,
+                )
+                pca[dtype][by]["vex"] = pd.read_csv(
+                    f"{dpath}/PCA_drug_{dtype}_{by}_vex.csv", index_col=0, header=None
+                ).iloc[:, 0]
+
+        return pca
+
+    def perform_growth_corr(self, subset=None):
+        ss = Sample()
+
+        g_corr = {}
+        for dtype in ["ic50", "auc"]:
+            corr = ss.growth_corr(self.filter(dtype, subset=subset))
+            corr.round(5).to_csv(
+                f"{dpath}/growth_drug_correlation_{dtype}.csv", index=False
+            )
+
+            g_corr[dtype] = corr
+
+        return g_corr
+
+    def perform_number_responses(self, resp_thres=0.5, subset=None):
+        df = self.filter("ic50", subset=subset)
+
+        num_resp = {
+            d: np.sum(
+                df.loc[d].dropna() < np.log(self.maxconcentration[d] * resp_thres)
+            )
+            for d in df.index
+        }
+        num_resp = pd.Series(num_resp).reset_index()
+        num_resp.columns = ["DRUG_ID", "DRUG_NAME", "VERSION", "n_resp"]
+
+        num_resp.to_csv(f"{dpath}/number_responses_drug.csv", index=False)
+
+        return num_resp
 
     @staticmethod
     def get_drugsheet(drugsheet_file="meta/drugsheet_20190225.xlsx"):
@@ -179,20 +326,6 @@ class DrugResponse:
 
         return set(drug_name + drug_synonyms)
 
-    @staticmethod
-    def growth_corr(df, growth):
-        samples = list(set(growth.dropna().index).intersection(df.columns))
-
-        g_corr = (
-            df[samples]
-            .T.corrwith(growth[samples])
-            .sort_values()
-            .rename("corr")
-            .reset_index()
-        )
-
-        return g_corr
-
 
 class CRISPR:
     """
@@ -234,6 +367,37 @@ class CRISPR:
         sanger_ess = pd.read_csv(f"{dpath}/{self.SANGER_ESS_FILE}")
         sanger_ess = list(set(sanger_ess[sanger_ess["CoreFitness"]]["GeneSymbol"]))
         return sanger_ess
+
+    def perform_pca(self, n_components=10, subset=None):
+        df = DataPCA.perform_pca(self.filter(subset=subset), n_components=n_components)
+
+        for by in df:
+            df[by]["pcs"].round(5).to_csv(f"{dpath}/PCA_CRISPR_{by}_pcs.csv")
+            df[by]["vex"].round(5).to_csv(f"{dpath}/PCA_CRISPR_{by}_vex.csv")
+
+    @staticmethod
+    def import_pca():
+        pca = {}
+
+        for by in ["row", "column"]:
+            pca[by] = {}
+
+            pca[by]["pcs"] = pd.read_csv(
+                f"{dpath}/PCA_CRISPR_{by}_pcs.csv", index_col=0
+            )
+            pca[by]["vex"] = pd.read_csv(
+                f"{dpath}/PCA_CRISPR_{by}_vex.csv", index_col=0, header=None
+            ).iloc[:, 0]
+
+        return pca
+
+    def perform_growth_corr(self, subset=None):
+        ss = Sample()
+
+        corr = ss.growth_corr(self.filter(subset=subset))
+        corr.round(5).to_csv(f"{dpath}/growth_CRISPR_correlation.csv", index=False)
+
+        return corr
 
     def __merge_qc_arrays(self):
         gdsc_qc = pd.read_csv(
@@ -335,113 +499,6 @@ class CRISPR:
         )
 
         return df
-
-    @staticmethod
-    def growth_corr(df, growth):
-        samples = list(set(growth.dropna().index).intersection(df.columns))
-
-        g_corr = (
-            df[samples]
-            .T.corrwith(growth[samples])
-            .sort_values()
-            .rename("corr")
-            .reset_index()
-        )
-
-        return g_corr
-
-
-class Sample:
-    """
-    Import module that handles the sample list (i.e. list of cell lines) and their descriptive information.
-
-    """
-
-    def __init__(
-        self,
-        index="model_id",
-        samplesheet_file="meta/model_list_2018-09-28_1452.csv",
-        growthrate_file="meta/growth_rates_rapid_screen_1536_v1.3.0_20190222.csv",
-        samples_origin="meta/samples_origin.csv",
-    ):
-        self.index = index
-
-        # Import samplesheet
-        self.samplesheet = (
-            pd.read_csv(f"{dpath}/{samplesheet_file}")
-            .dropna(subset=[self.index])
-            .set_index(self.index)
-        )
-
-        # Add growth information
-        self.growth = pd.read_csv(f"{dpath}/{growthrate_file}")
-        self.samplesheet["growth"] = (
-            self.growth.groupby(self.index)["GROWTH_RATE"]
-            .mean()
-            .reindex(self.samplesheet.index)
-        )
-
-        # Add institute of origin
-        self.institute = pd.read_csv(
-            f"{dpath}/{samples_origin}", header=None, index_col=0
-        ).iloc[:, 0]
-        self.samplesheet["institute"] = self.institute.reindex(self.samplesheet.index)
-
-    def __assemble_growth_rates(self, dfile):
-        # Import
-        dratio = pd.read_csv(dfile, index_col=0)
-
-        # Convert to date
-        dratio["DATE_CREATED"] = pd.to_datetime(dratio["DATE_CREATED"])
-
-        # Group growth ratios per seeding
-        d_nc1 = (
-            dratio.groupby([self.index, "SEEDING_DENSITY"])
-            .agg({"growth_rate": [np.median, "count"], "DATE_CREATED": [np.max]})
-            .reset_index()
-        )
-
-        d_nc1.columns = ["_".join(filter(lambda x: x != "", i)) for i in d_nc1]
-
-        # Pick most recent measurements per cell line
-        d_nc1 = d_nc1.iloc[
-            d_nc1.groupby(self.index)["DATE_CREATED_amax"].idxmax()
-        ].set_index(self.index)
-
-        return d_nc1
-
-    def build_covariates(
-        self, samples=None, discrete_vars=None, continuos_vars=None, extra_vars=None
-    ):
-        covariates = []
-
-        if discrete_vars is not None:
-            covariates.append(
-                pd.concat(
-                    [
-                        pd.get_dummies(self.samplesheet[v].dropna())
-                        for v in discrete_vars
-                    ],
-                    axis=1,
-                    sort=False,
-                )
-            )
-
-        if continuos_vars is not None:
-            covariates.append(self.samplesheet.reindex(columns=continuos_vars))
-
-        if extra_vars is not None:
-            covariates.append(extra_vars.copy())
-
-        if len(covariates) == 0:
-            return None
-
-        covariates = pd.concat(covariates, axis=1, sort=False)
-
-        if samples is not None:
-            covariates = covariates.loc[samples]
-
-        return covariates
 
 
 class Genomic:
