@@ -18,11 +18,11 @@
 # %load_ext autoreload
 # %autoreload 2
 
-import seaborn as sns
 import matplotlib.pyplot as plt
 from dtrace import rpath
 from Associations import Association
 from dtrace.Preliminary import DrugPreliminary, CrisprPreliminary
+
 
 # ### Import data-sets
 dtype = "ic50"
@@ -51,12 +51,22 @@ g_corr = assoc.drespo_obj.perform_growth_corr(subset=assoc.samples)[dtype]
 c_corr = assoc.crispr_obj.perform_growth_corr(subset=assoc.samples)
 
 
-# ## Strong viability responses per compound
+# ## Strong viability responses
 #
 # Count for each compound the number of IC50s that are lower than 50% of the maximum concentration used for the
 # respective compound
 
-num_resp = assoc.drespo_obj.perform_number_responses(resp_thres=0.5, subset=assoc.samples)
+num_resp_drug = assoc.drespo_obj.perform_number_responses(
+    resp_thres=0.5, subset=assoc.samples
+)
+
+
+# Count for each gene the number of fold-changes (scaled log2) that are lower than -0.5, i.e. have a viability impact
+# lower than 50% of that observed in the set of known essential genes.
+
+num_resp_crispr = assoc.crispr_obj.perform_number_responses(
+    thres=-0.5, subset=assoc.samples
+)
 
 
 # # Drug-response
@@ -79,7 +89,12 @@ plt.show()
 # Max. concentration
 
 plt.figure(figsize=(3, 2), dpi=300)
-DrugPreliminary.histogram_drug_response(num_resp)
+DrugPreliminary.histogram_strong_response(num_resp_drug)
+plt.xlabel("Number of drugs")
+plt.ylabel("Fraction of cell lines")
+plt.title(
+    "Cumulative distribution of drug measurements lower than\n50% of the maximum screened concentration"
+)
 plt.savefig(
     f"{rpath}/preliminary_drug_response_histogram.pdf",
     bbox_inches="tight",
@@ -141,7 +156,7 @@ plt.show()
 
 # Drug-response PCs correlation with growth-rates
 
-plot_df = assoc.samplesheet.growth_corr(pca_drug['column']['pcs'].T)
+plot_df = assoc.samplesheet.growth_corr(pca_drug["column"]["pcs"].T)
 DrugPreliminary.growth_corrs_pcs_barplot(plot_df)
 plt.gcf().set_size_inches(1.5, 1.5)
 plt.savefig(
@@ -194,6 +209,24 @@ plt.show()
 # # CRISPR-Cas9
 
 
+# Cumulative distribution of strong gene essentiality measurements. Strong response measurements are defined as log2
+# scaled fold-changes lower than 50% of that observed in known essential genes.
+
+plt.figure(figsize=(3, 2), dpi=300)
+DrugPreliminary.histogram_strong_response(num_resp_crispr)
+plt.xlabel("Number of cell lines")
+plt.ylabel("Fraction of genes")
+plt.title(
+    "Cumulative distribution of scaled fold-changes lower than\n50% of the effect observed in known essential genes"
+)
+plt.savefig(
+    f"{rpath}/preliminary_crispr_response_histogram.pdf",
+    bbox_inches="tight",
+    transparent=True,
+)
+plt.show()
+
+
 # Principal components of the genes in the CRISPR-Cas9 data-set
 
 plt.figure(figsize=(4, 4), dpi=300)
@@ -240,7 +273,7 @@ plt.show()
 
 # Drug-response PCs correlation with growth-rates
 
-plot_df = assoc.samplesheet.growth_corr(pca_crispr['column']['pcs'].T)
+plot_df = assoc.samplesheet.growth_corr(pca_crispr["column"]["pcs"].T)
 CrisprPreliminary.growth_corrs_pcs_barplot(plot_df)
 plt.gcf().set_size_inches(1.5, 1.5)
 plt.savefig(
@@ -272,7 +305,7 @@ plt.show()
 # Strong essentiality is defined as true if: scaled log2 FC < -0.5 (meaning 50% of the effect of known essential genes).
 
 plt.figure(figsize=(2, 2), dpi=300)
-CrisprPreliminary.corrplot_pcs_essentiality(pca_crispr, assoc.crispr, "PC1")
+CrisprPreliminary.corrplot_pcs_essentiality(pca_crispr, num_resp_crispr, "PC1")
 plt.gcf().set_size_inches(2, 2)
 plt.savefig(
     f"{rpath}/preliminary_crispr_pca_essentiality_corrplot.pdf",
@@ -280,3 +313,5 @@ plt.savefig(
     transparent=True,
 )
 plt.show()
+
+

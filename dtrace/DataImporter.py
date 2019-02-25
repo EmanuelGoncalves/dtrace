@@ -399,6 +399,16 @@ class CRISPR:
 
         return corr
 
+    def perform_number_responses(self, thres=-0.5, subset=None):
+        df = self.filter(subset=subset)
+
+        num_resp = (df < thres).sum(1).reset_index()
+        num_resp.columns = ["GeneSymbol", "n_resp"]
+
+        num_resp.to_csv(f"{dpath}/number_responses_CRISPR.csv", index=False)
+
+        return num_resp
+
     def __merge_qc_arrays(self):
         gdsc_qc = pd.read_csv(
             f"{dpath}/{self.SANGER_QC_FILE}", header=None, index_col=0
@@ -1504,8 +1514,8 @@ class KinobeadCATDS:
         Merge information from the Drug ~ CRISPR LMM associations can only be done if the unstack is True.
 
         :param unstack:
-        :param merge_lmm_info:
         :param assoc:
+        :param fdr_thres:
         :return:
         """
         dmap = self.import_drug_names()

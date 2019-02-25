@@ -18,15 +18,16 @@
 # %load_ext autoreload
 # %autoreload 2
 
+import logging
 import numpy as np
 import pandas as pd
-import seaborn as sns
 import matplotlib.pyplot as plt
-from dtrace import rpath
+from dtrace import rpath, dpath, logger
 from dtrace.DTracePlot import DTracePlot
 from dtrace.Associations import Association
 from dtrace.DataImporter import KinobeadCATDS
 from dtrace.TargetBenchmark import TargetBenchmark
+from dtrace.DTraceEnrichment import DTraceEnrichment
 
 
 # ### Import data-sets and associations
@@ -459,3 +460,18 @@ for d, t, o, e in ppi_examples:
 
 catds = KinobeadCATDS(assoc=assoc).get_data()
 
+
+#
+
+e3_ligases = pd.read_excel(f"{dpath}/ubq/Definite Ligase List.xlsx")
+plot_df = assoc.lmm_drug_crispr.query(f"fdr < {target.fdr}")
+plot_df["ligase"] = plot_df["GeneSymbol"].isin(e3_ligases["Gene Symbol"]).astype(int)
+
+background = set(assoc.lmm_drug_crispr["GeneSymbol"])
+signature = set(e3_ligases["Gene Symbol"]).intersection(background)
+sublist = set(plot_df["GeneSymbol"]).intersection(background)
+
+pval, int_len = DTraceEnrichment.hypergeom_test(
+    signature=signature, background=background, sublist=sublist
+)
+logger.log(logging.INFO, f"E3 ligases hypergeom: {pval:.2e} (intersection={int_len})")

@@ -15,9 +15,9 @@ from crispy.qc_plot import QCplot
 from matplotlib.lines import Line2D
 from scipy.stats import gaussian_kde
 from dtrace.DTracePlot import DTracePlot
-from sklearn.preprocessing import MinMaxScaler
+from scipy.stats import mannwhitneyu, gmean
 from dtrace.DataImporter import KinobeadCATDS
-from scipy.stats import ttest_ind, mannwhitneyu, gmean
+from sklearn.preprocessing import MinMaxScaler
 
 
 class TargetBenchmark(DTracePlot):
@@ -165,20 +165,20 @@ class TargetBenchmark(DTracePlot):
             return "#bbbbbb"
 
     def boxplot_kinobead(self):
-        catds = KinobeadCATDS(assoc=self.assoc).get_data()
-
-        #
-        t, p = mannwhitneyu(
-            catds.query("signif == 'Yes'")["catds"],
-            catds.query("signif == 'No'")["catds"],
-        )
-
-        logger.log(logging.INFO, f"Mann-Whitney U statistic={t:.2f}, p-value={p:.2e}")
-
-        # Plot
         order = ["No", "Yes"]
         pal = {"No": self.PAL_DTRACE[1], "Yes": self.PAL_DTRACE[0]}
 
+        #
+        catds = KinobeadCATDS(assoc=self.assoc).get_data().dropna()
+
+        #
+        catds_signif = {s: catds.query(f"signif == '{s}'")["catds"] for s in order}
+
+        #
+        t, p = mannwhitneyu(catds_signif["Yes"], catds_signif["No"])
+        logger.log(logging.INFO, f"Mann-Whitney U statistic={t:.2f}, p-value={p:.2e}")
+
+        # Plot
         ax = sns.boxplot(
             catds["catds"],
             catds["signif"],
@@ -191,22 +191,8 @@ class TargetBenchmark(DTracePlot):
             orient="h",
         )
 
-        ax.scatter(
-            gmean(catds.query("signif == 'Yes'")["catds"]),
-            1,
-            marker="+",
-            lw=0.3,
-            color="k",
-            s=3,
-        )
-        ax.scatter(
-            gmean(catds.query("signif == 'No'")["catds"]),
-            0,
-            marker="+",
-            lw=0.3,
-            color="k",
-            s=3,
-        )
+        for i, s in enumerate(order):
+            ax.scatter(gmean(catds_signif[s]), i, marker="+", lw=0.3, color="k", s=3)
 
         ax.set_xscale("log")
 
@@ -218,33 +204,23 @@ class TargetBenchmark(DTracePlot):
         kde_kws = dict(cut=0, lw=1, zorder=1, alpha=0.8)
         hist_kws = dict(alpha=0.4, zorder=1, linewidth=0)
 
-        sns.distplot(
-            self.assoc.lmm_drug_crispr.query("target != 'T'")["beta"],
-            color=self.PAL_DTRACE[2],
-            kde_kws=kde_kws,
-            hist_kws=hist_kws,
-            label="All",
-            bins=30,
-        )
+        plot_df = {
+            c: self.assoc.lmm_drug_crispr.query(f"target {c} 'T'")["beta"]
+            for c in ["!=", "=="]
+        }
 
-        sns.distplot(
-            self.assoc.lmm_drug_crispr.query("target == 'T'")["beta"],
-            color=self.PAL_DTRACE[0],
-            kde_kws=kde_kws,
-            hist_kws=hist_kws,
-            label="Target",
-            bins=30,
-        )
+        for c in plot_df:
+            sns.distplot(
+                plot_df[c],
+                hist_kws=hist_kws,
+                bins=30,
+                kde_kws=kde_kws,
+                label="Target" if c == "==" else "All",
+                color=self.PAL_DTRACE[0] if c == "==" else self.PAL_DTRACE[2],
+            )
 
-        mannwhitneyu(
-            self.assoc.lmm_drug_crispr.query("target != 'T'")["beta"],
-            self.assoc.lmm_drug_crispr.query("target == 'T'")["beta"],
-        )
-        ttest_ind(
-            self.assoc.lmm_drug_crispr.query("target != 'T'")["beta"],
-            self.assoc.lmm_drug_crispr.query("target == 'T'")["beta"],
-            equal_var=False,
-        )
+        t, p = mannwhitneyu(plot_df["!="], plot_df["=="])
+        logger.log(logging.INFO, f"Mann-Whitney U statistic={t:.2f}, p-value={p:.2e}")
 
         plt.axvline(0, c=self.PAL_DTRACE[1], lw=0.3, ls="-", zorder=0)
 
@@ -256,23 +232,20 @@ class TargetBenchmark(DTracePlot):
     def pval_histogram(self):
         hist_kws = dict(alpha=0.5, zorder=1, linewidth=0.3, density=True)
 
-        sns.distplot(
-            self.assoc.lmm_drug_crispr.query("target != 'T'")["pval"],
-            hist_kws=hist_kws,
-            bins=30,
-            kde=False,
-            label="All",
-            color=self.PAL_DTRACE[2],
-        )
+        plot_df = {
+            c: self.assoc.lmm_drug_crispr.query(f"target {c} 'T'")["beta"]
+            for c in ["!=", "=="]
+        }
 
-        sns.distplot(
-            self.assoc.lmm_drug_crispr.query("target == 'T'")["pval"],
-            hist_kws=hist_kws,
-            bins=30,
-            kde=False,
-            label="Target",
-            color=self.PAL_DTRACE[0],
-        )
+        for c in plot_df:
+            sns.distplot(
+                plot_df[c],
+                hist_kws=hist_kws,
+                bins=30,
+                kde=False,
+                label="Target" if c == "==" else "All",
+                color=self.PAL_DTRACE[0] if c == "==" else self.PAL_DTRACE[2],
+            )
 
         plt.xlabel("Association p-value")
         plt.ylabel("Density")

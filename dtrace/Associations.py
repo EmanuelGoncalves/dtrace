@@ -803,34 +803,3 @@ class Association:
         df = pd.concat(df, axis=1, sort=False)
 
         return df
-
-
-if __name__ == "__main__":
-    assoc = Association(dtype="ic50")
-
-    # - Associations with drug-response
-    lmm_dsingle = assoc.lmm_single_associations()
-    lmm_dsingle.sort_values(["fdr", "pval"]).to_csv(
-        assoc.lmm_drug_crispr_file, index=False, compression="gzip"
-    )
-
-    lmm_dgexp = assoc.lmm_gexp_drug()
-    lmm_dgexp.sort_values(["fdr", "pval"]).to_csv(
-        assoc.lmm_drug_gexp_file, index=False, compression="gzip"
-    )
-
-    lmm_dgenomic = assoc.lmm_single_associations_genomic()
-    lmm_dgenomic.sort_values(["fdr", "pval"]).to_csv(
-        assoc.lmm_drug_genomic_file, index=False, compression="gzip"
-    )
-
-    # - Robust associations
-    lmm_robust = assoc.lmm_robust_association(lmm_dsingle, is_gexp=False)
-    lmm_robust.sort_values(["drug_fdr", "drug_pval"]).to_csv(
-        assoc.lmm_robust_genomic_file, index=False, compression="gzip"
-    )
-
-    lmm_robust_gexp = assoc.lmm_robust_association(lmm_dsingle, is_gexp=True)
-    lmm_robust_gexp.sort_values(["drug_fdr", "drug_pval"]).to_csv(
-        assoc.lmm_robust_gexp_file, index=False, compression="gzip"
-    )

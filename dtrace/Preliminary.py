@@ -9,6 +9,8 @@ from DTracePlot import DTracePlot
 
 
 class Preliminary(DTracePlot):
+    HIST_KDE_KWS = dict(cumulative=True, cut=0)
+
     @classmethod
     def _pairplot_fix_labels(cls, g, pca, by):
         for i, ax in enumerate(g.axes):
@@ -150,11 +152,21 @@ class Preliminary(DTracePlot):
             "{} ({:.1f}%)".format(pc, vexp * 100), "Growth rate\n(median day 1 / day 4)"
         )
 
+    @classmethod
+    def histogram_strong_response(cls, df):
+        sns.distplot(
+            df["n_resp"],
+            color=cls.PAL_DTRACE[2],
+            hist=False,
+            kde_kws=cls.HIST_KDE_KWS,
+            label=None,
+        )
+
+        plt.legend().remove()
+
 
 class DrugPreliminary(Preliminary):
     DRUG_PAL = dict(v17=Preliminary.PAL_DTRACE[2], RS=Preliminary.PAL_DTRACE[0])
-
-    HIST_KDE_KWS = dict(cumulative=True, cut=0)
 
     @classmethod
     def histogram_drug(cls, drug_count):
@@ -192,25 +204,6 @@ class DrugPreliminary(Preliminary):
         plt.ylabel(f"Fraction of {df.shape[0]} cell lines")
 
         plt.title("Cumulative distribution of drug measurements")
-
-        plt.legend().remove()
-
-    @classmethod
-    def histogram_drug_response(cls, df):
-        sns.distplot(
-            df["n_resp"],
-            color=cls.PAL_DTRACE[2],
-            hist=False,
-            kde_kws=cls.HIST_KDE_KWS,
-            label=None,
-        )
-
-        plt.xlabel("Number of drugs")
-        plt.ylabel("Fraction")
-
-        plt.title(
-            "Cumulative distribution of drug measurements lower than\n50% of the maximum screened concentration"
-        )
 
         plt.legend().remove()
 
@@ -264,9 +257,13 @@ class DrugPreliminary(Preliminary):
 
 class CrisprPreliminary(Preliminary):
     @classmethod
-    def corrplot_pcs_essentiality(cls, pca, crispr, pc):
+    def corrplot_pcs_essentiality(cls, pca, num_resp_crispr, pc):
         df = pd.concat(
-            [pca["row"]["pcs"], (crispr < -0.5).sum(1).rename("count")], axis=1
+            [
+                pca["row"]["pcs"][pc],
+                num_resp_crispr.set_index("GeneSymbol"),
+            ],
+            axis=1,
         )
 
         annot_kws = dict(stat="R", loc=2)
@@ -277,7 +274,7 @@ class CrisprPreliminary(Preliminary):
         joint_kws = dict(lowess=True, scatter_kws=scatter_kws, line_kws=line_kws)
 
         g = sns.jointplot(
-            "count",
+            "n_resp",
             pc,
             data=df,
             kind="reg",
