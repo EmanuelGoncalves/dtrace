@@ -267,5 +267,3 @@ plt.gcf().set_size_inches(1.5, 1.5)
 plt.savefig(
     f"{rpath}/hit_scatter_{d}_{c}_amp.pdf", bbox_inches="tight", transparent=True
 )
-
-
