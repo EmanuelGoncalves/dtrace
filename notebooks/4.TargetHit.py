@@ -88,8 +88,8 @@ for g in ["MCL1", "MARCH5"]:
 # Associations effect sizes (betas) of inhibitors of BCL family members (MCL1, BCL2L1/BCL-XL and BCL2) drug-response
 # with gene-essentiality and gene-expression.
 
+plt.figure(figsize=(1.5, 1.5), dpi=300)
 hit.plot_drug_crispr_gexp(["MCL1", "BCL2", "BCL2L1"])
-plt.gcf().set_size_inches(1.5, 1.5)
 plt.savefig(f"{rpath}/hit_BCLi_crispr~gexp.pdf", bbox_inches="tight", transparent=True)
 
 
@@ -117,12 +117,12 @@ features = [
 ]
 drug_lms = hit.predict_drugresponse(assoc, features)
 
+plt.figure(figsize=(1.5, 2.5), dpi=300)
 hit.predict_r2_barplot(drug_lms)
-plt.gcf().set_size_inches(1.5, 2.5)
 plt.savefig(f"{rpath}/hit_rsqaured_barplot.pdf", bbox_inches="tight", transparent=True)
 
+plt.figure(figsize=(1.5, 3), dpi=300)
 hit.predict_feature_plot(drug_lms)
-plt.gcf().set_size_inches(1.5, 3)
 plt.savefig(
     f"{rpath}/hit_features_stripplot.pdf", bbox_inches="tight", transparent=True
 )
@@ -193,7 +193,7 @@ for drug in [(1956, "MCL1_1284", "RS"), (2235, "AZD5991", "RS")]:
 
     ctypes = ["Colorectal Carcinoma", "Breast Carcinoma"]
 
-    fig, axs = plt.subplots(1, len(ctypes), sharey="all", sharex="all")
+    fig, axs = plt.subplots(1, len(ctypes), sharey="all", sharex="all", dpi=300)
 
     for i, tissue in enumerate(ctypes):
         df = plot_df.query(f"ctype == '{tissue}'")

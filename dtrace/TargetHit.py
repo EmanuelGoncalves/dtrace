@@ -65,7 +65,7 @@ class TargetHit(DTracePlot):
         df = pd.concat(df_).reset_index()
 
         # Plot
-        fig, ax = plt.subplots(1, 1)
+        fig, ax = plt.subplots(1, 1, dpi=300)
 
         plot_df = df.query("target != 'T'")
         ax.bar(
@@ -131,7 +131,6 @@ class TargetHit(DTracePlot):
                 zorder=10,
             )
 
-        sns.despine(right=True, top=True, ax=ax)
         ax.axes.get_xaxis().set_ticks([])
 
     def plot_target_drugs_corr(self, data, gene, order=None):
@@ -143,7 +142,7 @@ class TargetHit(DTracePlot):
                 )[self.dinfo].values
             ]
 
-        fig, axs = plt.subplots(1, len(order), sharey="all")
+        fig, axs = plt.subplots(1, len(order), sharey="all", dpi=300)
 
         for i, d in enumerate(order):
             plot_df = pd.concat(
@@ -427,7 +426,7 @@ class TargetHit(DTracePlot):
         nrows = 2
         ncols = int(len(self.drugs) / nrows)
 
-        fig, axs = plt.subplots(nrows, ncols, sharex="all", sharey="all")
+        fig, axs = plt.subplots(nrows, ncols, sharex="all", sharey="all", dpi=300)
 
         for i, d in enumerate(self.drugs):
             ax = axs[i % nrows, int(np.floor(i / nrows))]
@@ -447,8 +446,6 @@ class TargetHit(DTracePlot):
                 palette=pal,
                 ax=ax,
             )
-
-            sns.despine(ax=ax)
 
             dmax = np.log(data.drespo_obj.maxconcentration[d])
             ax.axvline(dmax, linewidth=0.3, color=self.PAL_DTRACE[2], ls=":", zorder=0)
