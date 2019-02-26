@@ -98,3 +98,6 @@ lmm_robust_gexp = assoc.lmm_robust_association(lmm_dsingle, is_gexp=True)
 lmm_robust_gexp.sort_values(["drug_fdr", "drug_pval"]).to_csv(
     assoc.lmm_robust_gexp_file, index=False, compression="gzip",
 )
+
+
+# Copyright (C) 2019 Emanuel Goncalves

@@ -13,7 +13,7 @@
 #     name: python3
 # ---
 
-# %matplotlib inline
+# %matplotlib notebook
 # %autosave 0
 # %load_ext autoreload
 # %autoreload 2
@@ -74,15 +74,18 @@ num_resp_crispr = assoc.crispr_obj.perform_number_responses(
 
 # Drug-response (IC50s) measurements across cell lines cumulative distribution
 
+# +
 DrugPreliminary.histogram_drug(assoc.drespo.count(1))
+
 plt.gcf().set_size_inches(3, 1.5)
 plt.savefig(
     f"{rpath}/preliminary_drug_histogram_drug.pdf",
     bbox_inches="tight",
     transparent=True,
 )
-plt.figure(figsize=(3, 2), dpi=300)
+
 plt.show()
+# -
 
 
 # Cumulative distribution of strong drug-response measurements. Strong response measurements are defined as IC50 < 50%
@@ -315,3 +318,4 @@ plt.savefig(
 plt.show()
 
 
+# Copyright (C) 2019 Emanuel Goncalves

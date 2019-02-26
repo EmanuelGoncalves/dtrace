@@ -218,3 +218,4 @@ for d, c, g in rassocs:
     plt.show()
 
 
+# Copyright (C) 2019 Emanuel Goncalves

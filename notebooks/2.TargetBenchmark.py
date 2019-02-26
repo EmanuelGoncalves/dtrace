@@ -476,3 +476,6 @@ pval, int_len = DTraceEnrichment.hypergeom_test(
     signature=signature, background=background, sublist=sublist
 )
 logger.log(logging.INFO, f"E3 ligases hypergeom: {pval:.2e} (intersection={int_len})")
+
+
+# Copyright (C) 2019 Emanuel Goncalves
