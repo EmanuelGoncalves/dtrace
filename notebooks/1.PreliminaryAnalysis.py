@@ -13,7 +13,7 @@
 #     name: python3
 # ---
 
-# %matplotlib notebook
+# %matplotlib inline
 # %autosave 0
 # %load_ext autoreload
 # %autoreload 2
@@ -74,27 +74,24 @@ num_resp_crispr = assoc.crispr_obj.perform_number_responses(
 
 # Drug-response (IC50s) measurements across cell lines cumulative distribution
 
-# +
+plt.figure(figsize=(3, 1.5), dpi=300)
 DrugPreliminary.histogram_drug(assoc.drespo.count(1))
-
 plt.gcf().set_size_inches(3, 1.5)
 plt.savefig(
     f"{rpath}/preliminary_drug_histogram_drug.pdf",
     bbox_inches="tight",
     transparent=True,
 )
-
 plt.show()
-# -
 
 
 # Cumulative distribution of strong drug-response measurements. Strong response measurements are defined as IC50 < 50%
 # Max. concentration
 
-plt.figure(figsize=(3, 2), dpi=300)
+plt.figure(figsize=(3, 1.5), dpi=300)
 DrugPreliminary.histogram_strong_response(num_resp_drug)
-plt.xlabel("Number of drugs")
-plt.ylabel("Fraction of cell lines")
+plt.xlabel("Number of cell lines screened")
+plt.ylabel("Fraction of drugs")
 plt.title(
     "Cumulative distribution of drug measurements lower than\n50% of the maximum screened concentration"
 )
@@ -108,7 +105,7 @@ plt.show()
 
 # Cumulative distribution of samples with measurements across all compounds screened
 
-plt.figure(figsize=(3, 2), dpi=300)
+plt.figure(figsize=(3, 1.5), dpi=300)
 DrugPreliminary.histogram_sample(assoc.drespo.count(0))
 plt.savefig(
     f"{rpath}/preliminary_drug_histogram_samples.pdf",
@@ -120,7 +117,6 @@ plt.show()
 
 # Principal components of drugs
 
-plt.figure(figsize=(4, 4), dpi=300)
 DrugPreliminary.pairplot_pca_by_rows(pca_drug)
 plt.suptitle("PCA drug response (Drugs)", y=1.05, fontsize=9)
 plt.savefig(
@@ -131,7 +127,6 @@ plt.show()
 
 # Principal components of samples in the drug-response
 
-plt.figure(figsize=(4, 4), dpi=300)
 DrugPreliminary.pairplot_pca_by_columns(pca_drug)
 plt.suptitle("PCA drug response (Cell lines)", y=1.05, fontsize=9)
 plt.savefig(
@@ -144,7 +139,6 @@ plt.show()
 
 # Principal components of samples in the drug-response coloured by cancer type
 
-plt.figure(figsize=(4, 4), dpi=300)
 DrugPreliminary.pairplot_pca_samples_cancertype(
     pca_drug, assoc.samplesheet.samplesheet["cancer_type"]
 )
@@ -159,24 +153,26 @@ plt.show()
 
 # Drug-response PCs correlation with growth-rates
 
+# +
 plot_df = assoc.samplesheet.growth_corr(pca_drug["column"]["pcs"].T)
+
+plt.figure(figsize=(1.5, 1.5), dpi=300)
 DrugPreliminary.growth_corrs_pcs_barplot(plot_df)
-plt.gcf().set_size_inches(1.5, 1.5)
 plt.savefig(
     f"{rpath}/preliminary_drug_pca_growth_pcs_barplot.pdf",
     bbox_inches="tight",
     transparent=True,
 )
 plt.show()
+# -
 
 
 # Samples drug-response PC1 correlation with growth-rate
 
-plt.figure(figsize=(2, 2), dpi=300)
-DrugPreliminary.corrplot_pcs_growth(
+g = DrugPreliminary.corrplot_pcs_growth(
     pca_drug, assoc.samplesheet.samplesheet["growth"], "PC1"
 )
-plt.gcf().set_size_inches(2, 2)
+g.fig.set_size_inches(1.5, 1.5)
 plt.savefig(
     f"{rpath}/preliminary_drug_pca_growth_corrplot.pdf",
     bbox_inches="tight",
@@ -276,9 +272,9 @@ plt.show()
 
 # Drug-response PCs correlation with growth-rates
 
+plt.figure(figsize=(1.5, 1.5), dpi=300)
 plot_df = assoc.samplesheet.growth_corr(pca_crispr["column"]["pcs"].T)
 CrisprPreliminary.growth_corrs_pcs_barplot(plot_df)
-plt.gcf().set_size_inches(1.5, 1.5)
 plt.savefig(
     f"{rpath}/preliminary_crispr_pca_growth_pcs_barplot.pdf",
     bbox_inches="tight",
@@ -289,11 +285,10 @@ plt.show()
 
 # CRISPR samples principal component correlation with growth rates
 
-plt.figure(figsize=(2, 2), dpi=300)
 CrisprPreliminary.corrplot_pcs_growth(
     pca_crispr, assoc.samplesheet.samplesheet["growth"], "PC4"
 )
-plt.gcf().set_size_inches(2, 2)
+plt.gcf().set_size_inches(1.5, 1.5)
 plt.savefig(
     f"{rpath}/preliminary_crispr_pca_growth_corrplot.pdf",
     bbox_inches="tight",
@@ -307,7 +302,6 @@ plt.show()
 # Correlation CRISPR genes PC1 with number of times a gene has a strong essentiality profile across the cell lines.
 # Strong essentiality is defined as true if: scaled log2 FC < -0.5 (meaning 50% of the effect of known essential genes).
 
-plt.figure(figsize=(2, 2), dpi=300)
 CrisprPreliminary.corrplot_pcs_essentiality(pca_crispr, num_resp_crispr, "PC1")
 plt.gcf().set_size_inches(2, 2)
 plt.savefig(
@@ -319,3 +313,5 @@ plt.show()
 
 
 # Copyright (C) 2019 Emanuel Goncalves
+
+

@@ -152,6 +152,8 @@ class Preliminary(DTracePlot):
             "{} ({:.1f}%)".format(pc, vexp * 100), "Growth rate\n(median day 1 / day 4)"
         )
 
+        return g
+
     @classmethod
     def histogram_strong_response(cls, df):
         sns.distplot(

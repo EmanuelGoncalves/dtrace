@@ -423,7 +423,7 @@ class TargetBenchmark(DTracePlot):
             if i % n_cols == 0:
                 xpos = 0
 
-            df_drug = df[df["DRUG_NAME"] == drug_name]
+            df_drug = df[df["DRUG_NAME"] == drug_name].head(10)
             df_drug = df_drug.assign(xpos=np.arange(xpos, xpos + df_drug.shape[0]))
             df_drug = df_drug.assign(irow=int(np.floor(i / n_cols)))
 
@@ -440,6 +440,7 @@ class TargetBenchmark(DTracePlot):
             sharex="none",
             sharey="all",
             gridspec_kw=dict(hspace=0.0),
+            dpi=300
         )
 
         # Barplot
@@ -558,7 +559,7 @@ class TargetBenchmark(DTracePlot):
         label_fdr = "Significant"
 
         f, axs = plt.subplots(
-            1, len(chrms), sharex="none", sharey="row", gridspec_kw=dict(wspace=0)
+            1, len(chrms), sharex="none", sharey="row", gridspec_kw=dict(wspace=0), figsize=(8, 3), dpi=300
         )
         for i, name in enumerate(natsorted(chrms)):
             df_group = df[df["chr"] == name]
@@ -603,6 +604,7 @@ class TargetBenchmark(DTracePlot):
             axs[i].axes.get_xaxis().set_ticks([])
             axs[i].set_xlabel(name)
             axs[i].set_ylim(0)
+            axs[i].grid(axis="y", lw=0.1, color=self.PAL_DTRACE[1], zorder=0)
 
             if i == 0:
                 sns.despine(ax=axs[i], right=True, top=False)

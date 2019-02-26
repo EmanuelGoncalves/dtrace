@@ -1496,14 +1496,14 @@ class KinobeadCATDS:
         fdr_thres=0.1,
         unstack=True,
     ):
+        self.ppi_order = ["T", "1", "2", "3", "4", "5+", "-"]
+
         self.catds_most_potent_file = catds_most_potent_file
         self.catds_matrix_file = catds_matrix_file
 
         self.catds = self.import_matrix(
             unstack=unstack, assoc=assoc, fdr_thres=fdr_thres
         )
-
-        self.ppi_order = ["T", "1", "2", "3", "4", "5+", "-"]
 
     def import_matrix(self, unstack, assoc, fdr_thres):
         """

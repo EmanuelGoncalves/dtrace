@@ -56,23 +56,23 @@ assoc.lmm_drug_gexp.head(15)
 # mode-of-action.
 
 target.manhattan_plot(n_genes=20)
-plt.gcf().set_size_inches(10, 4.2)
 plt.savefig(
-    f"{rpath}/drug_associations_manhattan.png",
+    f"{rpath}/target_benchmark_manhattan.png",
     bbox_inches="tight",
     transparent=True,
     dpi=300,
 )
+plt.show()
 
 
 # Volcano plot of the significant associations.
 
-plt.figure(figsize=(10, 20), dpi=300)
+plt.figure(figsize=(1.5, 3), dpi=300)
 target.signif_volcano()
-plt.gcf().set_size_inches(1.5, 3)
 plt.savefig(
     f"{rpath}/target_benchmark_volcano.pdf", bbox_inches="tight", transparent=True
 )
+plt.show()
 
 
 # Top 50 most strongly correlated drugs
@@ -148,8 +148,8 @@ for dg in dgs:
 # Zecha J, Reiter K, Qiao H, Helm D, Koch H, Schoof M, Canevari G, Casale E, Depaolini SR, Feuchtinger A, et al. (2017)
 # The target landscape of clinical kinase drugs. Science 358: eaan4368
 
+plt.figure(figsize=(2.5, 0.75), dpi=300)
 target.boxplot_kinobead()
-plt.gcf().set_size_inches(2.5, 0.75)
 plt.savefig(
     f"{rpath}/target_benchmark_kinobeads.pdf", bbox_inches="tight", transparent=True
 )
@@ -157,8 +157,8 @@ plt.savefig(
 
 # Association effect sizes with between drugs and their know targets
 
+plt.figure(figsize=(2, 2), dpi=300)
 target.beta_histogram()
-plt.gcf().set_size_inches(2, 2)
 plt.savefig(
     f"{rpath}/target_benchmark_beta_histogram.pdf", bbox_inches="tight", transparent=True
 )
@@ -166,8 +166,8 @@ plt.savefig(
 
 # P-value histogram of the Drug-Genes associations highlighting Drug-Target associations.
 
+plt.figure(figsize=(2, 1), dpi=300)
 target.pval_histogram()
-plt.gcf().set_size_inches(3, 2)
 plt.savefig(
     f"{rpath}/target_benchmark_pval_histogram.pdf", bbox_inches="tight", transparent=True
 )
@@ -178,7 +178,7 @@ plt.savefig(
 
 for dtype in ["crispr", "gexp"]:
 
-    fig, axs = plt.subplots(2, 1)
+    fig, axs = plt.subplots(2, 1, figsize=(2.5, 5), dpi=300)
 
     # Boxplot
     target.drugs_ppi(dtype, ax=axs[0])
@@ -193,7 +193,6 @@ for dtype in ["crispr", "gexp"]:
     axs[1].set_xlabel("Associated gene position in PPI")
     axs[1].set_ylabel("Number of associations")
 
-    plt.gcf().set_size_inches(2.5, 5)
     plt.savefig(
         f"{rpath}/target_benchmark_ppi_distance_{dtype}.pdf",
         bbox_inches="tight",
@@ -203,8 +202,8 @@ for dtype in ["crispr", "gexp"]:
 
 # Background distribution of all Drug-Gene associations tested.
 
+plt.figure(figsize=(2.5, 2.5), dpi=300)
 target.drugs_ppi_countplot_background()
-plt.gcf().set_size_inches(2.5, 2.5)
 plt.savefig(
     f"{rpath}/target_benchmark_ppi_distance_{dtype}_countplot_bkg.pdf",
     bbox_inches="tight",
@@ -215,8 +214,8 @@ plt.savefig(
 # Breakdown numbers of (i) all the drugs screened, (ii) unique drugs, (iii) their annotation status, and (iv) those
 # which at least one of the canonical targets were targeted with the CRISPR-Cas9 screen.
 
+plt.figure(figsize=(2, 0.75), dpi=300)
 target.countplot_drugs()
-plt.gcf().set_size_inches(2, 0.75)
 plt.savefig(
     f"{rpath}/target_benchmark_association_countplot.pdf",
     bbox_inches="tight",
@@ -226,8 +225,8 @@ plt.savefig(
 
 # Histogram of drugs with at least one significant association across the protein-protein network
 
+plt.figure(figsize=(2, 1), dpi=300)
 target.countplot_drugs_significant()
-plt.gcf().set_size_inches(2, 1)
 plt.savefig(
     f"{rpath}/target_benchmark_association_signif_countplot.pdf",
     bbox_inches="tight",
@@ -237,8 +236,8 @@ plt.savefig(
 
 # Pie chart of significant associations per unique durgs ordered by distance in the PPI
 
+plt.figure(figsize=(2, 2), dpi=300)
 target.pichart_drugs_significant()
-plt.gcf().set_size_inches(2, 2)
 plt.savefig(
     f"{rpath}/target_benchmark_association_signif_piechart.pdf",
     bbox_inches="tight",
@@ -249,8 +248,8 @@ plt.savefig(
 # Heatmap counting the number of drugs which have a significant association with CRISPR and/or target a core-essential
 # gene.
 
+plt.figure(figsize=(1, 1), dpi=300)
 target.signif_essential_heatmap()
-plt.gcf().set_size_inches(1, 1)
 plt.savefig(
     f"{rpath}/target_benchmark_signif_essential_heatmap.pdf",
     bbox_inches="tight",
@@ -261,8 +260,8 @@ plt.savefig(
 # Number of significant associations found with drugs from the two different types of screening proceedures, i.e. RS
 # and V17.
 
+plt.figure(figsize=(0.75, 1.5), dpi=300)
 target.signif_per_screen()
-plt.gcf().set_size_inches(0.75, 1.5)
 plt.savefig(
     f"{rpath}/target_benchmark_significant_by_screen.pdf",
     bbox_inches="tight",
@@ -272,8 +271,8 @@ plt.savefig(
 
 # Heatmap counting the number of drugs which have a significant association with CRISPR and/or with a genomic marker
 
+plt.figure(figsize=(1, 1), dpi=300)
 target.signif_genomic_markers()
-plt.gcf().set_size_inches(1, 1)
 plt.savefig(
     f"{rpath}/target_benchmark_signif_genomic_heatmap.pdf",
     bbox_inches="tight",
@@ -295,8 +294,8 @@ plt.savefig(
 
 # Drug-Gene CRISPR associations p-value (-log10) versus Drug-Genomic associations p-value (-log10).
 
+plt.figure(figsize=(2, 2), dpi=300)
 target.signif_fdr_scatter()
-plt.gcf().set_size_inches(2, 2)
 plt.savefig(
     f"{rpath}/target_benchmark_signif_fdr_scatter.pdf",
     bbox_inches="tight",
@@ -319,8 +318,8 @@ drugs = [
 ]
 
 for d in drugs:
+    plt.figure(figsize=(1.5, 2), dpi=300)
     target.drug_top_associations(d, fdr_thres=0.25)
-    plt.gcf().set_size_inches(1.5, 2)
     plt.savefig(
         f"{rpath}/target_benchmark_{d}_top_associations_barplot.pdf",
         bbox_inches="tight",
@@ -335,9 +334,8 @@ for d in drugs:
 genes = ["STAG1", "LIG1", "FLI1", "PARP1", "PARP2", "PARP3", "PCGF5", "XRCC1", "RHNO1"]
 
 for drug in ["Olaparib", "Talazoparib"]:
+    plt.figure(figsize=(2, 1.5), dpi=300)
     target.drug_notarget_barplot(drug, genes)
-
-    plt.gcf().set_size_inches(2, 1.5)
     plt.savefig(
         f"{rpath}/target_benchmark_drug_notarget_{drug}.pdf",
         bbox_inches="tight",
@@ -363,7 +361,9 @@ plt.savefig(
 )
 
 
+plt.figure(figsize=(2, 2), dpi=300)
 target.lmm_betas_clustermap_legend()
+plt.axis('off')
 plt.savefig(
     f"{rpath}/target_benchmark_clustermap_betas_crispr_legend.pdf", bbox_inches="tight"
 )
@@ -460,22 +460,6 @@ for d, t, o, e in ppi_examples:
 
 catds = KinobeadCATDS(assoc=assoc).get_data()
 catds.sort_values("catds").head(15)
-
-
-# E3 ligases enrichment within the significant associated gene-products
-
-e3_ligases = pd.read_excel(f"{dpath}/ubq/Definite Ligase List.xlsx")
-plot_df = assoc.lmm_drug_crispr.query(f"fdr < {target.fdr}")
-plot_df["ligase"] = plot_df["GeneSymbol"].isin(e3_ligases["Gene Symbol"]).astype(int)
-
-background = set(assoc.lmm_drug_crispr["GeneSymbol"])
-signature = set(e3_ligases["Gene Symbol"]).intersection(background)
-sublist = set(plot_df["GeneSymbol"]).intersection(background)
-
-pval, int_len = DTraceEnrichment.hypergeom_test(
-    signature=signature, background=background, sublist=sublist
-)
-logger.log(logging.INFO, f"E3 ligases hypergeom: {pval:.2e} (intersection={int_len})")
 
 
 # Copyright (C) 2019 Emanuel Goncalves
