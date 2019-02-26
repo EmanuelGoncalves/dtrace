@@ -102,28 +102,13 @@ class Association:
         # Load associations
         if load_associations:
             self.lmm_drug_crispr = pd.read_csv(self.lmm_drug_crispr_file)
-            self.lmm_drug_crispr["target"] = pd.Categorical(
-                self.lmm_drug_crispr["target"], self.ppi_order, ordered=True
-            )
-
             self.lmm_drug_gexp = pd.read_csv(self.lmm_drug_gexp_file)
-            self.lmm_drug_gexp["target"] = pd.Categorical(
-                self.lmm_drug_gexp["target"], self.ppi_order, ordered=True
-            )
-
             self.lmm_drug_genomic = pd.read_csv(self.lmm_drug_genomic_file)
 
         # Load robust associations
         if load_robust:
             self.lmm_robust_gexp = pd.read_csv(self.lmm_robust_gexp_file)
-            self.lmm_robust_gexp["target"] = pd.Categorical(
-                self.lmm_robust_gexp["target"], self.ppi_order, ordered=True
-            )
-
             self.lmm_robust_genomic = pd.read_csv(self.lmm_robust_genomic_file)
-            self.lmm_robust_genomic["target"] = pd.Categorical(
-                self.lmm_robust_genomic["target"], self.ppi_order, ordered=True
-            )
 
         # Load PPI
         if load_ppi:
@@ -719,7 +704,7 @@ class Association:
         :return:
         """
 
-        df = associations
+        df = associations.copy()
 
         if fdr is not None:
             if fdr_reverse:

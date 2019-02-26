@@ -233,7 +233,7 @@ class TargetBenchmark(DTracePlot):
         hist_kws = dict(alpha=0.5, zorder=1, linewidth=0.3, density=True)
 
         plot_df = {
-            c: self.assoc.lmm_drug_crispr.query(f"target {c} 'T'")["beta"]
+            c: self.assoc.lmm_drug_crispr.query(f"target {c} 'T'")["pval"]
             for c in ["!=", "=="]
         }
 

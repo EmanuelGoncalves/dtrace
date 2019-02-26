@@ -11,6 +11,7 @@ import crispy as cy
 from dtrace import logger, dpath
 from sklearn.decomposition import PCA
 from dtrace.DTracePlot import DTracePlot
+from dtrace.TargetBenchmark import TargetBenchmark
 
 
 class DataPCA:
@@ -1542,6 +1543,9 @@ class KinobeadCATDS:
         assoc_df = assoc.lmm_drug_crispr.copy()
         assoc_df = assoc_df[assoc_df["DRUG_NAME"].isin(catds["DRUG_NAME"])]
         assoc_df = assoc_df[assoc_df["GeneSymbol"].isin(catds["GeneSymbol"])]
+        assoc_df["target"] = pd.Categorical(
+            assoc_df["target"], TargetBenchmark.PPI_ORDER, ordered=True
+        )
 
         catds_index = catds.set_index(["DRUG_NAME", "GeneSymbol"]).index
 

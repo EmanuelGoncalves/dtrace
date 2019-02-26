@@ -393,7 +393,7 @@ for dg in dgs:
     plot_df["Institute"] = "Sanger"
 
     g = DTracePlot.plot_corrplot(
-        "crispr", "drug", "Institute", plot_df, add_hline=True, annot_text=annot_text
+        "crispr", "drug", "Institute", plot_df, add_hline=False, add_vline=False, annot_text=annot_text
     )
 
     g.ax_joint.axhline(
@@ -456,12 +456,13 @@ for d, t, o, e in ppi_examples:
     graph.write_pdf(f"{rpath}/association_ppi_{d}.pdf")
 
 
-#
+# Kinobeads
 
 catds = KinobeadCATDS(assoc=assoc).get_data()
+catds.sort_values("catds").head(15)
 
 
-#
+# E3 ligases enrichment within the significant associated gene-products
 
 e3_ligases = pd.read_excel(f"{dpath}/ubq/Definite Ligase List.xlsx")
 plot_df = assoc.lmm_drug_crispr.query(f"fdr < {target.fdr}")
