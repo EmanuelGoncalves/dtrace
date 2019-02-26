@@ -46,6 +46,7 @@ robust.assoc.lmm_robust_gexp.query("crispr_fdr < 0.1 & drug_fdr < 0.1").head(15)
 
 # Frequency of the genomic features across the cancer cell lines
 
+plt.figure(dpi=300)
 robust.genomic_histogram()
 plt.savefig(
     f"{rpath}/robust_mobems_countplot.pdf", bbox_inches="tight", transparent=True
@@ -82,7 +83,7 @@ plt.savefig(
 # Significant associations count distributed by distance in the protein-protein interaction network
 
 robust.robust_associations_barplot_ppi()
-plt.gcf().set_size_inches(2, 3)
+plt.gcf().set_size_inches(2, 4)
 plt.savefig(
     f"{rpath}/robust_signif_association_barplot_ppi.pdf",
     bbox_inches="tight",
@@ -158,7 +159,7 @@ for d, c, g in rassocs:
     plot_df = plot_df.rename(columns={drug: "drug"})
 
     #
-    fig, axs = plt.subplots(1, 2, sharey="row", sharex="none")
+    fig, axs = plt.subplots(1, 2, sharey="row", sharex="none", dpi=300)
 
     for i, dtype in enumerate(["crispr", "gexp"]):
         # Scatter

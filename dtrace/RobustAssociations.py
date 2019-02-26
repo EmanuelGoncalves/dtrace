@@ -113,13 +113,12 @@ class RobustAssociations(DTracePlot):
         plt.ylabel("")
 
         plt.legend(frameon=False)
-        sns.despine()
 
         plt.gcf().set_size_inches(2, 0.15 * ntop)
 
     def top_robust_features(self, ntop=30, dtype="genomic"):
         f, axs = plt.subplots(
-            1, 2, sharex="none", sharey="none", gridspec_kw=dict(wspace=0.75)
+            1, 2, sharex="none", sharey="none", gridspec_kw=dict(wspace=0.75), dpi=300
         )
 
         for i, d in enumerate(["drug", "crispr"]):
@@ -224,6 +223,7 @@ class RobustAssociations(DTracePlot):
             palette=pal,
             kind="bar",
             hue_order=hue_order,
+            facet_kws={"despine": False}
         )
 
         plt.xlabel("")
