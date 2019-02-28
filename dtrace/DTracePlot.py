@@ -38,8 +38,9 @@ class DTracePlot(CrispyPlot):
     }
 
     PAL_SET2 = sns.color_palette("Set2", n_colors=8).as_hex()
-
     PAL_DTRACE = [PAL_SET2[1], "#E1E1E1", "#656565", "#2b8cbe", "#de2d26"]
+    PAL_YES_NO = dict(Yes=PAL_DTRACE[0], No=PAL_DTRACE[1])
+    PAL_1_0 = {1: PAL_DTRACE[0], 0: PAL_DTRACE[1]}
 
     BOXPROPS = dict(linewidth=1.0)
     WHISKERPROPS = dict(linewidth=1.0)
@@ -166,14 +167,12 @@ class DTracePlot(CrispyPlot):
         if line_kws is None:
             line_kws = dict(lw=1.0, color=cls.PAL_DTRACE[0])
 
-        pal = {0: cls.PAL_DTRACE[2], 1: cls.PAL_DTRACE[0]}
-
         #
         grid = sns.JointGrid(x, y, plot_df, space=0, ratio=8)
 
         grid.plot_marginals(
             cls._marginal_boxplot,
-            palette=pal if discrete_pal is None else discrete_pal,
+            palette=cls.PAL_1_0 if discrete_pal is None else discrete_pal,
             data=plot_df,
             linewidth=0.3,
             fliersize=1,
@@ -193,7 +192,7 @@ class DTracePlot(CrispyPlot):
             x=x,
             y=y,
             data=plot_df,
-            color=pal[0],
+            color=cls.PAL_1_0[0],
             truncate=True,
             fit_reg=True,
             scatter=False,
@@ -207,7 +206,7 @@ class DTracePlot(CrispyPlot):
                     x=x,
                     y=y,
                     data=df,
-                    color=pal[feature],
+                    color=cls.PAL_1_0[feature],
                     fit_reg=False,
                     scatter_kws=scatter_kws,
                     label=t if feature == 0 else None,
@@ -232,10 +231,10 @@ class DTracePlot(CrispyPlot):
         )
 
         if add_hline:
-            grid.ax_joint.axhline(0, ls="-", lw=0.3, c=pal[0], alpha=0.2)
+            grid.ax_joint.axhline(0, ls="-", lw=0.3, c=cls.PAL_1_0[0], alpha=0.2)
 
         if add_vline:
-            grid.ax_joint.axvline(0, ls="-", lw=0.3, c=pal[0], alpha=0.2)
+            grid.ax_joint.axvline(0, ls="-", lw=0.3, c=cls.PAL_1_0[0], alpha=0.2)
 
         grid.set_axis_labels("{} (log2 FC)".format(x), "{} (ln IC50)".format(y))
 
@@ -244,7 +243,7 @@ class DTracePlot(CrispyPlot):
                 mpatches.Circle(
                     [0.0, 0.0], 0.25, facecolor=c, label="Yes" if t else "No"
                 )
-                for t, c in pal.items()
+                for t, c in cls.PAL_1_0.items()
             ]
 
         elif hue_order is None:
@@ -320,3 +319,23 @@ class DTracePlot(CrispyPlot):
         # ax.set_xlim(x_lim[0], text_x)
 
         return ax
+
+    @classmethod
+    def plot_boxplot_discrete(cls, x, y, df, pal=None):
+        g = sns.boxplot(
+            x=x,
+            y=y,
+            palette=cls.PAL_1_0 if pal is None else pal,
+            data=df,
+            linewidth=0.3,
+            fliersize=1,
+            notch=False,
+            saturation=1.0,
+            showcaps=False,
+            boxprops=DTracePlot.BOXPROPS,
+            whiskerprops=DTracePlot.WHISKERPROPS,
+            flierprops=DTracePlot.FLIERPROPS,
+            medianprops=dict(linestyle="-", linewidth=1.0),
+        )
+
+        return g

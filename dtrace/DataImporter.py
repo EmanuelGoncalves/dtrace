@@ -1287,15 +1287,37 @@ class WES:
     def __init__(self, wes_file="genomic/WES_variants.csv.gz"):
         self.wes = pd.read_csv(f"{dpath}/{wes_file}")
 
-    def get_data(self):
-        return self.wes.copy()
+    def get_data(self, as_matrix=False):
+        df = self.wes.copy()
 
-    def filter(self, subset=None):
-        df = self.get_data()
+        if as_matrix:
+            df["value"] = 1
+
+            df = pd.pivot_table(
+                df,
+                index="Gene",
+                columns="model_id",
+                values="value",
+                aggfunc="first",
+                fill_value=0,
+            )
+
+        return df
+
+    def filter(self, subset=None, min_events=5, as_matrix=False):
+        df = self.get_data(as_matrix=as_matrix)
 
         if subset is not None:
-            df = df[df["model_id"].isin(subset)]
+            if as_matrix:
+                df = df.loc[:, df.columns.isin(subset)]
+
+            else:
+                df = df[df["model_id"].isin(subset)]
+
             assert df.shape[1] != 0, "No columns after filter by subset"
+
+        # Minimum number of events
+        df = df[df.sum(1) >= min_events]
 
         return df
 

@@ -87,16 +87,23 @@ lmm_dgenomic.sort_values(["fdr", "pval"]).to_csv(
 
 # ### (Drug-response; CRISPR-Cas9) ~ Genomic
 
-lmm_robust = assoc.lmm_robust_association(lmm_dsingle, is_gexp=False)
+lmm_robust = assoc.lmm_robust_association(lmm_dsingle, xtype="genomic")
 lmm_robust.sort_values(["drug_fdr", "drug_pval"]).to_csv(
     assoc.lmm_robust_genomic_file, index=False, compression="gzip",
 )
 
 # ### (Drug-response; CRISPR-Cas9) ~ Gene-expression
 
-lmm_robust_gexp = assoc.lmm_robust_association(lmm_dsingle, is_gexp=True)
+lmm_robust_gexp = assoc.lmm_robust_association(lmm_dsingle, xtype="gexp")
 lmm_robust_gexp.sort_values(["drug_fdr", "drug_pval"]).to_csv(
     assoc.lmm_robust_gexp_file, index=False, compression="gzip",
+)
+
+# ### (Drug-response; CRISPR-Cas9) ~ WES
+
+lmm_robust_wes = assoc.lmm_robust_association(lmm_dsingle, xtype="wes")
+lmm_robust_wes.sort_values(["drug_fdr", "drug_pval"]).to_csv(
+    assoc.lmm_robust_wes_file, index=False, compression="gzip",
 )
 
 

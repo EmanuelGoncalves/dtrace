@@ -18,16 +18,14 @@
 # %load_ext autoreload
 # %autoreload 2
 
-import logging
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from dtrace import rpath, dpath, logger
+from dtrace import rpath
 from dtrace.DTracePlot import DTracePlot
 from dtrace.Associations import Association
 from dtrace.DataImporter import KinobeadCATDS
 from dtrace.TargetBenchmark import TargetBenchmark
-from dtrace.DTraceEnrichment import DTraceEnrichment
 
 
 # ### Import data-sets and associations

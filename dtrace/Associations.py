@@ -53,6 +53,7 @@ class Association:
         self.genomic_obj = DataImporter.Genomic()
         self.gexp_obj = DataImporter.GeneExpression()
         self.cn_obj = DataImporter.CopyNumber()
+        self.wes_obj = DataImporter.WES()
 
         self.samples = list(
             set.intersection(
@@ -73,6 +74,9 @@ class Association:
         self.genomic = self.genomic_obj.filter(subset=self.samples, min_events=5)
         self.gexp = self.gexp_obj.filter(subset=self.samples)
         self.cn = self.cn_obj.filter(subset=self.samples)
+        self.wes = self.wes_obj.filter(
+            subset=self.samples, as_matrix=True, min_events=5
+        )
 
         logger.log(
             logging.INFO,
@@ -98,6 +102,9 @@ class Association:
         self.lmm_robust_genomic_file = (
             f"{dpath}/drug_lmm_regressions_robust_{self.dtype}_genomic.csv.gz"
         )
+        self.lmm_robust_wes_file = (
+            f"{dpath}/drug_lmm_regressions_robust_{self.dtype}_wes.csv.gz"
+        )
 
         # Load associations
         if load_associations:
@@ -109,6 +116,7 @@ class Association:
         if load_robust:
             self.lmm_robust_gexp = pd.read_csv(self.lmm_robust_gexp_file)
             self.lmm_robust_genomic = pd.read_csv(self.lmm_robust_genomic_file)
+            self.lmm_robust_wes = pd.read_csv(self.lmm_robust_wes_file)
 
         # Load PPI
         if load_ppi:
@@ -336,15 +344,31 @@ class Association:
 
         return lmm_drug
 
+    def get_xdata(self, xtype):
+        if xtype == "genomic":
+            return self.genomic
+
+        elif xtype == "wes":
+            return self.wes
+
+        elif xtype == "gexp":
+            return self.gexp
+
+        else:
+            assert False, f"{xtype} not defined"
+
     def lmm_robust_association(
-        self, lmm_dsingle, is_gexp=False, fdr_thres=0.1, min_events=5
+        self, lmm_dsingle, xtype="genomic", fdr_thres=0.1, min_events=5, verbose=0
     ):
+        if verbose > 0:
+            logger.log(logging.INFO, f"Robust associations with {xtype}")
+
         lmm_res_signif = lmm_dsingle.query(f"fdr < {fdr_thres}")
 
         genes = set(lmm_res_signif["GeneSymbol"])
         drugs = {tuple(d) for d in lmm_res_signif[self.dcols].values}
 
-        X = self.gexp if is_gexp else self.genomic
+        X = self.get_xdata(xtype)
         samples = set(X).intersection(self.samples)
         print(
             f"Assoc={lmm_res_signif.shape[0]}; Genes={len(genes)}; Drugs={len(drugs)}; Samples={len(samples)}"
@@ -361,10 +385,12 @@ class Association:
 
             # Features
             x = X[y.index].T
-            if is_gexp:
+
+            if xtype == "gexp":
                 x = pd.DataFrame(
                     StandardScaler().fit_transform(x), index=x.index, columns=x.columns
                 )
+
             else:
                 x = x.loc[:, x.sum() >= min_events]
 
@@ -407,10 +433,11 @@ class Association:
 
             # Features
             x = X[y.index].T
-            if is_gexp:
+            if xtype == "gexp":
                 x = pd.DataFrame(
                     StandardScaler().fit_transform(x), index=x.index, columns=x.columns
                 )
+
             else:
                 x = x.loc[:, x.sum() >= min_events]
 
@@ -756,7 +783,16 @@ class Association:
 
         return df
 
-    def build_df(self, drug=None, crispr=None, gexp=None, genomic=None, sinfo=None):
+    def build_df(
+        self,
+        drug=None,
+        crispr=None,
+        gexp=None,
+        genomic=None,
+        wes=None,
+        sinfo=None,
+        bin_to_string=False,
+    ):
         """
         Utility function to build data-frames containing multiple types of measurements.
 
@@ -764,9 +800,19 @@ class Association:
         :param crispr:
         :param gexp:
         :param genomic:
+        :param wes:
         :param sinfo:
+        :param bin_to_string:
         :return:
         """
+
+        def bin_to_string_fun(v):
+            if np.isnan(v):
+                return np.nan
+            elif v == 1:
+                return "Yes"
+            else:
+                return "No"
 
         df = []
 
@@ -779,8 +825,21 @@ class Association:
         if gexp is not None:
             df.append(self.gexp.loc[gexp].T.add_prefix("gexp_"))
 
+        if wes is not None:
+            wes_df = self.wes.loc[wes].T.add_prefix("wes_")
+
+            if bin_to_string:
+                wes_df = wes_df.applymap(bin_to_string_fun)
+
+            df.append(wes_df)
+
         if genomic is not None:
-            df.append(self.genomic.loc[genomic].T)
+            genomic_df = self.genomic.loc[genomic].T
+
+            if bin_to_string:
+                genomic_df = genomic_df.applymap(bin_to_string_fun)
+
+            df.append(genomic_df)
 
         if sinfo is not None:
             df.append(self.samplesheet.samplesheet[sinfo])

@@ -40,9 +40,13 @@ robust = RobustAssociations(assoc)
 # significantly correlated with each other and with a genomic feature (copy-number/mutations) or a gene expression
 # profile.
 
-robust.assoc.lmm_robust_genomic.query("crispr_fdr < 0.1 & drug_fdr < 0.1").head(15).sort_values("drug_fdr")
+robust.assoc.lmm_robust_genomic.query("crispr_fdr < 0.1 & drug_fdr < 0.1").head(
+    15
+).sort_values("drug_fdr")
 
-robust.assoc.lmm_robust_gexp.query("crispr_fdr < 0.1 & drug_fdr < 0.1").head(15).sort_values("drug_fdr")
+robust.assoc.lmm_robust_gexp.query("crispr_fdr < 0.1 & drug_fdr < 0.1").head(
+    15
+).sort_values("drug_fdr")
 
 # Frequency of the genomic features across the cancer cell lines
 
@@ -115,7 +119,7 @@ for d, c, g in rassocs:
         drug=[drug], crispr=[c], genomic=[g], sinfo=["institute"]
     ).dropna()
     plot_df = plot_df.rename(columns={drug: "drug"})
-    
+
     grid = robust.plot_corrplot_discrete(f"crispr_{c}", "drug", g, "institute", plot_df)
 
     grid.ax_joint.axhline(
@@ -190,7 +194,10 @@ for d, c, g in rassocs:
         )
 
         # Annotation
-        cor, pval = pearsonr(plot_df[f"{dtype}_{c}" if dtype == "crispr" else f"{dtype}_{g}"], plot_df["drug"])
+        cor, pval = pearsonr(
+            plot_df[f"{dtype}_{c}" if dtype == "crispr" else f"{dtype}_{g}"],
+            plot_df["drug"],
+        )
         annot_text = f"R={cor:.2g}, p={pval:.1e}"
 
         axs[i].text(
@@ -217,6 +224,65 @@ for d, c, g in rassocs:
         transparent=True,
     )
     plt.show()
+
+
+# STAG1/2 synthetic lethal interaction
+
+gene_gexp, gene_crispr, gene_mut = "STAG2", "STAG1", "STAG2_mut"
+
+plot_df = robust.assoc.build_df(
+    crispr=[gene_crispr], gexp=[gene_gexp], genomic=[gene_mut], sinfo=["institute"]
+).dropna()
+
+grid = RobustAssociations.plot_corrplot_discrete(
+    f"crispr_{gene_crispr}", f"gexp_{gene_gexp}", gene_mut, "institute", plot_df
+)
+grid.set_axis_labels(f"{gene_crispr} (scaled log2 FC)", f"{gene_gexp} (RNA-seq voom)")
+plt.suptitle(gene_mut, y=1.05, fontsize=8)
+plt.gcf().set_size_inches(1.5, 1.5)
+plt.savefig(
+    f"{rpath}/robust_scatter_gexp_crispr_{gene_gexp}_{gene_crispr}_{gene_mut}.pdf",
+    bbox_inches="tight",
+    transparent=True,
+)
+
+
+plt.figure(figsize=(0.75, 1.5), dpi=300)
+g = RobustAssociations.plot_boxplot_discrete(gene_mut, f"crispr_{gene_crispr}", plot_df)
+plt.ylabel(f"{gene_crispr}\n(scaled log2 FC)")
+plt.gcf().set_size_inches(0.75, 1.5)
+plt.savefig(
+    f"{rpath}/robust_genomic_boxplot_{gene_mut}.pdf",
+    bbox_inches="tight",
+    transparent=True,
+)
+
+
+#
+
+drug, gene_crispr, gene_mut = (2354, "MCL1_8070", "RS"), "MCL1", "PFKFB1"
+
+plot_df = robust.assoc.build_df(
+    drug=[drug], crispr=[gene_crispr], wes=[gene_mut], sinfo=["institute"]
+).dropna()
+plot_df = plot_df.rename(columns={drug: "drug"})
+
+grid = RobustAssociations.plot_corrplot_discrete(
+    f"crispr_{gene_crispr}", "drug", f"wes_{gene_mut}", "institute", plot_df
+)
+dmax = np.log(robust.assoc.drespo_obj.maxconcentration[drug])
+grid.ax_joint.axhline(
+    y=dmax, linewidth=0.3, color=robust.PAL_DTRACE[2], ls=":", zorder=0
+)
+grid.set_axis_labels(f"{gene_crispr} (scaled log2 FC)", f"{drug[1]} (ln IC50)")
+plt.suptitle(gene_mut, y=1.05, fontsize=8)
+plt.gcf().set_size_inches(1.5, 1.5)
+plt.savefig(
+    f"{rpath}/robust_scatter_wes_{drug[1]}_{gene_crispr}_{gene_mut}.pdf",
+    bbox_inches="tight",
+    transparent=True,
+)
+plt.show()
 
 
 # Copyright (C) 2019 Emanuel Goncalves
