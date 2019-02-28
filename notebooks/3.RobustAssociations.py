@@ -226,7 +226,7 @@ for d, c, g in rassocs:
     plt.show()
 
 
-# STAG1/2 synthetic lethal interaction
+# Synthetic lethal interaction between STAG1/2. STAG2 mutations lead to dependency in STAG1.
 
 gene_gexp, gene_crispr, gene_mut = "STAG2", "STAG1", "STAG2_mut"
 
@@ -246,7 +246,6 @@ plt.savefig(
     transparent=True,
 )
 
-
 plt.figure(figsize=(0.75, 1.5), dpi=300)
 g = RobustAssociations.plot_boxplot_discrete(gene_mut, f"crispr_{gene_crispr}", plot_df)
 plt.ylabel(f"{gene_crispr}\n(scaled log2 FC)")
@@ -258,7 +257,7 @@ plt.savefig(
 )
 
 
-#
+# MCL1 robust association significantly correlated mutation
 
 drug, gene_crispr, gene_mut = (2354, "MCL1_8070", "RS"), "MCL1", "PFKFB1"
 

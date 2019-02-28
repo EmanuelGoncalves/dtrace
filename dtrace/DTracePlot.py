@@ -39,8 +39,8 @@ class DTracePlot(CrispyPlot):
 
     PAL_SET2 = sns.color_palette("Set2", n_colors=8).as_hex()
     PAL_DTRACE = [PAL_SET2[1], "#E1E1E1", "#656565", "#2b8cbe", "#de2d26"]
-    PAL_YES_NO = dict(Yes=PAL_DTRACE[0], No=PAL_DTRACE[1])
-    PAL_1_0 = {1: PAL_DTRACE[0], 0: PAL_DTRACE[1]}
+    PAL_YES_NO = dict(Yes=PAL_DTRACE[0], No=PAL_DTRACE[2])
+    PAL_1_0 = {1: PAL_DTRACE[0], 0: PAL_DTRACE[2]}
 
     BOXPROPS = dict(linewidth=1.0)
     WHISKERPROPS = dict(linewidth=1.0)
