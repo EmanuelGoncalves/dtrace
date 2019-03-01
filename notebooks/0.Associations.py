@@ -24,7 +24,7 @@ from dtrace.Associations import Association
 # ### Import data-sets
 
 # Association files are exported to "dtrace/data/" folder (dpath). Warning, due to the large number of tests executed
-# a complete run of this script takes over 3 hours (3.1 GHz Intel Core i7).
+# a complete run of this script takes over 7 hours (3.1 GHz Intel Core i7).
 
 assoc = Association(dtype="ic50", pval_method="fdr_bh")
 

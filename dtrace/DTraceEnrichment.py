@@ -3,6 +3,7 @@
 
 import os
 import logging
+import numpy as np
 import pandas as pd
 from dtrace import logger, dpath
 from crispy import SSGSEA, GSEAplot
@@ -45,7 +46,7 @@ class DTraceEnrichment:
         return SSGSEA.gsea(values.to_dict(), signature, permutations=permutations)
 
     def gsea_enrichments(
-        self, values, gmt_file, permutations=0, padj_method="fdr_bh", verbose=0
+        self, values, gmt_file, permutations=0, padj_method="fdr_bh", verbose=0, min_len=None
     ):
         self.__assert_gmt_file(gmt_file)
 
@@ -74,6 +75,9 @@ class DTraceEnrichment:
             gsea_hallmarks["fdr"] = multipletests(
                 gsea_hallmarks["p_value"], method=padj_method
             )[1]
+
+        if min_len is not None:
+            gsea_hallmarks = gsea_hallmarks.query(f"len >= {min_len}")
 
         return gsea_hallmarks
 
@@ -167,3 +171,11 @@ class DTraceEnrichment:
         )[1]
 
         return ssgsea_geneset
+
+    @staticmethod
+    def one_sided_pvalue(escore, escores):
+        count = np.sum((escores >= escore) if escore >= 0 else (escores <= escore))
+
+        p_value = 1 / len(escores) if count == 0 else count / len(escores)
+
+        return p_value

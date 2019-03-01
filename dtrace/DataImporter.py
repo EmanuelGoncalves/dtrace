@@ -219,7 +219,7 @@ class DrugResponse:
         return num_resp
 
     @staticmethod
-    def get_drugsheet(drugsheet_file="meta/drugsheet_20190225.xlsx"):
+    def get_drugsheet(drugsheet_file="meta/drugsheet_20190228.xlsx"):
         return pd.read_excel(f"{dpath}/{drugsheet_file}", index_col=0)
 
     @classmethod

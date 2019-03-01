@@ -22,7 +22,6 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from dtrace import rpath
-from dtrace.DTracePlot import DTracePlot
 from dtrace.Associations import Association
 from dtrace.DataImporter import KinobeadCATDS
 from dtrace.TargetBenchmark import TargetBenchmark
@@ -94,7 +93,7 @@ dgs = [
     ("AZD4320", "BCL2"),
     ("Volasertib", "PLK1"),
     ("Rigosertib", "PLK1"),
-    ('Linsitinib', 'CNPY2'),
+    ("Linsitinib", "CNPY2"),
 ]
 
 for dg in dgs:
@@ -105,27 +104,20 @@ for dg in dgs:
     dmax = np.log(assoc.drespo_obj.maxconcentration[drug])
     annot_text = f"Beta={pair['beta']:.2g}, FDR={pair['fdr']:.1e}"
 
-    plot_df = pd.concat(
-        [
-            assoc.drespo.loc[drug].rename("drug"),
-            assoc.crispr.loc[dg[1]].rename("crispr"),
-            assoc.crispr_obj.institute.rename("Institute"),
-        ],
-        axis=1,
-        sort=False,
-    ).dropna()
+    plot_df = assoc.build_df(drug=[drug], crispr=[dg[1]], sinfo=["institute"]).dropna()
+    plot_df = plot_df.rename(columns={drug: "drug"})
 
-    g = DTracePlot.plot_corrplot(
-        "crispr",
+    g = target.plot_corrplot(
+        f"crispr_{dg[1]}",
         "drug",
-        "Institute",
+        "institute",
         plot_df,
         add_hline=False,
         add_vline=False,
         annot_text=annot_text,
     )
     g.ax_joint.axhline(
-        y=dmax, linewidth=0.3, color=DTracePlot.PAL_DTRACE[2], ls=":", zorder=0
+        y=dmax, linewidth=0.3, color=target.PAL_DTRACE[2], ls=":", zorder=0
     )
     g.set_axis_labels(f"{dg[1]} (scaled log2 FC)", f"{dg[0]} (ln IC50)")
     plt.gcf().set_size_inches(1.5, 1.5)
@@ -158,7 +150,9 @@ plt.savefig(
 plt.figure(figsize=(2, 2), dpi=300)
 target.beta_histogram()
 plt.savefig(
-    f"{rpath}/target_benchmark_beta_histogram.pdf", bbox_inches="tight", transparent=True
+    f"{rpath}/target_benchmark_beta_histogram.pdf",
+    bbox_inches="tight",
+    transparent=True,
 )
 
 
@@ -167,7 +161,9 @@ plt.savefig(
 plt.figure(figsize=(2, 1), dpi=300)
 target.pval_histogram()
 plt.savefig(
-    f"{rpath}/target_benchmark_pval_histogram.pdf", bbox_inches="tight", transparent=True
+    f"{rpath}/target_benchmark_pval_histogram.pdf",
+    bbox_inches="tight",
+    transparent=True,
 )
 
 
@@ -301,7 +297,7 @@ plt.savefig(
 )
 
 
-# Top associaitons 
+# Top associaitons
 
 drugs = [
     "SN1021632995",
@@ -355,13 +351,15 @@ betas_crispr = pd.pivot_table(
 target.lmm_betas_clustermap(betas_crispr)
 plt.gcf().set_size_inches(8, 8)
 plt.savefig(
-    f"{rpath}/target_benchmark_clustermap_betas_crispr.png", bbox_inches="tight", dpi=300
+    f"{rpath}/target_benchmark_clustermap_betas_crispr.png",
+    bbox_inches="tight",
+    dpi=300,
 )
 
 
 plt.figure(figsize=(2, 2), dpi=300)
 target.lmm_betas_clustermap_legend()
-plt.axis('off')
+plt.axis("off")
 plt.savefig(
     f"{rpath}/target_benchmark_clustermap_betas_crispr_legend.pdf", bbox_inches="tight"
 )
@@ -383,19 +381,22 @@ for dg in dgs:
     dmax = np.log(assoc.drespo_obj.maxconcentration[drug])
     annot_text = f"Beta={pair['beta']:.2g}, FDR={pair['fdr']:.1e}"
 
-    plot_df = pd.concat(
-        [assoc.drespo.loc[drug].rename("drug"), assoc.gexp.loc[dg[1]].rename("crispr")],
-        axis=1,
-        sort=False,
-    ).dropna()
+    plot_df = assoc.build_df(drug=[drug], crispr=[dg[1]]).dropna()
+    plot_df = plot_df.rename(columns={drug: "drug"})
     plot_df["Institute"] = "Sanger"
 
-    g = DTracePlot.plot_corrplot(
-        "crispr", "drug", "Institute", plot_df, add_hline=False, add_vline=False, annot_text=annot_text
+    g = target.plot_corrplot(
+        f"crispr_{dg[1]}",
+        "drug",
+        "Institute",
+        plot_df,
+        add_hline=False,
+        add_vline=False,
+        annot_text=annot_text,
     )
 
     g.ax_joint.axhline(
-        y=dmax, linewidth=0.3, color=DTracePlot.PAL_DTRACE[2], ls=":", zorder=0
+        y=dmax, linewidth=0.3, color=target.PAL_DTRACE[2], ls=":", zorder=0
     )
 
     g.set_axis_labels(f"{dg[1]} (voom)", f"{dg[0]} (ln IC50)")
@@ -412,17 +413,9 @@ for dg in dgs:
 # CRISPR correlation profiles
 
 for gene_x, gene_y in [("MARCH5", "MCL1"), ("SHC1", "EGFR")]:
-    plot_df = pd.concat(
-        [
-            assoc.crispr.loc[gene_x].rename(gene_x),
-            assoc.crispr.loc[gene_y].rename(gene_y),
-            assoc.crispr_obj.institute.rename("Institute"),
-        ],
-        axis=1,
-        sort=False,
-    ).dropna()
+    plot_df = assoc.build_df(crispr=[gene_x, gene_y], sinfo=["institute"]).dropna()
 
-    g = DTracePlot().plot_corrplot(gene_x, gene_y, "Institute", plot_df, add_hline=True)
+    g = target.plot_corrplot(gene_x, gene_y, "Institute", plot_df, add_hline=True)
 
     g.set_axis_labels(f"{gene_x} (scaled log2 FC)", f"{gene_y} (scaled log2 FC)")
 
