@@ -82,6 +82,9 @@ class TargetBenchmark(DTracePlot):
             self.PPI_ORDER
         ]
 
+        # Import kinobead measurements
+        self.catds = KinobeadCATDS(assoc=self.assoc).get_data().dropna()
+
         super().__init__()
 
     def define_drug_sets(self):
@@ -169,10 +172,7 @@ class TargetBenchmark(DTracePlot):
         pal = {"No": self.PAL_DTRACE[1], "Yes": self.PAL_DTRACE[0]}
 
         #
-        catds = KinobeadCATDS(assoc=self.assoc).get_data().dropna()
-
-        #
-        catds_signif = {s: catds.query(f"signif == '{s}'")["catds"] for s in order}
+        catds_signif = {s: self.catds.query(f"signif == '{s}'")["catds"] for s in order}
 
         #
         t, p = mannwhitneyu(catds_signif["Yes"], catds_signif["No"])
@@ -180,8 +180,8 @@ class TargetBenchmark(DTracePlot):
 
         # Plot
         ax = sns.boxplot(
-            catds["catds"],
-            catds["signif"],
+            self.catds["catds"],
+            self.catds["signif"],
             palette=pal,
             linewidth=0.3,
             fliersize=1.5,

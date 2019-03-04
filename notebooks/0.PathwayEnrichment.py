@@ -26,7 +26,7 @@ from dtrace.DTraceEnrichment import DTraceEnrichment
 
 # Import data-sets
 
-assoc = Association(dtype="ic50", pval_method="fdr_bh", load_associations=True)
+assoc = Association(dtype="ic50", load_associations=True)
 
 
 # Build betas matrix
@@ -50,7 +50,7 @@ gsea = DTraceEnrichment()
 gsea_h = pd.DataFrame(
     {
         d: gsea.gsea_enrichments(
-            betas.loc[d], "h.all.v6.2.symbols.gmt", min_len=min_len
+            betas.loc[d], "h.all.v6.2.symbols.gmt", min_len=min_len, verbose=1
         )["e_score"]
         for d in betas.index
     }
@@ -61,6 +61,7 @@ gsea_h.round(5).to_csv(
     index=False,
     compression="gzip",
 )
+
 
 # Enrichment of GO Biological Processes
 

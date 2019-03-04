@@ -20,6 +20,7 @@
 
 import numpy as np
 import pandas as pd
+import seaborn as sns
 import matplotlib.pyplot as plt
 from dtrace import rpath
 from dtrace.Associations import Association
@@ -297,7 +298,7 @@ plt.savefig(
 )
 
 
-# Top associaitons
+# Top associations
 
 drugs = [
     "SN1021632995",
@@ -451,6 +452,25 @@ for d, t, o, e in ppi_examples:
 
 catds = KinobeadCATDS(assoc=assoc).get_data()
 catds.sort_values("catds").head(15)
+
+
+#
+
+gene_degree = pd.Series({g["name"]: g.degree() for g in assoc.ppi_string.vs})
+
+plot_df = assoc.lmm_drug_crispr.sort_values("fdr")
+plot_df = pd.concat([
+    plot_df.query("target != 'T'").groupby("DRUG_NAME").first()[["fdr", "GeneSymbol"]].add_prefix("proxy_"),
+    plot_df.query("target == 'T'").groupby("DRUG_NAME").first()[["fdr", "DRUG_TARGETS", "GeneSymbol"]],
+], axis=1, sort=False).dropna()
+plot_df["proxy_degree"] = gene_degree.reindex(plot_df["proxy_GeneSymbol"]).values
+plot_df["target_degree"] = gene_degree.reindex(plot_df["GeneSymbol"]).values
+plot_df["fdr_ratio"] = -np.log10(plot_df.eval("fdr/proxy_fdr"))
+plot_df["degree_ratio"] = np.log10(plot_df.eval("target_degree/proxy_degree"))
+
+
+sns.regplot(plot_df["degree_ratio"], plot_df["fdr_ratio"])
+plt.show()
 
 
 # Copyright (C) 2019 Emanuel Goncalves

@@ -52,6 +52,9 @@ class DTraceEnrichment:
 
         geneset = self.gmts[gmt_file]
 
+        if verbose > 0 and type(values) == pd.Series:
+            logger.log(logging.INFO, f"Values={values.name}")
+
         ssgsea_geneset = []
         for gset in geneset:
             if verbose > 0:
