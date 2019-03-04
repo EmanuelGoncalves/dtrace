@@ -60,6 +60,13 @@ hit = TargetHit(
 
 # ### Top associations with MCL1i
 
+plt.figure(figsize=(2.0, 2.0), dpi=300)
+hit.associations_beta_scatter()
+plt.savefig(f"{rpath}/hit_associations_betas_scatter.png", bbox_inches="tight", transparent=True)
+
+
+# ### Top associations with MCL1i
+
 hit.top_associations_barplot()
 plt.ylabel("Association p-value (-log10)")
 plt.title("CRISPR associations with multiple MCL1 inhibitors")
@@ -95,8 +102,10 @@ plt.savefig(f"{rpath}/hit_BCLi_crispr~gexp.pdf", bbox_inches="tight", transparen
 
 # ### MCL1i drug-response predictive features
 #
-# A l2-regularised linear regression model with internal cross-validation for parameter optimisation [RidgeCV](https://scikit-learn.org/stable/modules/generated/sklearn.linear_model.RidgeCV.html#sklearn.linear_model.RidgeCV) was used
-# to estimate the predictive capacity [R-squared](https://scikit-learn.org/stable/modules/generated/sklearn.metrics.r2_score.html) of MCL1i drug-response and the features contribution.
+# A l2-regularised linear regression model with internal cross-validation for parameter optimisation
+# [RidgeCV](https://scikit-learn.org/stable/modules/generated/sklearn.linear_model.RidgeCV.html#sklearn.linear_model.
+# RidgeCV) was used to estimate the predictive capacity [R-squared](https://scikit-learn.org/stable/modules/generated/
+# sklearn.metrics.r2_score.html) of MCL1i drug-response and the features contribution.
 
 # Both gene-essentiality and gene-expression measurements of BCL family members and regulators, defined in features
 # variable, were considered.

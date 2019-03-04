@@ -59,7 +59,15 @@ lmm_dsingle.sort_values(["fdr", "pval"]).to_csv(
 )
 
 
-# ### Drug-response ~ CRISPR-Cas9
+# ### Drug-response ~ CRISPR-Cas9 (no covariates and random effects)
+
+lmm_dsingle_NO_mk = assoc.lmm_single_associations(add_covariates=False, add_random_effects=False)
+lmm_dsingle_NO_mk.sort_values(["fdr", "pval"]).to_csv(
+    assoc.lmm_drug_crispr_NO_mk_file, index=False, compression="gzip"
+)
+
+
+# ### Drug-response ~ Gene-expression
 
 lmm_dgexp = assoc.lmm_gexp_drug()
 lmm_dgexp.sort_values(["fdr", "pval"]).to_csv(
@@ -67,7 +75,7 @@ lmm_dgexp.sort_values(["fdr", "pval"]).to_csv(
 )
 
 
-# ### Drug-response ~ CRISPR-Cas9
+# ### Drug-response ~ Binary genomic events (mutations/copy-number)
 
 lmm_dgenomic = assoc.lmm_single_associations_genomic()
 lmm_dgenomic.sort_values(["fdr", "pval"]).to_csv(

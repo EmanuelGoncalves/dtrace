@@ -8,6 +8,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from DTracePlot import DTracePlot
+from scipy.stats import gaussian_kde
 from sklearn.linear_model import RidgeCV
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import ShuffleSplit
@@ -34,6 +35,22 @@ class TargetHit(DTracePlot):
                 ][self.dinfo].values
             }
         )
+
+    def associations_beta_scatter(self):
+        x, y = self.lmm_comb["CRISPR_beta"], self.lmm_comb["GExp_beta"]
+
+        xy = np.vstack([x, y])
+        z = gaussian_kde(xy)(xy)
+
+        plt.scatter(
+            x, y, c=z, marker="o", edgecolor="", cmap="viridis_r", s=3, alpha=0.85
+        )
+
+        plt.axhline(-np.log10(0.1), ls=":", lw=0.5, color=self.PAL_DTRACE[2], zorder=0)
+        plt.axvline(-np.log10(0.1), ls=":", lw=0.5, color=self.PAL_DTRACE[2], zorder=0)
+
+        plt.xlabel("Drug ~ CRISPR association beta")
+        plt.ylabel("Drug ~ Genomic association beta")
 
     def top_associations_barplot(self):
         # Filter for signif associations

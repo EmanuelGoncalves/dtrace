@@ -28,6 +28,7 @@ class Association:
         load_associations=False,
         load_robust=False,
         load_ppi=False,
+        load_simple_lm=False,
         ppi_thres=900,
     ):
         """
@@ -106,6 +107,11 @@ class Association:
             f"{dpath}/drug_lmm_regressions_robust_{self.dtype}_wes.csv.gz"
         )
 
+        # Association file with no covariates nor random effects
+        self.lmm_drug_crispr_NO_mk_file = (
+            f"{dpath}/drug_lmm_regressions_{self.dtype}_crispr_NO_mk.csv.gz"
+        )
+
         # Load associations
         if load_associations:
             self.lmm_drug_crispr = pd.read_csv(self.lmm_drug_crispr_file)
@@ -122,6 +128,10 @@ class Association:
         if load_ppi:
             self.ppi_string = self.ppi.build_string_ppi(score_thres=self.ppi_thres)
             self.ppi_string_corr = self.ppi.ppi_corr(self.ppi_string, self.crispr)
+
+        # Load associations estimated with simple linear regressions
+        if load_simple_lm:
+            self.lmm_drug_crispr = pd.read_csv(self.lmm_drug_crispr_NO_mk_file)
 
     def get_covariates(self):
         # Samples CRISPR QC (recall essential genes)
@@ -262,10 +272,10 @@ class Association:
 
         return df
 
-    def lmm_single_associations(self, verbose=0):
+    def lmm_single_associations(self, verbose=0, add_covariates=True, add_random_effects=True):
         # - Kinship matrix (random effects)
-        k = self.kinship(self.crispr.T)
-        m = self.get_covariates()
+        k = self.kinship(self.crispr.T) if add_random_effects else None
+        m = self.get_covariates() if add_covariates else None
 
         # - Single feature linear mixed regression
         # Association
