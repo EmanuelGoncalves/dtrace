@@ -115,4 +115,12 @@ lmm_robust_wes.sort_values(["drug_fdr", "drug_pval"]).to_csv(
 )
 
 
+# ## GSEA enrichment
+
+# Perform Gene-Set Enrichment Analysis (GSEA) for each drug using the associations effect sizes (betas) and MSigDB gene
+# signatures of cancer hallmarks and KEGG pathways.
+
+assoc.gsea_pathway_enrichment(lmm_dsingle, min_len=5, verbose=1)
+
+
 # Copyright (C) 2019 Emanuel Goncalves

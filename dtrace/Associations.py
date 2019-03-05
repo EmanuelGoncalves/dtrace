@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # Copyright (C) 2019 Emanuel Goncalves
 
+import os
 import logging
 import numpy as np
 import DataImporter
@@ -11,6 +12,7 @@ from dtrace import logger, dpath
 from sklearn.linear_model import RidgeCV
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import ShuffleSplit
+from dtrace.DTraceEnrichment import DTraceEnrichment
 from statsmodels.stats.multitest import multipletests
 
 
@@ -29,7 +31,9 @@ class Association:
         load_robust=False,
         load_ppi=False,
         load_simple_lm=False,
+        load_pathway_enrichments=False,
         ppi_thres=900,
+        gmts=None,
     ):
         """
         :param dtype: Drug-response of a drug in a cell line was represented either as an IC50 (ic50) or
@@ -47,6 +51,11 @@ class Association:
         self.pval_method = pval_method
         self.dcols = DataImporter.DrugResponse.DRUG_COLUMNS
         self.ppi_order = ["T", "1", "2", "3", "4", "5+", "-"]
+        self.gmts = (
+            ["h.all.v6.2.symbols.gmt", "c2.cp.kegg.v6.2.symbols.gmt"]
+            if gmts is None
+            else gmts
+        )
 
         # Import data-sets
         self.crispr_obj = DataImporter.CRISPR()
@@ -132,6 +141,103 @@ class Association:
         # Load associations estimated with simple linear regressions
         if load_simple_lm:
             self.lmm_drug_crispr = pd.read_csv(self.lmm_drug_crispr_NO_mk_file)
+
+        # Load MSigDB pathway enrichments
+        if load_pathway_enrichments:
+            self.gmts = self.load_pathway_enrichments()
+
+    def build_association_matrix(
+        self, associations=None, index=None, columns=None, values=None
+    ):
+        associations = self.lmm_drug_crispr if associations is None else associations
+        index = ["DRUG_ID", "DRUG_NAME", "VERSION"] if index is None else index
+        columns = "GeneSymbol" if columns is None else columns
+        values = "beta" if values is None else values
+
+        assoc_matrix = pd.pivot_table(
+            associations, index=index, columns=columns, values=values
+        )
+
+        return assoc_matrix
+
+    @staticmethod
+    def pathway_enrichment_series(
+        dseries,
+        gmt,
+        min_len,
+        permutations,
+        padj_method="fdr_bh",
+        verbose=0,
+        gsea_obj=None,
+    ):
+        gsea_obj = DTraceEnrichment() if gsea_obj is None else gsea_obj
+
+        gsea_enr = gsea_obj.gsea_enrichments(
+            dseries,
+            gmt,
+            permutations=permutations,
+            min_len=min_len,
+            padj_method=padj_method,
+            verbose=verbose,
+        )
+
+        return gsea_enr
+
+    @classmethod
+    def pathway_enrichment_dataframe(
+        cls, dmatrix, gmt, min_len, verbose=0, gsea_obj=None
+    ):
+        gsea_obj = DTraceEnrichment() if gsea_obj is None else gsea_obj
+
+        gsea_enr = pd.DataFrame(
+            {
+                d: cls.pathway_enrichment_series(
+                    dmatrix.loc[d],
+                    gmt,
+                    permutations=0,
+                    min_len=min_len,
+                    verbose=verbose,
+                    gsea_obj=gsea_obj,
+                )["e_score"]
+                for d in dmatrix.index
+            }
+        ).T
+
+        return gsea_enr
+
+    def gsea_pathway_enrichment(self, associations, min_len=5, verbose=0):
+        gsea_obj = DTraceEnrichment()
+
+        betas = self.build_association_matrix(associations)
+
+        for gmt in self.gmts:
+            if verbose > 0:
+                logger.log(logging.INFO, f"GSEA pathway enrichment {gmt}")
+
+            gsea_enr = self.pathway_enrichment_dataframe(
+                betas, gmt, min_len=min_len, verbose=verbose, gsea_obj=gsea_obj
+            )
+
+            gsea_enr.round(5).to_csv(
+                f"{dpath}/drug_lmm_regressions_{self.dtype}_crispr_gsea_{gmt}.csv.gz",
+                compression="gzip",
+            )
+
+    def load_pathway_enrichments(self):
+        pgsea = {}
+
+        for gmt in self.gmts:
+            pfile = (
+                f"{dpath}/drug_lmm_regressions_{self.dtype}_crispr_gsea_{gmt}.csv.gz"
+            )
+
+            assert os.path.isfile(
+                pfile
+            ), f"Enrichments for {gmt} haven't been calculated"
+
+            pgsea[gmt] = pd.read_csv(pfile, index_col=0)
+
+        return pgsea
 
     def get_covariates(self):
         # Samples CRISPR QC (recall essential genes)
@@ -272,7 +378,9 @@ class Association:
 
         return df
 
-    def lmm_single_associations(self, verbose=0, add_covariates=True, add_random_effects=True):
+    def lmm_single_associations(
+        self, verbose=0, add_covariates=True, add_random_effects=True
+    ):
         # - Kinship matrix (random effects)
         k = self.kinship(self.crispr.T) if add_random_effects else None
         m = self.get_covariates() if add_covariates else None

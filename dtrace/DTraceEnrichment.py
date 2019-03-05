@@ -57,7 +57,7 @@ class DTraceEnrichment:
 
         ssgsea_geneset = []
         for gset in geneset:
-            if verbose > 0:
+            if verbose > 1:
                 logger.log(logging.INFO, f"Gene-set={gset}")
 
             gset_len = len({i for i in geneset[gset] if i in values.index})
