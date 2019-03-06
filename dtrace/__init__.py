@@ -5,7 +5,8 @@ import sys
 import logging
 import pkg_resources
 import seaborn as sns
-from DTracePlot import DTracePlot
+from dtrace.DTracePlot import DTracePlot
+from dtrace.DTraceEnrichment import DTraceEnrichment
 
 # - Version
 __version__ = "0.5.0"
@@ -24,7 +25,7 @@ sns.set(
 )
 
 # - DTrace handlers
-__all__ = ["DTracePlot", "logger", "dpath", "rpath"]
+__all__ = ["DTracePlot", "DTraceEnrichment", "logger", "dpath", "rpath"]
 
 # - Logging
 logger = logging.getLogger()
