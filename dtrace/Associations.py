@@ -5,7 +5,7 @@ import logging
 import numpy as np
 import pandas as pd
 import itertools as it
-import dtrace.DataImporter
+import dtrace.DataImporter as DataImporter
 from limix.qtl import scan
 from sklearn.linear_model import RidgeCV
 from dtrace.DTraceUtils import dpath, logger
