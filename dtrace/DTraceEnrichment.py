@@ -6,8 +6,8 @@ import argparse
 import numpy as np
 import pandas as pd
 from crispy import SSGSEA, GSEAplot
-from dtrace.DTraceUtils import dpath
 from dtrace.Associations import Association
+from dtrace.DTraceUtils import dpath, logger
 from scipy.stats.distributions import hypergeom
 from statsmodels.stats.multitest import multipletests
 

@@ -20,7 +20,7 @@
 
 import logging
 from bsub import bsub
-from dtrace.DTraceUtils import dpath, logger
+from dtrace.DTraceUtils import logger
 from dtrace.Associations import Association
 from dtrace.DTraceEnrichment import DTraceEnrichment
 
@@ -54,15 +54,15 @@ gsea = DTraceEnrichment(
 # Gene values to perform enrichment
 
 gvalues = [
-    ("GExp", assoc.gexp.T, f"{dpath}/gexp_gsea"),
-    # ("CRISPR", self.crispr.T, f"{dpath}/crispr_gsea"),
-    # ("Drug-CRISPR", betas, f"{dpath}/drug_lmm_regressions_{self.dtype}_crispr_gsea"),
+    ("GExp", assoc.gexp.T),
+    ("CRISPR", assoc.crispr.T),
+    ("Drug-CRISPR", assoc.build_association_matrix(assoc.lmm_drug_crispr)),
 ]
 
 
 #
 
-for (dtype, df, efile) in gvalues:
+for dtype, df in gvalues:
     for gmt in gsea.gmts:
         logger.log(logging.INFO, f"{dtype}: GSEA pathway enrichment {gmt}")
 
