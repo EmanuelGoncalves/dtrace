@@ -9,7 +9,6 @@ limix>=1.0.0
 pybedtools>=0.7
 statsmodels>=0.8.0
 cy>=0.2.0
-python-igraph>=0.7
 pydot>=1.3.0
 python-igraph>=0.7.1
 upsetplot>=0.1
