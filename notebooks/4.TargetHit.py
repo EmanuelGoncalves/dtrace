@@ -23,7 +23,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
-from dtrace import rpath, logger
+from DTraceUtils import rpath, logger
 from dtrace.TargetHit import TargetHit
 from dtrace.DTracePlot import DTracePlot
 from dtrace.Associations import Association

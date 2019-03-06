@@ -7,7 +7,8 @@ import DataImporter
 import pandas as pd
 import itertools as it
 from limix.qtl import scan
-from dtrace import logger, dpath
+from dtrace import logger
+from DTraceUtils import dpath
 from sklearn.linear_model import RidgeCV
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import ShuffleSplit

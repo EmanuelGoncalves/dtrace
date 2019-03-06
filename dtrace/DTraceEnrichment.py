@@ -5,7 +5,7 @@ import logging
 import argparse
 import numpy as np
 import pandas as pd
-from dtrace import logger, dpath
+from DTraceUtils import dpath
 from crispy import SSGSEA, GSEAplot
 from dtrace.Associations import Association
 from scipy.stats.distributions import hypergeom

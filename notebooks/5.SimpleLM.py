@@ -19,7 +19,7 @@
 # %autoreload 2
 
 import matplotlib.pyplot as plt
-from dtrace import rpath
+from DTraceUtils import rpath
 from dtrace.Associations import Association
 from dtrace.TargetBenchmark import TargetBenchmark
 

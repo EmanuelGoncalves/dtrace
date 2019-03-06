@@ -20,7 +20,7 @@
 
 import logging
 from bsub import bsub
-from dtrace import dpath, logger
+from DTraceUtils import dpath, logger
 from dtrace.Associations import Association
 from dtrace.DTraceEnrichment import DTraceEnrichment
 
