@@ -7,7 +7,7 @@ import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
-from DTracePlot import DTracePlot
+from dtrace.DTracePlot import DTracePlot
 from scipy.stats import gaussian_kde
 from sklearn.linear_model import RidgeCV
 from sklearn.preprocessing import StandardScaler

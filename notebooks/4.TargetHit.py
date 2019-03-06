@@ -18,16 +18,14 @@
 # %load_ext autoreload
 # %autoreload 2
 
-import logging
 import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
-from DTraceUtils import rpath, logger
+from dtrace.DTraceUtils import rpath
 from dtrace.TargetHit import TargetHit
 from dtrace.DTracePlot import DTracePlot
 from dtrace.Associations import Association
-from statsmodels.stats.multitest import multipletests
 
 
 # ### Import data-sets and associations
@@ -35,7 +33,6 @@ from statsmodels.stats.multitest import multipletests
 assoc = Association(
     dtype="ic50",
     load_associations=True,
-    load_pathway_enrichments=True,
     combine_lmm=False,
 )
 

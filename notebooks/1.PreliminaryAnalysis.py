@@ -19,8 +19,8 @@
 # %autoreload 2
 
 import matplotlib.pyplot as plt
-from DTraceUtils import rpath
-from Associations import Association
+from dtrace.DTraceUtils import rpath
+from dtrace.Associations import Association
 from dtrace.Preliminary import DrugPreliminary, CrisprPreliminary
 
 

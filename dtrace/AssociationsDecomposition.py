@@ -5,9 +5,9 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
-from DTracePlot import DTracePlot
 from sklearn.manifold import TSNE
 from DataImporter import DrugResponse
+from dtrace.DTracePlot import DTracePlot
 from sklearn.preprocessing import StandardScaler
 
 

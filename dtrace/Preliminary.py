@@ -5,7 +5,7 @@ import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 from scipy.stats import pearsonr
-from DTracePlot import DTracePlot
+from dtrace.DTracePlot import DTracePlot
 
 
 class Preliminary(DTracePlot):

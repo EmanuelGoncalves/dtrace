@@ -8,10 +8,9 @@ import warnings
 import numpy as np
 import pandas as pd
 import crispy as cy
-from dtrace import logger
-from DTraceUtils import dpath
 from sklearn.decomposition import PCA
 from dtrace.DTracePlot import DTracePlot
+from dtrace.DTraceUtils import dpath, logger
 
 
 class DataPCA:

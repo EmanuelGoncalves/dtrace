@@ -21,9 +21,9 @@
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
-from DTraceUtils import rpath
 from scipy.stats import pearsonr
-from Associations import Association
+from dtrace.DTraceUtils import rpath
+from dtrace.Associations import Association
 from dtrace.RobustAssociations import RobustAssociations
 
 

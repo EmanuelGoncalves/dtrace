@@ -22,7 +22,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
-from DTraceUtils import rpath
+from dtrace.DTraceUtils import rpath
 from dtrace.Associations import Association
 from dtrace.DataImporter import KinobeadCATDS
 from dtrace.TargetBenchmark import TargetBenchmark

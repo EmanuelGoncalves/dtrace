@@ -8,12 +8,12 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
-from dtrace import logger
 from natsort import natsorted
-from crispy.utils import Utils
-from crispy.qc_plot import QCplot
+from crispy.Utils import Utils
+from crispy.QCPlot import QCplot
 from matplotlib.lines import Line2D
 from scipy.stats import gaussian_kde
+from dtrace.DTraceUtils import logger
 from dtrace.DTracePlot import DTracePlot
 from scipy.stats import mannwhitneyu, gmean
 from dtrace.DataImporter import KinobeadCATDS
@@ -342,7 +342,7 @@ class TargetBenchmark(DTracePlot):
             add_n=True,
             n_text_offset=5e-3,
             palette=self.PPI_PAL,
-            order=self.PPI_ORDER,
+            hue_order=self.PPI_ORDER,
             ax=ax,
         )
 

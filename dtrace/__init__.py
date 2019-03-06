@@ -3,7 +3,7 @@
 
 import seaborn as sns
 from dtrace.DTracePlot import DTracePlot
-from DTraceUtils import dpath, rpath, logger
+from dtrace.DTraceUtils import dpath, rpath, logger
 from dtrace.DTraceEnrichment import DTraceEnrichment
 
 # - Version
