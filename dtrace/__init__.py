@@ -24,9 +24,6 @@ sns.set(
     rc=DTracePlot.SNS_RC,
 )
 
-# - DTrace handlers
-__all__ = ["DTracePlot", "DTraceEnrichment", "logger", "dpath", "rpath"]
-
 # - Logging
 logger = logging.getLogger()
 
@@ -35,3 +32,6 @@ ch.setFormatter(logging.Formatter("[%(asctime)s - %(levelname)s]: %(message)s"))
 logger.addHandler(ch)
 
 logger.setLevel(logging.INFO)
+
+# - DTrace handlers
+__all__ = ["DTracePlot", "DTraceEnrichment", "logger", "dpath", "rpath"]
