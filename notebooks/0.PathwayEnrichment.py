@@ -68,7 +68,7 @@ for dtype, df in gvalues:
     for gmt in gsea.gmts:
         logger.log(logging.INFO, f"{dtype}: GSEA pathway enrichment {gmt}")
 
-        for dindex in df.iloc[:10].index:
+        for dindex in df.index:
             logger.log(logging.INFO, f"bsub ssGSEA {dindex} {gmt}")
 
             # Set job name

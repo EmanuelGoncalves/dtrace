@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # Copyright (C) 2019 Emanuel Goncalves
 
+import os
 import logging
 import argparse
 import numpy as np
@@ -211,6 +212,32 @@ class DTraceEnrichmentBSUB(DTraceEnrichment):
 
         else:
             assert False, f"{self.dtype} type not supported"
+
+    @staticmethod
+    def score_function(escore, epval):
+        if escore >= 0:
+            return -np.log10(epval)
+        else:
+            return np.log10(epval)
+
+    def score_matrix(self, func=None, index_col=0):
+        func = self.score_function if func is None else func
+
+        efiles = os.listdir(f"{dpath}/ssgsea/")
+        efiles = {f for f in efiles if f.startswith(f"{dpath}/ssgsea/{ssgsea.dtype}_{ssgsea.gmt}")}
+
+        score_matrix = {}
+        for f in efiles:
+            n = f.split("_")[-1].split(".")[0]
+
+            df = pd.read_csv(f"{dpath}/ssgsea/{f}", index_col=index_col)
+            df["score"] = [func(e, p) for e, p in df[["e_score", "p_value"]].values]
+
+            score_matrix[n] = df["score"]
+
+        score_matrix = pd.DataFrame(score_matrix)
+
+        return score_matrix
 
 
 if __name__ == "__main__":
