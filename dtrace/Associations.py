@@ -8,9 +8,9 @@ import itertools as it
 import dtrace.DataImporter as DataImporter
 from limix.qtl import st_scan
 from sklearn.linear_model import RidgeCV
-from dtrace.DTraceUtils import dpath, logger
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import ShuffleSplit
+from dtrace.DTraceUtils import dpath, logger
 from statsmodels.stats.multitest import multipletests
 
 
