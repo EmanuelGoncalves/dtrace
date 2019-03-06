@@ -32,7 +32,13 @@ SCRIPT = "dtrace/DTraceEnrichment.py"
 
 CORES = 4
 MEMORY = 8000
-QUEUE = "normal"
+QUEUE = "long"
+
+PERMUTATIONS = 10000
+SIG_MIN_LEN = 5
+PADJ_METHOD = "fdr_bh"
+
+GMTS = ["h.all.v6.2.symbols.gmt", "c2.cp.kegg.v6.2.symbols.gmt"]
 
 
 # Import data-sets and associations
@@ -43,11 +49,7 @@ assoc = Association(dtype="ic50", load_associations=True)
 # Gene-set files
 
 gsea = DTraceEnrichment(
-    gmts=["h.all.v6.2.symbols.gmt"],
-    permutations=100,
-    sig_min_len=5,
-    padj_method="fdr_bh",
-    verbose=1,
+    gmts=GMTS, sig_min_len=5, padj_method="fdr_bh", verbose=1
 )
 
 
@@ -55,8 +57,8 @@ gsea = DTraceEnrichment(
 
 gvalues = [
     ("GExp", assoc.gexp.T),
-    ("CRISPR", assoc.crispr.T),
-    ("Drug-CRISPR", assoc.build_association_matrix(assoc.lmm_drug_crispr)),
+    # ("CRISPR", assoc.crispr.T),
+    # ("Drug-CRISPR", assoc.build_association_matrix(assoc.lmm_drug_crispr)),
 ]
 
 
@@ -73,9 +75,7 @@ for dtype, df in gvalues:
             jname = f"ssGSEA{dtype}{gmt}{dindex}"
 
             # Define command
-            j_cmd = (
-                f"{PYTHON} {SCRIPT} -dtype '{dtype}' -dindex '{dindex}' -gmt '{gmt}'"
-            )
+            j_cmd = f"{PYTHON} {SCRIPT} -dtype '{dtype}' -dindex '{dindex}' -gmt '{gmt}' -permutations {PERMUTATIONS} -len {SIG_MIN_LEN} -padj {PADJ_METHOD}"
 
             # Create bsub
             j = bsub(

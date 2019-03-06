@@ -220,13 +220,23 @@ if __name__ == "__main__":
     parser.add_argument("-dtype", nargs="?")
     parser.add_argument("-dindex", nargs="?")
     parser.add_argument("-gmt", nargs="?")
+    parser.add_argument("-permutations", nargs="?", default="0")
+    parser.add_argument("-len", nargs="?", default="5")
+    parser.add_argument("-padj", nargs="?", default="fdr_bh")
 
     args = parser.parse_args()
 
     logger.log(logging.INFO, args)
 
     # Execute enrichment with specified arguments
-    ssgsea = DTraceEnrichmentBSUB(dtype=args.dtype, dindex=args.dindex, gmt=args.gmt)
+    ssgsea = DTraceEnrichmentBSUB(
+        dtype=args.dtype,
+        dindex=args.dindex,
+        gmt=args.gmt,
+        permutations=int(args.permutations),
+        sig_min_len=int(args.len),
+        padj_method=args.padj,
+    )
     ssgsea_gmt_index = ssgsea.gsea_enrichments(ssgsea.gene_values, ssgsea.gmt)
     ssgsea_gmt_index.to_csv(
         f"{dpath}/ssgsea/{ssgsea.dtype}_{ssgsea.gmt}_{ssgsea.dindex}.csv.gz",
