@@ -18,31 +18,26 @@
 # %load_ext autoreload
 # %autoreload 2
 
+import logging
 import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
-from dtrace import rpath
+from dtrace import rpath, logger
 from dtrace.TargetHit import TargetHit
 from dtrace.DTracePlot import DTracePlot
 from dtrace.Associations import Association
+from statsmodels.stats.multitest import multipletests
 
 
 # ### Import data-sets and associations
 
-assoc = Association(dtype="ic50", load_associations=True)
-lmm_combined = pd.concat(
-    [
-        assoc.lmm_drug_crispr.set_index(
-            ["DRUG_ID", "DRUG_NAME", "VERSION", "GeneSymbol"]
-        ).add_prefix("CRISPR_"),
-        assoc.lmm_drug_gexp.set_index(
-            ["DRUG_ID", "DRUG_NAME", "VERSION", "GeneSymbol"]
-        ).add_prefix("GExp_"),
-    ],
-    axis=1,
-    sort=False,
-).dropna()
+assoc = Association(
+    dtype="ic50",
+    load_associations=True,
+    load_pathway_enrichments=True,
+    combine_lmm=False,
+)
 
 
 # ## MCL1 inhibitors associations
@@ -50,19 +45,16 @@ lmm_combined = pd.concat(
 # Analysis of the significant associations between multiple MCL1 inhibitors (MCL1i) and MCL1 and MARCH5
 # gene-essentiality.
 
-hit = TargetHit(
-    "MCL1",
-    lmm_dcrispr=assoc.lmm_drug_crispr,
-    lmm_dgexp=assoc.lmm_drug_gexp,
-    lmm_comb=lmm_combined,
-)
+hit = TargetHit("MCL1", assoc=assoc)
 
 
 # ### Top associations with MCL1i
 
 plt.figure(figsize=(2.0, 2.0), dpi=300)
 hit.associations_beta_scatter()
-plt.savefig(f"{rpath}/hit_associations_betas_scatter.png", bbox_inches="tight", transparent=True)
+plt.savefig(
+    f"{rpath}/hit_associations_betas_scatter.png", bbox_inches="tight", transparent=True
+)
 
 
 # ### Top associations with MCL1i
@@ -165,7 +157,7 @@ for gene_x, gene_y in genes:
 
 # ## Stratification of MCL1i drug-response
 
-# ### MCL1i inhibitors across all essential cell lines.
+# ### MCL1i inhibitors across all cell lines.
 
 ctypes = ["Breast Carcinoma", "Colorectal Carcinoma", "Acute Myeloid Leukemia"]
 genes = ["MCL1", "MARCH5"]
@@ -176,6 +168,10 @@ hue_order = [
     "Colorectal Carcinoma",
     "Acute Myeloid Leukemia",
 ]
+
+
+#
+
 hit.drugresponse_boxplots(
     assoc, ctypes=ctypes, hue_order=hue_order, order=order, genes=genes
 )
@@ -187,14 +183,8 @@ plt.savefig(
 # ### Drug-response of highly selective MCL1i (MCL1_1284 and AZD5991) in breast and colorectal carcinomas.
 
 for drug in [(1956, "MCL1_1284", "RS"), (2235, "AZD5991", "RS")]:
-    plot_df = pd.concat(
-        [
-            assoc.drespo.loc[drug].rename("drug"),
-            hit.discretise_essentiality(genes, assoc).rename("essentiality"),
-            assoc.samplesheet.samplesheet.loc[assoc.samples, "cancer_type"],
-        ],
-        axis=1,
-        sort=False,
+    plot_df = assoc.build_df(
+        drug=[drug], crispr=genes, crispr_discretise=True, sinfo=["cancer_type"]
     )
     plot_df["ctype"] = plot_df["cancer_type"].apply(
         lambda v: v if v in ctypes else "Other"
@@ -245,28 +235,21 @@ drug = assoc.lmm_drug_crispr[
     (assoc.lmm_drug_crispr["DRUG_NAME"] == d)
     & (assoc.lmm_drug_crispr["GeneSymbol"] == c)
 ].iloc[0]
+
 drug = tuple(drug[assoc.drespo_obj.DRUG_COLUMNS])
 dmax = np.log(assoc.drespo_obj.maxconcentration[drug])
 
-plot_df = pd.concat(
-    [
-        assoc.drespo.loc[drug].rename("drug"),
-        assoc.crispr.loc[c].rename("crispr"),
-        assoc.cn.loc["MCL1"].rename("cn"),
-        assoc.crispr_obj.institute.rename("Institute"),
-        assoc.samplesheet.samplesheet["ploidy"],
-    ],
-    axis=1,
-    sort=False,
-).dropna()
+plot_df = assoc.build_df(
+    drug=[drug], crispr=[c], cn=[hit.target], sinfo=["institute", "ploidy"]
+)
+plot_df = plot_df.rename(columns={drug: "drug"})
 plot_df = plot_df.assign(
-    amp=[
-        1 if ((p <= 2.7) and (c >= 5)) or ((p > 2.7) and (c >= 9)) else 0
-        for p, c in plot_df[["ploidy", "cn"]].values
-    ]
+    amp=[assoc.cn_obj.is_amplified(c, p) for c, p in plot_df[["cn", "ploidy"]].values]
 )
 
-grid = DTracePlot.plot_corrplot_discrete("crispr", "drug", "amp", "Institute", plot_df)
+grid = DTracePlot.plot_corrplot_discrete(
+    f"crispr_{c}", "drug", f"cn_{c}", "institute", plot_df
+)
 grid.ax_joint.axhline(
     y=dmax, linewidth=0.3, color=DTracePlot.PAL_DTRACE[2], ls=":", zorder=0
 )
@@ -276,6 +259,36 @@ plt.gcf().set_size_inches(1.5, 1.5)
 plt.savefig(
     f"{rpath}/hit_scatter_{d}_{c}_amp.pdf", bbox_inches="tight", transparent=True
 )
+
+
+#
+
+genes = ["MCL1", "MARCH5"]
+drug = (1956, "MCL1_1284", "RS")
+order = ["None", "MARCH5", "MCL1", "MCL1 + MARCH5"]
+
+df = assoc.build_df(
+    drug=[drug], crispr=genes, sinfo=["cancer_type"], crispr_discretise=True
+).dropna()
+df["crispr"] = pd.Categorical(df["crispr"], order)
+
+df_brca = pd.concat(
+    [
+        df.query(f"cancer_type == 'Breast Carcinoma'"),
+        assoc.samplesheet.load_brca_info(),
+    ],
+    axis=1,
+    sort=False,
+).dropna(subset=[drug]).sort_values("crispr")
+
+df_coread = pd.concat(
+    [
+        df.query(f"cancer_type == 'Colorectal Carcinoma'"),
+        assoc.samplesheet.load_coread_info(),
+    ],
+    axis=1,
+    sort=False,
+).dropna(subset=[drug]).sort_values("crispr")
 
 
 # Copyright (C) 2019 Emanuel Goncalves

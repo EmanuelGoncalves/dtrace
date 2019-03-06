@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 # Copyright (C) 2019 Emanuel Goncalves
 
-import os
 import logging
 import numpy as np
 import DataImporter
@@ -12,7 +11,6 @@ from dtrace import logger, dpath
 from sklearn.linear_model import RidgeCV
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import ShuffleSplit
-from dtrace.DTraceEnrichment import DTraceEnrichment
 from statsmodels.stats.multitest import multipletests
 
 
@@ -31,15 +29,14 @@ class Association:
         load_robust=False,
         load_ppi=False,
         load_simple_lm=False,
-        load_pathway_enrichments=False,
         ppi_thres=900,
-        gmts=None,
+        combine_lmm=False,
     ):
         """
         :param dtype: Drug-response of a drug in a cell line was represented either as an IC50 (ic50) or
             area-under the drug-response curve (auc).
 
-        :param pval_method: Multiple hypothesis adjustment method. Any option available in the multipletests
+        :param pval_method: Multiple hypothesis adjustment method. Any option available in multipletests
             (statsmodels.stats.multitest).
 
         :param load_associations: Load associations (this implies the associations were already tested).
@@ -51,11 +48,6 @@ class Association:
         self.pval_method = pval_method
         self.dcols = DataImporter.DrugResponse.DRUG_COLUMNS
         self.ppi_order = ["T", "1", "2", "3", "4", "5+", "-"]
-        self.gmts = (
-            ["h.all.v6.2.symbols.gmt", "c2.cp.kegg.v6.2.symbols.gmt"]
-            if gmts is None
-            else gmts
-        )
 
         # Import data-sets
         self.crispr_obj = DataImporter.CRISPR()
@@ -142,9 +134,17 @@ class Association:
         if load_simple_lm:
             self.lmm_drug_crispr = pd.read_csv(self.lmm_drug_crispr_NO_mk_file)
 
-        # Load MSigDB pathway enrichments
-        if load_pathway_enrichments:
-            self.gmts = self.load_pathway_enrichments()
+        # Combine Drug ~ CRISPR and Drug ~ GExp associations
+        if combine_lmm:
+            cols = ["DRUG_ID", "DRUG_NAME", "VERSION", "GeneSymbol"]
+            self.lmm_combined = pd.concat(
+                [
+                    self.lmm_drug_crispr.set_index(cols).add_prefix("CRISPR_"),
+                    self.lmm_drug_gexp.set_index(cols).add_prefix("GExp_"),
+                ],
+                axis=1,
+                sort=False,
+            ).dropna()
 
     def build_association_matrix(
         self, associations=None, index=None, columns=None, values=None
@@ -159,85 +159,6 @@ class Association:
         )
 
         return assoc_matrix
-
-    @staticmethod
-    def pathway_enrichment_series(
-        dseries,
-        gmt,
-        min_len,
-        permutations,
-        padj_method="fdr_bh",
-        verbose=0,
-        gsea_obj=None,
-    ):
-        gsea_obj = DTraceEnrichment() if gsea_obj is None else gsea_obj
-
-        gsea_enr = gsea_obj.gsea_enrichments(
-            dseries,
-            gmt,
-            permutations=permutations,
-            min_len=min_len,
-            padj_method=padj_method,
-            verbose=verbose,
-        )
-
-        return gsea_enr
-
-    @classmethod
-    def pathway_enrichment_dataframe(
-        cls, dmatrix, gmt, min_len, verbose=0, gsea_obj=None
-    ):
-        gsea_obj = DTraceEnrichment() if gsea_obj is None else gsea_obj
-
-        gsea_enr = pd.DataFrame(
-            {
-                d: cls.pathway_enrichment_series(
-                    dmatrix.loc[d],
-                    gmt,
-                    permutations=0,
-                    min_len=min_len,
-                    verbose=verbose,
-                    gsea_obj=gsea_obj,
-                )["e_score"]
-                for d in dmatrix.index
-            }
-        ).T
-
-        return gsea_enr
-
-    def gsea_pathway_enrichment(self, associations, min_len=5, verbose=0):
-        gsea_obj = DTraceEnrichment()
-
-        betas = self.build_association_matrix(associations)
-
-        for gmt in self.gmts:
-            if verbose > 0:
-                logger.log(logging.INFO, f"GSEA pathway enrichment {gmt}")
-
-            gsea_enr = self.pathway_enrichment_dataframe(
-                betas, gmt, min_len=min_len, verbose=verbose, gsea_obj=gsea_obj
-            )
-
-            gsea_enr.round(5).to_csv(
-                f"{dpath}/drug_lmm_regressions_{self.dtype}_crispr_gsea_{gmt}.csv.gz",
-                compression="gzip",
-            )
-
-    def load_pathway_enrichments(self):
-        pgsea = {}
-
-        for gmt in self.gmts:
-            pfile = (
-                f"{dpath}/drug_lmm_regressions_{self.dtype}_crispr_gsea_{gmt}.csv.gz"
-            )
-
-            assert os.path.isfile(
-                pfile
-            ), f"Enrichments for {gmt} haven't been calculated"
-
-            pgsea[gmt] = pd.read_csv(pfile, index_col=0)
-
-        return pgsea
 
     def get_covariates(self):
         # Samples CRISPR QC (recall essential genes)
@@ -908,8 +829,10 @@ class Association:
         gexp=None,
         genomic=None,
         wes=None,
+        cn=None,
         sinfo=None,
         bin_to_string=False,
+        crispr_discretise=False,
     ):
         """
         Utility function to build data-frames containing multiple types of measurements.
@@ -919,8 +842,10 @@ class Association:
         :param gexp:
         :param genomic:
         :param wes:
+        :param cn:
         :param sinfo:
         :param bin_to_string:
+        :param crispr_discretise:
         :return:
         """
 
@@ -938,7 +863,11 @@ class Association:
             df.append(self.drespo.loc[drug].T)
 
         if crispr is not None:
-            df.append(self.crispr.loc[crispr].T.add_prefix("crispr_"))
+            if crispr_discretise:
+                df.append(self.discretise_essentiality(crispr, self.crispr).rename("crispr").to_frame())
+
+            else:
+                df.append(self.crispr.loc[crispr].T.add_prefix("crispr_"))
 
         if gexp is not None:
             df.append(self.gexp.loc[gexp].T.add_prefix("gexp_"))
@@ -950,6 +879,9 @@ class Association:
                 wes_df = wes_df.applymap(bin_to_string_fun)
 
             df.append(wes_df)
+
+        if cn is not None:
+            df.append(self.cn.loc[cn].T.add_prefic('cn_'))
 
         if genomic is not None:
             genomic_df = self.genomic.loc[genomic].T
@@ -965,3 +897,14 @@ class Association:
         df = pd.concat(df, axis=1, sort=False)
 
         return df
+
+    @staticmethod
+    def discretise_essentiality(gene_list, dmatrix, threshold=-0.5):
+        discrete = {
+            s: " + ".join([g for g in gene_list if dmatrix.loc[g, s] < threshold])
+            for s in dmatrix
+        }
+
+        discrete = pd.Series(discrete).replace("", "None")
+
+        return discrete

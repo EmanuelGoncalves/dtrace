@@ -89,6 +89,14 @@ class Sample:
 
         return corr
 
+    @staticmethod
+    def load_coread_info(info_file="meta/meta_coread.csv"):
+        return pd.read_csv(f"{dpath}/{info_file}", index_col=0)
+
+    @staticmethod
+    def load_brca_info(info_file="meta/meta_brca.csv"):
+        return pd.read_csv(f"{dpath}/{info_file}", index_col=0)
+
 
 class DrugResponse:
     """
@@ -1064,6 +1072,19 @@ class CopyNumber:
             df = df.loc[:, df.columns.isin(subset)]
 
         return df
+
+    @staticmethod
+    def is_amplified(
+        cn, ploidy, cn_threshold_low=5, cn_thresholds_high=9, ploidy_threshold=2.7
+    ):
+        if (ploidy <= ploidy_threshold) and (cn >= cn_threshold_low):
+            return 1
+
+        elif (ploidy > ploidy_threshold) and (cn >= cn_thresholds_high):
+            return 1
+
+        else:
+            return 0
 
 
 class Apoptosis:

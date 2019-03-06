@@ -15,29 +15,29 @@ from sklearn.model_selection import ShuffleSplit
 
 
 class TargetHit(DTracePlot):
-    def __init__(self, target, lmm_dcrispr, lmm_dgexp, lmm_comb, fdr=0.1):
+    def __init__(self, target, assoc, fdr=0.1):
         super().__init__()
 
         self.dinfo = ["DRUG_ID", "DRUG_NAME", "VERSION"]
 
         self.fdr = fdr
+        self.assoc = assoc
         self.target = target
-
-        self.lmm_dcrispr = lmm_dcrispr
-        self.lmm_dgexp = lmm_dgexp
-        self.lmm_comb = lmm_comb
 
         self.drugs = list(
             {
                 tuple(d)
-                for d in self.lmm_dcrispr[
-                    self.lmm_dcrispr["DRUG_TARGETS"] == self.target
+                for d in self.assoc.lmm_drug_crispr[
+                    self.assoc.lmm_drug_crispr["DRUG_TARGETS"] == self.target
                 ][self.dinfo].values
             }
         )
 
     def associations_beta_scatter(self):
-        x, y = self.lmm_comb["CRISPR_beta"], self.lmm_comb["GExp_beta"]
+        x, y = (
+            self.assoc.lmm_combined["CRISPR_beta"],
+            self.assoc.lmm_combined["GExp_beta"],
+        )
 
         xy = np.vstack([x, y])
         z = gaussian_kde(xy)(xy)
@@ -55,7 +55,7 @@ class TargetHit(DTracePlot):
     def top_associations_barplot(self):
         # Filter for signif associations
         df = (
-            self.lmm_dcrispr.query(
+            self.assoc.lmm_drug_crispr.query(
                 f"(fdr < {self.fdr}) & (DRUG_TARGETS == '{self.target}')"
             )
             .sort_values("fdr")
@@ -154,7 +154,7 @@ class TargetHit(DTracePlot):
         if order is None:
             order = [
                 tuple(d)
-                for d in self.lmm_dcrispr.query(
+                for d in self.assoc.lmm_drug_crispr.query(
                     f"(DRUG_TARGETS == '{self.target}') & (GeneSymbol == '{gene}')"
                 )[self.dinfo].values
             ]
@@ -197,7 +197,7 @@ class TargetHit(DTracePlot):
 
             #
             beta, fdr = (
-                self.lmm_dcrispr.query(f"GeneSymbol == '{gene}'")
+                self.assoc.lmm_drug_crispr.query(f"GeneSymbol == '{gene}'")
                 .set_index(self.dinfo)
                 .loc[d, ["beta", "fdr"]]
                 .values
@@ -232,8 +232,8 @@ class TargetHit(DTracePlot):
             [DTracePlot.PAL_DTRACE[i] for i in [0, 2, 3]], index=drug_targets
         )
 
-        plot_df = self.lmm_comb[
-            self.lmm_comb["CRISPR_DRUG_TARGETS"].isin(targets.index)
+        plot_df = self.assoc.lmm_combined[
+            self.assoc.lmm_combined["CRISPR_DRUG_TARGETS"].isin(targets.index)
         ].reset_index()
         plot_df = plot_df[plot_df["GeneSymbol"] == plot_df["CRISPR_DRUG_TARGETS"]]
 
@@ -415,26 +415,15 @@ class TargetHit(DTracePlot):
         plt.xlabel("Median beta")
         plt.ylabel("")
 
-    @staticmethod
-    def discretise_essentiality(gene_list, data):
-        return pd.Series(
-            {
-                s: " + ".join([g for g in gene_list if data.crispr.loc[g, s] < -0.5])
-                for s in data.samples
-            }
-        ).replace("", "None")
-
     def drugresponse_boxplots(self, data, ctypes, hue_order, order, genes):
-        plot_df = pd.concat(
-            [
-                data.drespo.loc[self.drugs].T,
-                self.discretise_essentiality(genes, data).rename("essentiality"),
-                data.samplesheet.samplesheet.loc[data.samples, "cancer_type"].apply(
-                    lambda v: v if v in ctypes else "Other"
-                ),
-            ],
-            axis=1,
-            sort=False,
+        plot_df = self.assoc.build_df(
+            drug=[self.drugs],
+            crispr=genes,
+            crispr_discretise=True,
+            sinfo=["cancer_type"],
+        )
+        plot_df["cancer_type"] = plot_df["cancer_type"].apply(
+            lambda v: v if v in ctypes else "Other"
         )
 
         #
@@ -450,7 +439,7 @@ class TargetHit(DTracePlot):
 
             sns.boxplot(
                 x=d,
-                y="essentiality",
+                y="crispr",
                 hue="cancer_type",
                 data=plot_df,
                 orient="h",
