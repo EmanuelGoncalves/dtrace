@@ -27,7 +27,7 @@ from dtrace.DTraceEnrichment import DTraceEnrichment
 
 # Configurations
 
-PYTHON = "python3.6.1"
+PYTHON = "/software/bin/python-3.6.1"
 SCRIPT = "dtrace/DTraceEnrichment.py"
 
 CORES = 4
@@ -70,7 +70,7 @@ for (dtype, df, efile) in gvalues:
             logger.log(logging.INFO, f"bsub ssGSEA {dindex} {gmt}")
 
             # Set job name
-            jname = f"ssGSEA{dindex}{gmt}"
+            jname = f"ssGSEA{dtype}{gmt}{dindex}"
 
             # Define command
             j_cmd = (
