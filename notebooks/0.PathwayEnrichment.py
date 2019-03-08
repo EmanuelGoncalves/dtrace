@@ -37,12 +37,12 @@ PERMUTATIONS = 10000
 SIG_MIN_LEN = 5
 PADJ_METHOD = "fdr_bh"
 
-GMTS = ["h.all.v6.2.symbols.gmt", "c2.cp.kegg.v6.2.symbols.gmt"]
+GMTS = ["h.all.v6.2.symbols.gmt"]
 
 
 # Import data-sets and associations
 
-assoc = Association(dtype="ic50", load_associations=True)
+assoc = Association(dtype="ic50")
 
 
 # Gene-set files
@@ -56,14 +56,13 @@ gsea = DTraceEnrichment(
 
 gvalues = [
     ("GExp", assoc.gexp.T),
-    # ("CRISPR", assoc.crispr.T),
-    # ("Drug-CRISPR", assoc.build_association_matrix(assoc.lmm_drug_crispr)),
 ]
 
 
 #
 
 for dtype, df in gvalues:
+
     for gmt in gsea.gmts:
         logging.getLogger("DTrace").info(f"{dtype}: GSEA pathway enrichment {gmt}")
 

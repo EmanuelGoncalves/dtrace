@@ -246,7 +246,7 @@ if __name__ == "__main__":
 
     parser.add_argument("-dtype", nargs="?")
     parser.add_argument("-dindex", nargs="?")
-    parser.add_argument("-gmt", nargs="?")
+    parser.add_argument("-gmt", nargs="?", default="h.all.v6.2.symbols.gmt")
     parser.add_argument("-permutations", nargs="?", default="0")
     parser.add_argument("-len", nargs="?", default="5")
     parser.add_argument("-padj", nargs="?", default="fdr_bh")
