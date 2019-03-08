@@ -26,7 +26,7 @@ from dtrace.DTraceEnrichment import DTraceEnrichment
 
 # Configurations
 
-PYTHON = "/software/bin/python-3.6.1"
+PYTHON = "python"
 SCRIPT = "dtrace/DTraceEnrichment.py"
 
 CORES = 4

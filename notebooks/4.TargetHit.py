@@ -408,7 +408,7 @@ for gmt in gsea.gmts:
     for pc in loadings_coread_methy:
         loadings_coread_methy_gsea[gmt][pc] = gsea.gsea_enrichments(loadings_coread_methy[pc], gmt)
 
-loadings_coread_methy_gsea["h.all.v6.2.symbols.gmt"]["PC1"]
+loadings_coread_methy_gsea["h.all.v6.2.symbols.gmt"]["PC4"]
 loadings_coread_methy_gsea["c2.cp.kegg.v6.2.symbols.gmt"]["PC4"]
 
 
