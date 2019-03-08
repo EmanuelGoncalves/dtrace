@@ -9,6 +9,7 @@ import matplotlib.colors as colors
 import matplotlib.patches as mpatches
 from crispy import CrispyPlot
 from scipy.stats import pearsonr
+from matplotlib.colors import LinearSegmentedColormap
 
 
 class MidpointNormalize(colors.Normalize):
@@ -41,6 +42,10 @@ class DTracePlot(CrispyPlot):
     PAL_DTRACE = [PAL_SET2[1], "#E1E1E1", "#656565", "#2b8cbe", "#de2d26"]
     PAL_YES_NO = dict(Yes=PAL_DTRACE[0], No=PAL_DTRACE[2])
     PAL_1_0 = {1: PAL_DTRACE[0], 0: PAL_DTRACE[2]}
+
+    CMAP_DTRACE = cmap = LinearSegmentedColormap.from_list(
+        name="DTraceCMAP", colors=[PAL_DTRACE[0], "0.9", PAL_DTRACE[1]], N=33
+    )
 
     BOXPROPS = dict(linewidth=1.0)
     WHISKERPROPS = dict(linewidth=1.0)

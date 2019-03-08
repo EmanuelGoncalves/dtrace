@@ -13,7 +13,6 @@ from crispy.Utils import Utils
 from crispy.QCPlot import QCplot
 from matplotlib.lines import Line2D
 from scipy.stats import gaussian_kde
-from dtrace.DTraceUtils import logger
 from dtrace.DTracePlot import DTracePlot
 from scipy.stats import mannwhitneyu, gmean
 from dtrace.DataImporter import KinobeadCATDS
@@ -176,7 +175,7 @@ class TargetBenchmark(DTracePlot):
 
         #
         t, p = mannwhitneyu(catds_signif["Yes"], catds_signif["No"])
-        logger.log(logging.INFO, f"Mann-Whitney U statistic={t:.2f}, p-value={p:.2e}")
+        logging.getLogger("DTrace").info(f"Mann-Whitney U statistic={t:.2f}, p-value={p:.2e}")
 
         # Plot
         ax = sns.boxplot(
@@ -220,7 +219,7 @@ class TargetBenchmark(DTracePlot):
             )
 
         t, p = mannwhitneyu(plot_df["!="], plot_df["=="])
-        logger.log(logging.INFO, f"Mann-Whitney U statistic={t:.2f}, p-value={p:.2e}")
+        logging.getLogger("DTrace").info(f"Mann-Whitney U statistic={t:.2f}, p-value={p:.2e}")
 
         plt.axvline(0, c=self.PAL_DTRACE[1], lw=0.3, ls="-", zorder=0)
 

@@ -7,10 +7,10 @@ import pandas as pd
 import itertools as it
 import dtrace.DataImporter as DataImporter
 from limix.qtl import st_scan
+from dtrace.DTraceUtils import dpath
 from sklearn.linear_model import RidgeCV
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import ShuffleSplit
-from dtrace.DTraceUtils import dpath, logger
 from statsmodels.stats.multitest import multipletests
 
 
@@ -56,6 +56,7 @@ class Association:
         self.gexp_obj = DataImporter.GeneExpression()
         self.cn_obj = DataImporter.CopyNumber()
         self.wes_obj = DataImporter.WES()
+        self.methy_obj = DataImporter.Methylation()
 
         self.samples = list(
             set.intersection(
@@ -64,7 +65,7 @@ class Association:
             )
         )
 
-        logger.log(logging.INFO, f"#(Samples)={len(self.samples)}")
+        logging.getLogger("DTrace").info(f"#(Samples)={len(self.samples)}")
 
         # Import PPI and samplesheet
         self.ppi = DataImporter.PPI()
@@ -79,9 +80,9 @@ class Association:
         self.wes = self.wes_obj.filter(
             subset=self.samples, as_matrix=True, min_events=5
         )
+        self.methy = self.methy_obj.filter(subset=self.samples)
 
-        logger.log(
-            logging.INFO,
+        logging.getLogger("DTrace").info(
             f"#(Drugs)={self.drespo.shape[0]}; "
             f"#(Genes)={self.crispr.shape[0]}; "
             f"#(Genomic)={self.genomic.shape[0]}; ",
@@ -272,8 +273,7 @@ class Association:
         drug = y.columns[0]
 
         if verbose:
-            logger.log(
-                logging.INFO,
+            logging.getLogger("DTrace").info(
                 f"[lmm_single_association] Drug {drug[1]} from screen {drug[2]} with ID {drug[0]}",
             )
 
@@ -400,7 +400,7 @@ class Association:
         self, lmm_dsingle, xtype="genomic", fdr_thres=0.1, min_events=5, verbose=0
     ):
         if verbose > 0:
-            logger.log(logging.INFO, f"Robust associations with {xtype}")
+            logging.getLogger("DTrace").info(f"Robust associations with {xtype}")
 
         lmm_res_signif = lmm_dsingle.query(f"fdr < {fdr_thres}")
 
@@ -863,11 +863,10 @@ class Association:
             df.append(self.drespo.loc[drug].T)
 
         if crispr is not None:
+            df.append(self.crispr.loc[crispr].T.add_prefix("crispr_"))
+
             if crispr_discretise:
                 df.append(self.discretise_essentiality(crispr, self.crispr).rename("crispr").to_frame())
-
-            else:
-                df.append(self.crispr.loc[crispr].T.add_prefix("crispr_"))
 
         if gexp is not None:
             df.append(self.gexp.loc[gexp].T.add_prefix("gexp_"))

@@ -18,23 +18,24 @@
 # %load_ext autoreload
 # %autoreload 2
 
+import logging
 import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
-from dtrace.DTraceUtils import rpath
 from dtrace.TargetHit import TargetHit
+from dtrace.DataImporter import DataPCA
 from dtrace.DTracePlot import DTracePlot
 from dtrace.Associations import Association
+from dtrace.DTraceUtils import rpath, dpath
+from dtrace.DTracePlot import MidpointNormalize
+from sklearn.feature_selection import f_regression
+from dtrace.DTraceEnrichment import DTraceEnrichment
 
 
 # ### Import data-sets and associations
 
-assoc = Association(
-    dtype="ic50",
-    load_associations=True,
-    combine_lmm=False,
-)
+assoc = Association(dtype="ic50", load_associations=True, combine_lmm=False)
 
 
 # ## MCL1 inhibitors associations
@@ -262,30 +263,153 @@ plt.savefig(
 
 genes = ["MCL1", "MARCH5"]
 drug = (1956, "MCL1_1284", "RS")
+drug2 = (2235, "AZD5991", "RS")
 order = ["None", "MARCH5", "MCL1", "MCL1 + MARCH5"]
 
+dmax = np.log(assoc.drespo_obj.maxconcentration[drug])
+
 df = assoc.build_df(
-    drug=[drug], crispr=genes, sinfo=["cancer_type"], crispr_discretise=True
+    drug=[drug, drug2],
+    crispr=genes,
+    gexp=["BCL2L1"],
+    sinfo=["cancer_type", "growth", "model_name", "institute", "ploidy"],
+    crispr_discretise=True
 ).dropna()
 df["crispr"] = pd.Categorical(df["crispr"], order)
 
-df_brca = pd.concat(
-    [
-        df.query(f"cancer_type == 'Breast Carcinoma'"),
-        assoc.samplesheet.load_brca_info(),
-    ],
-    axis=1,
-    sort=False,
-).dropna(subset=[drug]).sort_values("crispr")
 
-df_coread = pd.concat(
-    [
-        df.query(f"cancer_type == 'Colorectal Carcinoma'"),
-        assoc.samplesheet.load_coread_info(),
+#
+
+df_coread = (
+    pd.concat(
+        [
+            df.query(f"cancer_type == 'Colorectal Carcinoma'"),
+            assoc.samplesheet.load_coread_info(),
+        ],
+        axis=1,
+        sort=False,
+    )
+    .dropna(subset=[drug])
+    .sort_values("crispr", ascending=False)
+)
+df_coread.to_excel(f"{dpath}/matrix_MCL1_COREAD.xlsx")
+# df_coread = df_coread[df_coread.index.isin(assoc.gexp)]
+
+
+#
+
+df_brca = (
+    pd.concat(
+        [
+            df.query(f"cancer_type == 'Breast Carcinoma'"),
+            assoc.samplesheet.load_brca_info(),
+        ],
+        axis=1,
+        sort=False,
+    )
+    .dropna(subset=[drug])
+    .sort_values("crispr", ascending=False)
+)
+df_brca.to_excel(f"{dpath}/matrix_MCL1_BRCA.xlsx")
+
+
+#
+
+order = ["MCL1_1284", "AZD5991", "crispr_MCL1", "crispr_MARCH5", "gexp_BCL2L1"]
+
+plot_df = df_coread.rename(columns={drug: "MCL1_1284", drug2: "AZD5991"})
+plot_df = pd.melt(plot_df, id_vars=["Joint Classification"], value_vars=order).dropna()
+
+f, axs = plt.subplots(
+    len(order),
+    1,
+    sharex="none",
+    sharey="none",
+    dpi=300
+)
+
+for i, t in enumerate(order):
+    g = sns.boxplot(
+        x="value", y="Joint Classification", data=plot_df.query(f"variable == '{t}'"),
+        orient="h",
+        linewidth=0.3,
+        fliersize=1,
+        notch=False,
+        saturation=1.0,
+        showcaps=False,
+        boxprops=DTracePlot.BOXPROPS,
+        whiskerprops=DTracePlot.WHISKERPROPS,
+        flierprops=DTracePlot.FLIERPROPS,
+        medianprops=dict(linestyle="-", linewidth=1.0),
+        ax=axs[i]
+    )
+
+    axs[i].set_xlabel("")
+    axs[i].set_ylabel(t)
+
+plt.gcf().set_size_inches(1.5, len(order))
+
+plt.savefig(
+    f"{rpath}/hit_cris_boxplots.pdf", bbox_inches="tight"
+)
+plt.show()
+
+
+#
+
+methy_samples = list(set(assoc.methy).intersection(df_coread.index))
+df_coread_methy_pca = DataPCA.perform_pca(assoc.methy[methy_samples])
+df_coread_methy = pd.concat([df_coread, df_coread_methy_pca["column"]["pcs"]], axis=1, sort=False).loc[methy_samples]
+
+pcs_pval_coread = [f"PC{i+1}" for i in range(10)]
+pcs_pval_coread = pd.Series(
+    f_regression(df_coread_methy[pcs_pval_coread], df_coread_methy[drug])[1], index=pcs_pval_coread
+).sort_values()
+
+
+#
+
+plt.figure(figsize=(2.0, 1.5), dpi=300)
+sc = plt.scatter(
+    df_coread_methy["PC1"],
+    df_coread_methy["PC4"],
+    c=df_coread_methy[drug],
+    cmap=DTracePlot.CMAP_DTRACE,
+    s=10,
+    norm=MidpointNormalize(midpoint=dmax),
+)
+cb = plt.colorbar(sc)
+plt.show()
+
+
+#
+
+loadings_coread_methy = df_coread_methy_pca["column"]["pca"].components_
+loadings_coread_methy = pd.DataFrame(
+    loadings_coread_methy,
+    index=[f"PC{i+1}" for i in range(10)],
+    columns=assoc.methy[methy_samples].index,
+).T
+
+
+gsea = DTraceEnrichment(
+    gmts=[
+        "h.all.v6.2.symbols.gmt",
+        "c2.cp.kegg.v6.2.symbols.gmt"
     ],
-    axis=1,
-    sort=False,
-).dropna(subset=[drug]).sort_values("crispr")
+    verbose=1,
+)
+
+loadings_coread_methy_gsea = {}
+for gmt in gsea.gmts:
+    logging.getLogger("DTrace").info(gmt)
+
+    loadings_coread_methy_gsea[gmt] = {}
+    for pc in loadings_coread_methy:
+        loadings_coread_methy_gsea[gmt][pc] = gsea.gsea_enrichments(loadings_coread_methy[pc], gmt)
+
+loadings_coread_methy_gsea["h.all.v6.2.symbols.gmt"]["PC1"]
+loadings_coread_methy_gsea["c2.cp.kegg.v6.2.symbols.gmt"]["PC4"]
 
 
 # Copyright (C) 2019 Emanuel Goncalves

@@ -20,7 +20,6 @@
 
 import logging
 from bsub import bsub
-from dtrace.DTraceUtils import logger
 from dtrace.Associations import Association
 from dtrace.DTraceEnrichment import DTraceEnrichment
 
@@ -66,10 +65,10 @@ gvalues = [
 
 for dtype, df in gvalues:
     for gmt in gsea.gmts:
-        logger.log(logging.INFO, f"{dtype}: GSEA pathway enrichment {gmt}")
+        logging.getLogger("DTrace").info(f"{dtype}: GSEA pathway enrichment {gmt}")
 
         for dindex in df.index:
-            logger.log(logging.INFO, f"bsub ssGSEA {dindex} {gmt}")
+            logging.getLogger("DTrace").info(f"bsub ssGSEA {dindex} {gmt}")
 
             # Set job name
             jname = f"ssGSEA{dtype}{gmt}{dindex}"

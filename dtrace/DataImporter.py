@@ -8,9 +8,9 @@ import warnings
 import numpy as np
 import pandas as pd
 import crispy as cy
+from dtrace.DTraceUtils import dpath
 from sklearn.decomposition import PCA
 from dtrace.DTracePlot import DTracePlot
-from dtrace.DTraceUtils import dpath, logger
 
 
 class DataPCA:
@@ -80,8 +80,8 @@ class Sample:
         growth = self.samplesheet["growth"].dropna()
         samples = list(set(growth.index).intersection(df.columns))
 
-        logger.log(
-            logging.INFO, f"Correlation with growth using {len(samples)} cell lines"
+        logging.getLogger("DTrace").info(
+            f"Correlation with growth using {len(samples)} cell lines"
         )
 
         corr = df[samples].T.corrwith(growth[samples])
@@ -322,7 +322,7 @@ class DrugResponse:
         """
 
         if drug_id not in self.drugsheet.index:
-            logger.log(logging.INFO, f"{drug_id} Drug ID not in drug list")
+            logging.getLogger("DTrace").info(f"{drug_id} Drug ID not in drug list")
             return None
 
         drug_name = [self.drugsheet.loc[drug_id, "Name"]]
@@ -750,8 +750,7 @@ class PPI:
                 [i in int_type for i in biogrid["Experimental System Type"]]
             ]
 
-        logger.log(
-            logger.INFO,
+        logging.getLogger("DTrace").info(
             f"Experimental System Type considered: {'; '.join(set(biogrid['Experimental System Type']))}",
         )
 
@@ -759,8 +758,7 @@ class PPI:
         if exp_type is not None:
             biogrid = biogrid[[i in exp_type for i in biogrid["Experimental System"]]]
 
-        logger.log(
-            logger.INFO,
+        logging.getLogger("DTrace").info(
             f"Experimental System considered: {'; '.join(set(biogrid['Experimental System']))}",
         )
 
@@ -797,7 +795,7 @@ class PPI:
 
         # Simplify
         net_i = net_i.simplify()
-        logger.log(logging.INFO, net_i.summary())
+        logging.getLogger("DTrace").info(net_i.summary())
 
         # Export
         if export_pickle is not None:
@@ -813,7 +811,7 @@ class PPI:
             gmap.groupby("string_protein_id")["alias"].agg(lambda x: set(x)).to_dict()
         )
         gmap = {k: list(gmap[k])[0] for k in gmap if len(gmap[k]) == 1}
-        logger.log(logging.INFO, f"ENSP gene map: {len(gmap)}")
+        logging.getLogger("DTrace").info(f"ENSP gene map: {len(gmap)}")
 
         # Load String network
         net = pd.read_csv(f"{dpath}/{self.string_file}", sep=" ")
@@ -830,7 +828,7 @@ class PPI:
         ]
         net["protein1"] = [gmap[p1] for p1 in net["protein1"]]
         net["protein2"] = [gmap[p2] for p2 in net["protein2"]]
-        logger.log(logging.INFO, f"String: {len(net)}")
+        logging.getLogger("DTrace").info(f"String: {len(net)}")
 
         #  String network
         net_i = igraph.Graph(directed=False)
@@ -850,7 +848,7 @@ class PPI:
 
         # Simplify
         net_i = net_i.simplify(combine_edges="max")
-        logger.log(logging.INFO, net_i.summary())
+        logging.getLogger("DTrace").info(net_i.summary())
 
         # Export
         if export_pickle is not None:
@@ -882,7 +880,7 @@ class PPI:
                 [i.index for i in ppi.es if abs(i["corr"]) > m_corr_thres]
             )
 
-        logger.log(logging.INFO, ppi.summary())
+        logging.getLogger("DTrace").info(ppi.summary())
 
         return ppi
 
@@ -1017,6 +1015,60 @@ class GeneExpression:
         rpkm = self.filter(dtype="rpkm", subset=subset)
         rpkm = (rpkm < rpkm_threshold).astype(int)
         return rpkm
+
+    def perform_pca(self, n_components=10, subset=None):
+        df = DataPCA.perform_pca(self.filter(subset=subset), n_components=n_components)
+
+        for by in df:
+            df[by]["pcs"].round(5).to_csv(f"{dpath}/PCA_GExp_{by}_pcs.csv")
+            df[by]["vex"].round(5).to_csv(f"{dpath}/PCA_GExp_{by}_vex.csv")
+
+    @staticmethod
+    def import_pca():
+        pca = {}
+
+        for by in ["row", "column"]:
+            pca[by] = {}
+
+            pca[by]["pcs"] = pd.read_csv(
+                f"{dpath}/PCA_GExp_{by}_pcs.csv", index_col=0
+            )
+            pca[by]["vex"] = pd.read_csv(
+                f"{dpath}/PCA_GExp_{by}_vex.csv", index_col=0, header=None
+            ).iloc[:, 0]
+
+        return pca
+
+
+class Methylation:
+    """
+    Import module for Illumina Methylation 450k arrays
+
+    """
+
+    def __init__(self, methy_gene_promoter="genomic/methy_beta_gene_promoter.csv.gz"):
+        self.methy_promoter = pd.read_csv(f"{dpath}/{methy_gene_promoter}", index_col=0)
+
+    def get_data(self):
+        return self.methy_promoter.copy()
+
+    def filter(self, subset=None):
+        df = self.get_data()
+
+        # Subset matrices
+        if subset is not None:
+            df = df.loc[:, df.columns.isin(subset)]
+
+        return df
+
+    @staticmethod
+    def discretise(beta):
+        if beta < 0.33:
+            return "umethylated"
+        elif beta > 0.66:
+            return "methylated"
+        else:
+            return "hemimethylated"
 
 
 class Proteomics:
@@ -1644,8 +1696,7 @@ if __name__ == "__main__":
 
     drug_respo = drug_response.filter(subset=samples, min_meas=0.75)
 
-    logger.log(logging.INFO, f"Samples={len(samples)}")
-    logger.log(
-        logging.INFO,
+    logging.getLogger("DTrace").info(f"Samples={len(samples)}")
+    logging.getLogger("DTrace").info(
         f"Spaseness={(1 - drug_respo.count().sum() / np.prod(drug_respo.shape)) * 100:.1f}%",
     )

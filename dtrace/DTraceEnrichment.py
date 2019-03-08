@@ -7,8 +7,8 @@ import argparse
 import numpy as np
 import pandas as pd
 from crispy import SSGSEA, GSEAplot
+from dtrace.DTraceUtils import dpath
 from dtrace.Associations import Association
-from dtrace.DTraceUtils import dpath, logger
 from scipy.stats.distributions import hypergeom
 from statsmodels.stats.multitest import multipletests
 
@@ -55,12 +55,12 @@ class DTraceEnrichment:
         geneset = self.gmts[gmt_file]
 
         if self.verbose > 0 and type(values) == pd.Series:
-            logger.log(logging.INFO, f"Values={values.name}")
+            logging.getLogger("DTrace").info(f"Values={values.name}")
 
         ssgsea = []
         for gset in geneset:
             if self.verbose > 1:
-                logger.log(logging.INFO, f"Gene-set={gset}")
+                logging.getLogger("DTrace").info(f"Gene-set={gset}")
 
             gset_len = len({i for i in geneset[gset] if i in values.index})
 
@@ -137,7 +137,7 @@ class DTraceEnrichment:
         ssgsea_geneset = []
         for gset in geneset:
             if self.verbose > 0:
-                logger.log(logging.INFO, f"Gene-set={gset}")
+                logging.getLogger("DTrace").info(f"Gene-set={gset}")
 
             p_value, intersection = self.hypergeom_test(
                 signature=geneset[gset], background=background, sublist=sublist
@@ -253,7 +253,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    logger.log(logging.INFO, args)
+    logging.getLogger("DTrace").info(args)
 
     # Execute enrichment with specified arguments
     ssgsea = DTraceEnrichmentBSUB(

@@ -35,6 +35,7 @@ assoc = Association(dtype="ic50", pval_method="fdr_bh")
 
 assoc.drespo_obj.perform_pca(subset=assoc.samples)
 assoc.crispr_obj.perform_pca(subset=assoc.samples)
+assoc.gexp_obj.perform_pca(subset=assoc.samples)
 
 
 # ## Linear drug-response associations

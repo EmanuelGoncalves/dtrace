@@ -1,9 +1,10 @@
 #!/usr/bin/env python
 # Copyright (C) 2019 Emanuel Goncalves
 
+import sys
+import logging
 import seaborn as sns
 from dtrace.DTracePlot import DTracePlot
-from dtrace.DTraceUtils import dpath, rpath, logger
 from dtrace.DTraceEnrichment import DTraceEnrichment
 
 # - Version
@@ -20,5 +21,18 @@ sns.set(
     rc=DTracePlot.SNS_RC,
 )
 
+# - Logger
+__name__ = "DTrace"
+
+logger = logging.getLogger(__name__)
+
+if not logger.handlers:
+    ch = logging.StreamHandler(sys.stdout)
+    ch.setFormatter(logging.Formatter("[%(asctime)s - %(levelname)s]: %(message)s"))
+    logger.addHandler(ch)
+    logger.setLevel(logging.INFO)
+    logger.propagate = False
+
+
 # - DTrace handlers
-__all__ = ["DTracePlot", "DTraceEnrichment", "dpath", "rpath", "logger"]
+__all__ = ["DTracePlot", "DTraceEnrichment", "__version__", "__name__"]
