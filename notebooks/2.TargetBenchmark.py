@@ -475,9 +475,7 @@ plot_df = pd.concat(
 
 
 plot_df["ratio_fdr"] = np.log(plot_df.eval("target_fdr/proxy_fdr"))
-
 plot_df = plot_df.sort_values("ratio_fdr")
-
 plot_df.to_excel(f"{dpath}/drug_target_proxy_fdr_ratio.xlsx")
 
 

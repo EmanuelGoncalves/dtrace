@@ -37,7 +37,8 @@ PERMUTATIONS = 10000
 SIG_MIN_LEN = 5
 PADJ_METHOD = "fdr_bh"
 
-GMTS = ["h.all.v6.2.symbols.gmt"]
+# GMTS = ["h.all.v6.2.symbols.gmt"]
+GMTS = ["c2.cp.kegg.v6.2.symbols.gmt"]
 
 
 # Import data-sets and associations

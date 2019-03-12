@@ -271,7 +271,7 @@ dmax = np.log(assoc.drespo_obj.maxconcentration[drug])
 df = assoc.build_df(
     drug=[drug, drug2],
     crispr=genes,
-    gexp=["BCL2L1"],
+    gexp=["BCL2L1", "MARCH5"],
     sinfo=["cancer_type", "growth", "model_name", "institute", "ploidy"],
     crispr_discretise=True
 ).dropna()
@@ -351,6 +351,48 @@ plt.gcf().set_size_inches(1.5, len(order))
 
 plt.savefig(
     f"{rpath}/hit_cris_boxplots.pdf", bbox_inches="tight"
+)
+plt.show()
+
+
+#
+
+order = ["MCL1_1284", "AZD5991", "crispr_MCL1", "crispr_MARCH5", "gexp_BCL2L1"]
+
+plot_df = df_brca.rename(columns={drug: "MCL1_1284", drug2: "AZD5991"})
+plot_df = pd.melt(plot_df, id_vars=["PAM50"], value_vars=order).dropna()
+
+f, axs = plt.subplots(
+    len(order),
+    1,
+    sharex="none",
+    sharey="none",
+    dpi=300
+)
+
+for i, t in enumerate(order):
+    g = sns.boxplot(
+        x="value", y="PAM50", data=plot_df.query(f"variable == '{t}'"),
+        orient="h",
+        linewidth=0.3,
+        fliersize=1,
+        notch=False,
+        saturation=1.0,
+        showcaps=False,
+        boxprops=DTracePlot.BOXPROPS,
+        whiskerprops=DTracePlot.WHISKERPROPS,
+        flierprops=DTracePlot.FLIERPROPS,
+        medianprops=dict(linestyle="-", linewidth=1.0),
+        ax=axs[i]
+    )
+
+    axs[i].set_xlabel("")
+    axs[i].set_ylabel(t)
+
+plt.gcf().set_size_inches(1.5, len(order))
+
+plt.savefig(
+    f"{rpath}/hit_pam50_boxplots.pdf", bbox_inches="tight"
 )
 plt.show()
 
