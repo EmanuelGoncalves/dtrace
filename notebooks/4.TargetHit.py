@@ -35,7 +35,7 @@ from dtrace.DTraceEnrichment import DTraceEnrichment
 
 # ### Import data-sets and associations
 
-assoc = Association(dtype="ic50", load_associations=True, combine_lmm=False)
+assoc = Association(dtype="ic50", load_associations=True, combine_lmm=True)
 
 
 # ## MCL1 inhibitors associations
@@ -44,15 +44,6 @@ assoc = Association(dtype="ic50", load_associations=True, combine_lmm=False)
 # gene-essentiality.
 
 hit = TargetHit("MCL1", assoc=assoc)
-
-
-# ### Top associations with MCL1i
-
-plt.figure(figsize=(2.0, 2.0), dpi=300)
-hit.associations_beta_scatter()
-plt.savefig(
-    f"{rpath}/hit_associations_betas_scatter.png", bbox_inches="tight", transparent=True
-)
 
 
 # ### Top associations with MCL1i
@@ -187,6 +178,7 @@ for drug in [(1956, "MCL1_1284", "RS"), (2235, "AZD5991", "RS")]:
     plot_df["ctype"] = plot_df["cancer_type"].apply(
         lambda v: v if v in ctypes else "Other"
     )
+    plot_df = plot_df.rename(columns={drug: "drug"})
 
     ctypes = ["Colorectal Carcinoma", "Breast Carcinoma"]
 
@@ -196,7 +188,7 @@ for drug in [(1956, "MCL1_1284", "RS"), (2235, "AZD5991", "RS")]:
         df = plot_df.query(f"ctype == '{tissue}'")
 
         g = DTracePlot().plot_multiple(
-            "drug", "essentiality", df, n_offset=1, n_fontsize=5, ax=axs[i]
+            "drug", "crispr", df, n_offset=1, n_fontsize=5, ax=axs[i]
         )
 
         sns.despine(ax=axs[i])
@@ -242,11 +234,11 @@ plot_df = assoc.build_df(
 )
 plot_df = plot_df.rename(columns={drug: "drug"})
 plot_df = plot_df.assign(
-    amp=[assoc.cn_obj.is_amplified(c, p) for c, p in plot_df[["cn", "ploidy"]].values]
+    amp=[assoc.cn_obj.is_amplified(c, p) for c, p in plot_df[["cn_MCL1", "ploidy"]].values]
 )
 
 grid = DTracePlot.plot_corrplot_discrete(
-    f"crispr_{c}", "drug", f"cn_{c}", "institute", plot_df
+    f"crispr_{c}", "drug", f"amp", "institute", plot_df
 )
 grid.ax_joint.axhline(
     y=dmax, linewidth=0.3, color=DTracePlot.PAL_DTRACE[2], ls=":", zorder=0
@@ -266,7 +258,10 @@ drug = (1956, "MCL1_1284", "RS")
 drug2 = (2235, "AZD5991", "RS")
 order = ["None", "MARCH5", "MCL1", "MCL1 + MARCH5"]
 
+gsea_h = pd.read_csv(f"{dpath}/ssgsea/GExp_h.all.v6.2.symbols.gmt.csv.gz")
+
 dmax = np.log(assoc.drespo_obj.maxconcentration[drug])
+
 
 df = assoc.build_df(
     drug=[drug, drug2],
@@ -285,6 +280,7 @@ df_coread = (
         [
             df.query(f"cancer_type == 'Colorectal Carcinoma'"),
             assoc.samplesheet.load_coread_info(),
+            gsea_h[gsea_h["gset"] == "HALLMARK_EPITHELIAL_MESENCHYMAL_TRANSITION"].set_index("sample")["score"].rename("EMT")
         ],
         axis=1,
         sort=False,

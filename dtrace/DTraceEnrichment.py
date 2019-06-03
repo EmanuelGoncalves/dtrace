@@ -173,21 +173,22 @@ class DTraceEnrichment:
 class DTraceEnrichmentBSUB(DTraceEnrichment):
     def __init__(
         self,
-        dindex,
         dtype,
         gmt,
+        dindex=None,
         sig_min_len=5,
         verbose=0,
         padj_method="fdr_bh",
         permutations=0,
+        load_datasets=True
     ):
-        self.assoc = Association(dtype="ic50", load_associations=True)
-
         self.gmt = gmt
-
         self.dindex = dindex
         self.dtype = dtype
-        self.gene_values = self.load_gene_values()
+
+        if load_datasets:
+            self.assoc = Association(dtype="ic50", load_associations=True)
+            self.gene_values = self.load_gene_values()
 
         DTraceEnrichment.__init__(
             self,
@@ -220,24 +221,41 @@ class DTraceEnrichmentBSUB(DTraceEnrichment):
         else:
             return np.log10(epval)
 
-    def score_matrix(self, func=None, index_col=0):
-        func = self.score_function if func is None else func
+    @staticmethod
+    def parse_name(file_name):
+        return file_name.split("_")[-1].split(".")[0]
+
+    def assemble_single_file(self, score_fun=None, verbose=0):
+        func = self.score_function if score_fun is None else score_fun
 
         efiles = os.listdir(f"{dpath}/ssgsea/")
-        efiles = {f for f in efiles if f.startswith(f"{dpath}/ssgsea/{ssgsea.dtype}_{ssgsea.gmt}")}
+        efiles = {
+            f for f in efiles if f.startswith(f"{self.dtype}_{self.gmt}")
+        }
 
-        score_matrix = {}
+        if verbose > 0:
+            logging.getLogger("DTrace").info(f"Checking files for: '{self.dtype}_{self.gmt}'")
+            logging.getLogger("DTrace").info(f"{len(efiles)} ssGSEA files={efiles}")
+
+        escores = []
         for f in efiles:
-            n = f.split("_")[-1].split(".")[0]
+            n = DTraceEnrichmentBSUB.parse_name(f)
 
-            df = pd.read_csv(f"{dpath}/ssgsea/{f}", index_col=index_col)
+            if verbose > 0:
+                logging.getLogger("DTrace").info(f"reading {f} of {n}")
+
+            df = pd.read_csv(f"{dpath}/ssgsea/{f}")
             df["score"] = [func(e, p) for e, p in df[["e_score", "p_value"]].values]
+            df["sample"] = n
 
-            score_matrix[n] = df["score"]
+            escores.append(df)
 
-        score_matrix = pd.DataFrame(score_matrix)
+        escores = pd.concat(escores, sort=False)
+        escores["adj.p_value"] = multipletests(
+            escores["p_value"], method=self.padj_method
+        )[1]
 
-        return score_matrix
+        return escores
 
 
 if __name__ == "__main__":

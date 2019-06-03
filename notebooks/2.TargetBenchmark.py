@@ -416,7 +416,7 @@ for dg in dgs:
 for gene_x, gene_y in [("MARCH5", "MCL1"), ("SHC1", "EGFR")]:
     plot_df = assoc.build_df(crispr=[gene_x, gene_y], sinfo=["institute"]).dropna()
 
-    g = target.plot_corrplot(gene_x, gene_y, "Institute", plot_df, add_hline=True)
+    g = target.plot_corrplot(f"crispr_{gene_x}", f"crispr_{gene_y}", "institute", plot_df, add_hline=True)
 
     g.set_axis_labels(f"{gene_x} (scaled log2 FC)", f"{gene_y} (scaled log2 FC)")
 

@@ -24,7 +24,7 @@ class Association:
     def __init__(
         self,
         dtype="ic50",
-        pval_method="fdr_bh",
+        pval_method="bonferroni",
         load_associations=False,
         load_robust=False,
         load_ppi=False,
@@ -880,7 +880,7 @@ class Association:
             df.append(wes_df)
 
         if cn is not None:
-            df.append(self.cn.loc[cn].T.add_prefic('cn_'))
+            df.append(self.cn.loc[cn].T.add_prefix('cn_'))
 
         if genomic is not None:
             genomic_df = self.genomic.loc[genomic].T

@@ -417,7 +417,7 @@ class TargetHit(DTracePlot):
 
     def drugresponse_boxplots(self, data, ctypes, hue_order, order, genes):
         plot_df = self.assoc.build_df(
-            drug=[self.drugs],
+            drug=self.drugs,
             crispr=genes,
             crispr_discretise=True,
             sinfo=["cancer_type"],

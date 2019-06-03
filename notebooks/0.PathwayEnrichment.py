@@ -20,8 +20,9 @@
 
 import logging
 from bsub import bsub
+from dtrace.DTraceUtils import dpath
 from dtrace.Associations import Association
-from dtrace.DTraceEnrichment import DTraceEnrichment
+from dtrace.DTraceEnrichment import DTraceEnrichment, DTraceEnrichmentBSUB
 
 
 # Configurations
@@ -37,8 +38,7 @@ PERMUTATIONS = 10000
 SIG_MIN_LEN = 5
 PADJ_METHOD = "fdr_bh"
 
-# GMTS = ["h.all.v6.2.symbols.gmt"]
-GMTS = ["c2.cp.kegg.v6.2.symbols.gmt"]
+GMTS = ["h.all.v6.2.symbols.gmt", "c2.cp.kegg.v6.2.symbols.gmt"]
 
 
 # Import data-sets and associations
@@ -60,7 +60,7 @@ gvalues = [
 ]
 
 
-#
+# Submit ssGSEA jobs
 
 for dtype, df in gvalues:
 
@@ -91,6 +91,13 @@ for dtype, df in gvalues:
 
             # Submit
             j(j_cmd)
+
+
+# Assemble unique data-frame containing all enrichments and adj. p-value across all tests
+
+dtype, gmt = "GExp", "h.all.v6.2.symbols.gmt"
+gsea_df = DTraceEnrichmentBSUB(dtype, gmt, load_datasets=False).assemble_single_file(verbose=1)
+gsea_df.to_csv(f"{dpath}/ssgsea/{dtype}_{gmt}.csv.gz", compression="gzip", index=False)
 
 
 # Copyright (C) 2019 Emanuel Goncalves

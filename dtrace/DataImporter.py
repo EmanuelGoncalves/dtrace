@@ -111,7 +111,7 @@ class DrugResponse:
     def __init__(
         self,
         drugresponse_file_v17="drug/screening_set_384_all_owners_fitted_data_20180308_updated.csv",
-        drugresponse_file_rs="drug/fitted_rapid_screen_1536_v1.3.0_20190222_updated.csv",
+        drugresponse_file_rs="drug/fitted_rapid_screen_1536_v1.4.0_20190531_updated.csv",
     ):
         """
         Two experimental versions were used to acquire drug-response measurements, i.e. v17 and RS (chronologically
@@ -162,6 +162,17 @@ class DrugResponse:
             )
 
             df = pd.concat([d_v17_matrix, d_vrs_matrix], axis=0, sort=False)
+
+            # Filter drug response
+            ds = self.drugsheet[self.drugsheet["Owner"].isin(self.DRUG_OWNERS)]
+            df = df[[i[0] in ds.index for i in df.index]]
+
+            az_approved_drugs = pd.read_csv(f"{dpath}/AZ_release_compounds.csv", index_col=0).query("Use")
+            df = df[[i[0] in az_approved_drugs.index if ds.loc[i[0], "Owner"] == "AZ" else True for i in df.index]]
+
+            mgh_approved_drugs = self.drugsheet.query("Owner == 'MGH'")
+            mgh_approved_drugs = mgh_approved_drugs[mgh_approved_drugs["Suitable for publication"] == "Y"]
+            df = df[[i[0] in mgh_approved_drugs.index if ds.loc[i[0], "Owner"] == "MGH" else True for i in df.index]]
 
             drugresponse[n] = df.copy()
 
@@ -227,18 +238,18 @@ class DrugResponse:
         return num_resp
 
     @staticmethod
-    def get_drugsheet(drugsheet_file="meta/drugsheet_20190228.xlsx"):
+    def get_drugsheet(drugsheet_file="meta/drugsheet_20190531.xlsx"):
         return pd.read_excel(f"{dpath}/{drugsheet_file}", index_col=0)
 
     @classmethod
     def get_drugtargets(cls, by="id"):
         if by == "id":
-            d_targets = cls.get_drugsheet()["Target Curated"].dropna().to_dict()
+            d_targets = cls.get_drugsheet()["Gene Target"].dropna().to_dict()
 
         else:
             d_targets = (
                 cls.get_drugsheet()
-                .groupby("Name")["Target Curated"]
+                .groupby("Name")["Gene Target"]
                 .first()
                 .dropna()
                 .to_dict()
@@ -434,9 +445,15 @@ class CRISPR:
 
         return qcs
 
+    def import_sanger_foldchanges(self):
+        return pd.read_csv(f"{dpath}/{self.SANGER_FC_FILE}", index_col=0)
+
+    def import_broad_foldchanges(self):
+        return pd.read_csv(f"{dpath}/{self.BROAD_FC_FILE}", index_col=0)
+
     def __merge_matricies(self):
-        gdsc_fc = pd.read_csv(f"{dpath}/{self.SANGER_FC_FILE}", index_col=0).dropna()
-        broad_fc = pd.read_csv(f"{dpath}/{self.BROAD_FC_FILE}", index_col=0).dropna()
+        gdsc_fc = self.import_sanger_foldchanges().dropna()
+        broad_fc = self.import_broad_foldchanges().dropna()
 
         genes = list(set(gdsc_fc.index).intersection(broad_fc.index))
 
@@ -1618,7 +1635,12 @@ class KinobeadCATDS:
         dmap = self.import_drug_names()
 
         catds = pd.read_csv(f"{dpath}/{self.catds_matrix_file}", index_col=0)
+        logging.getLogger("DTrace").info(f"Kinobeads drugs all={catds.shape[0]}")
+
         catds = catds[catds.index.isin(dmap.index)]
+        catds = catds[catds.index.isin([i[1] for i in assoc.drespo.index])]
+        logging.getLogger("DTrace").info(f"Kinobeads drugs overlap={catds.shape[0]}")
+
         catds.index = dmap[catds.index].values
 
         if unstack:
