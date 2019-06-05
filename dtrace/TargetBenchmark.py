@@ -175,7 +175,9 @@ class TargetBenchmark(DTracePlot):
 
         #
         t, p = mannwhitneyu(catds_signif["Yes"], catds_signif["No"])
-        logging.getLogger("DTrace").info(f"Mann-Whitney U statistic={t:.2f}, p-value={p:.2e}")
+        logging.getLogger("DTrace").info(
+            f"Mann-Whitney U statistic={t:.2f}, p-value={p:.2e}"
+        )
 
         # Plot
         ax = sns.boxplot(
@@ -219,7 +221,9 @@ class TargetBenchmark(DTracePlot):
             )
 
         t, p = mannwhitneyu(plot_df["!="], plot_df["=="])
-        logging.getLogger("DTrace").info(f"Mann-Whitney U statistic={t:.2f}, p-value={p:.2e}")
+        logging.getLogger("DTrace").info(
+            f"Mann-Whitney U statistic={t:.2f}, p-value={p:.2e}"
+        )
 
         plt.axvline(0, c=self.PAL_DTRACE[1], lw=0.3, ls="-", zorder=0)
 
@@ -342,6 +346,7 @@ class TargetBenchmark(DTracePlot):
             n_text_offset=5e-3,
             palette=self.PPI_PAL,
             hue_order=self.PPI_ORDER,
+            order=self.PPI_ORDER,
             ax=ax,
         )
 
@@ -439,7 +444,7 @@ class TargetBenchmark(DTracePlot):
             sharex="none",
             sharey="all",
             gridspec_kw=dict(hspace=0.0),
-            dpi=300
+            dpi=300,
         )
 
         # Barplot
@@ -558,7 +563,13 @@ class TargetBenchmark(DTracePlot):
         label_fdr = "Significant"
 
         f, axs = plt.subplots(
-            1, len(chrms), sharex="none", sharey="row", gridspec_kw=dict(wspace=0), figsize=(8, 3), dpi=300
+            1,
+            len(chrms),
+            sharex="none",
+            sharey="row",
+            gridspec_kw=dict(wspace=0),
+            figsize=(8, 3),
+            dpi=300,
         )
         for i, name in enumerate(natsorted(chrms)):
             df_group = df[df["chr"] == name]
@@ -1043,8 +1054,8 @@ class TargetBenchmark(DTracePlot):
 
         for t, df in plot_df.groupby("target"):
             plt.scatter(
-                df["beta"],
                 -np.log10(df["pval"]),
+                df["beta"],
                 s=df["size"],
                 color=self.PPI_PAL[t],
                 marker="o",
@@ -1054,11 +1065,15 @@ class TargetBenchmark(DTracePlot):
                 alpha=0.5,
             )
 
-        plt.axvline(0, lw=0.1, ls="-", c=self.PAL_DTRACE[1], alpha=0.8, zorder=0)
+        plt.axhline(0, lw=0.1, ls="-", c=self.PAL_DTRACE[1], alpha=0.8, zorder=0)
 
         plt.legend(
-            frameon=False, prop={"size": 4}, title="PPI distance"
+            frameon=False,
+            prop={"size": 4},
+            title="PPI distance",
+            loc="center left",
+            bbox_to_anchor=(1, 0.5),
         ).get_title().set_fontsize("4")
 
-        plt.xlabel("Effect size")
-        plt.ylabel("Association p-value (-log10)")
+        plt.ylabel("Effect size (beta)")
+        plt.xlabel("Association p-value (-log10)")

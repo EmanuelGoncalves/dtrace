@@ -65,7 +65,7 @@ plt.show()
 
 # Volcano plot of the significant associations.
 
-plt.figure(figsize=(1.5, 3), dpi=300)
+plt.figure(figsize=(3, 1.5), dpi=300)
 target.signif_volcano()
 plt.savefig(
     f"{rpath}/target_benchmark_volcano.pdf", bbox_inches="tight", transparent=True
@@ -95,6 +95,7 @@ dgs = [
     ("Volasertib", "PLK1"),
     ("Rigosertib", "PLK1"),
     ("Linsitinib", "CNPY2"),
+    ("Cetuximab", "EGFR"),
 ]
 
 for dg in dgs:
@@ -310,6 +311,7 @@ drugs = [
     "VX-970",
     "AZD6738",
     "VE-822",
+    "Cetuximab",
 ]
 
 for d in drugs:
@@ -434,6 +436,7 @@ for gene_x, gene_y in [("MARCH5", "MCL1"), ("SHC1", "EGFR")]:
 ppi_examples = [
     ("Nutlin-3a (-)", 0.4, 1, ["RPL37", "UBE3B"]),
     ("AZD3759", 0.3, 1, None),
+    ("Cetuximab", 0.3, 1, None),
 ]
 for d, t, o, e in ppi_examples:
     graph = assoc.ppi.plot_ppi(
