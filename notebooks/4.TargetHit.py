@@ -18,20 +18,15 @@
 # %load_ext autoreload
 # %autoreload 2
 
-import logging
 import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
+from dtrace.DTraceUtils import rpath
 import matplotlib.patches as mpatches
 from dtrace.TargetHit import TargetHit
-from dtrace.DataImporter import DataPCA
 from dtrace.DTracePlot import DTracePlot
 from dtrace.Associations import Association
-from dtrace.DTraceUtils import rpath, dpath
-from dtrace.DTracePlot import MidpointNormalize
-from sklearn.feature_selection import f_regression
-from dtrace.DTraceEnrichment import DTraceEnrichment
 
 
 # ### Import data-sets and associations
@@ -292,7 +287,7 @@ g.ax_heatmap.set_xlabel(None)
 g.ax_heatmap.set_ylabel(None)
 
 handles = [
-    mpatches.Circle([0.0, 0.0], 0.25, facecolor=v, label=k) for k, v in pal.items()
+    mpatches.Circle((0.0, 0.0), 0.25, facecolor=v, label=k) for k, v in pal.items()
 ]
 g.ax_col_dendrogram.legend(handles=handles, loc="center left", bbox_to_anchor=(1, 0.5), frameon=False)
 

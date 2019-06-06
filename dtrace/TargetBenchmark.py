@@ -86,6 +86,33 @@ class TargetBenchmark(DTracePlot):
 
         super().__init__()
 
+    def surrogate_pathway_ratio(self):
+        df = self.assoc.lmm_drug_crispr.sort_values("fdr")
+
+        df = pd.concat(
+            [
+                df.query("target != 'T'")
+                    .groupby("DRUG_NAME")
+                    .first()[["fdr", "GeneSymbol", "target"]]
+                    .add_prefix("proxy_"),
+
+                df.query("target == 'T'")
+                    .groupby("DRUG_NAME")
+                    .first()[["fdr", "DRUG_TARGETS", "GeneSymbol"]]
+                    .add_prefix("target_"),
+            ],
+            axis=1,
+            sort=False,
+        ).dropna()
+
+        df["ratio_fdr"] = np.log(df.eval("target_fdr/proxy_fdr"))
+        df = df.sort_values("ratio_fdr")
+
+        df["proxy_signif"] = (df["proxy_fdr"] < self.fdr).astype(int)
+        df["target_signif"] = (df["target_fdr"] < self.fdr).astype(int)
+
+        return df
+
     def define_drug_sets(self):
         df_genes = set(self.assoc.lmm_drug_crispr["GeneSymbol"])
 

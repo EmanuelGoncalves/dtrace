@@ -24,7 +24,6 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from dtrace.DTraceUtils import rpath, dpath
 from dtrace.Associations import Association
-from dtrace.DataImporter import KinobeadCATDS
 from dtrace.TargetBenchmark import TargetBenchmark
 
 
@@ -45,6 +44,12 @@ assoc.lmm_drug_crispr.head(15)
 # Top associations between drug-response and gene-expression
 
 assoc.lmm_drug_gexp.head(15)
+
+
+# Surrogate pathway adj. p-value ratio
+
+pratio = target.surrogate_pathway_ratio()
+pratio.to_excel(f"{dpath}/drug_target_proxy_fdr_ratio.xlsx")
 
 
 # Manhattan plot of the drug-gene associations, x-axis represents the gene genomic coordinate (obtained from the sgRNAs)
@@ -418,7 +423,9 @@ for dg in dgs:
 for gene_x, gene_y in [("MARCH5", "MCL1"), ("SHC1", "EGFR")]:
     plot_df = assoc.build_df(crispr=[gene_x, gene_y], sinfo=["institute"]).dropna()
 
-    g = target.plot_corrplot(f"crispr_{gene_x}", f"crispr_{gene_y}", "institute", plot_df, add_hline=True)
+    g = target.plot_corrplot(
+        f"crispr_{gene_x}", f"crispr_{gene_y}", "institute", plot_df, add_hline=True
+    )
 
     g.set_axis_labels(f"{gene_x} (scaled log2 FC)", f"{gene_y} (scaled log2 FC)")
 
@@ -451,50 +458,25 @@ for d, t, o, e in ppi_examples:
     graph.write_pdf(f"{rpath}/association_ppi_{d}.pdf")
 
 
-# Kinobeads
+# Surrogate pathway histogram
 
-catds = KinobeadCATDS(assoc=assoc).get_data()
+plt.figure(figsize=(2.0, 2.0), dpi=600)
 
-
-#
-
-plot_df = assoc.lmm_drug_crispr.sort_values("fdr")
-
-plot_df = pd.concat(
-    [
-        plot_df.query("target != 'T'")
-        .groupby("DRUG_NAME")
-        .first()[["fdr", "GeneSymbol"]]
-        .add_prefix("proxy_"),
-
-        plot_df.query("target == 'T'")
-        .groupby("DRUG_NAME")
-        .first()[["fdr", "DRUG_TARGETS", "GeneSymbol"]]
-        .add_prefix("target_"),
-    ],
-    axis=1,
-    sort=False,
-).dropna()
-
-
-plot_df["ratio_fdr"] = np.log(plot_df.eval("target_fdr/proxy_fdr"))
-plot_df = plot_df.sort_values("ratio_fdr")
-plot_df.to_excel(f"{dpath}/drug_target_proxy_fdr_ratio.xlsx")
-
-
-plt.figure(figsize=(2.0, 2.0), dpi=300)
 sns.distplot(
-    plot_df["ratio_fdr"], color=target.PAL_DTRACE[0], kde=False, hist_kws={"lw": 0}
-)
-plt.axvline(
-    0, linewidth=0.1, color=target.PAL_DTRACE[2], ls="-", zorder=0
-)
-plt.xlabel("Target/Proxy\n(log FDR)")
-
-plt.savefig(
-    f"{rpath}/target_benchmark_fdr_ratio_histogram.pdf", bbox_inches="tight"
+    pratio["ratio_fdr"],
+    color=target.PAL_DTRACE[2],
+    kde=False,
+    hist_kws={"lw": 0},
+    bins=45,
 )
 
-plt.show()
+plt.axvline(0, linewidth=0.1, color="#e1e1e1", ls="-", zorder=0)
+
+plt.title("Drug-response pathway surrogate")
+plt.xlabel("Target / Proxy (log ratio adj. p-value)")
+plt.ylabel("Count")
+
+plt.savefig(f"{rpath}/target_benchmark_fdr_ratio_histogram.pdf", bbox_inches="tight")
+
 
 # Copyright (C) 2019 Emanuel Goncalves
