@@ -153,7 +153,6 @@ plt.show()
 
 # Drug-response PCs correlation with growth-rates
 
-# +
 plot_df = assoc.samplesheet.growth_corr(pca_drug["column"]["pcs"].T)
 
 plt.figure(figsize=(1.5, 1.5), dpi=300)
@@ -164,7 +163,6 @@ plt.savefig(
     transparent=True,
 )
 plt.show()
-# -
 
 
 # Samples drug-response PC1 correlation with growth-rate

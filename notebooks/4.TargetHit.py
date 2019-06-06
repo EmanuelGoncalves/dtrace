@@ -23,6 +23,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
 from dtrace.TargetHit import TargetHit
 from dtrace.DataImporter import DataPCA
 from dtrace.DTracePlot import DTracePlot
@@ -234,7 +235,10 @@ plot_df = assoc.build_df(
 )
 plot_df = plot_df.rename(columns={drug: "drug"})
 plot_df = plot_df.assign(
-    amp=[assoc.cn_obj.is_amplified(c, p) for c, p in plot_df[["cn_MCL1", "ploidy"]].values]
+    amp=[
+        assoc.cn_obj.is_amplified(c, p)
+        for c, p in plot_df[["cn_MCL1", "ploidy"]].values
+    ]
 )
 
 grid = DTracePlot.plot_corrplot_discrete(
@@ -251,203 +255,49 @@ plt.savefig(
 )
 
 
-#
+# ### Correlation of BCL2, BCL2L1 and MCL1 inhibitors
 
-genes = ["MCL1", "MARCH5"]
-drug = (1956, "MCL1_1284", "RS")
-drug2 = (2235, "AZD5991", "RS")
-order = ["None", "MARCH5", "MCL1", "MCL1 + MARCH5"]
+selected_targets = {"MCL1", "BCL2", "BCL2L1"}
 
-gsea_h = pd.read_csv(f"{dpath}/ssgsea/GExp_h.all.v6.2.symbols.gmt.csv.gz")
+d_targets = assoc.drespo_obj.get_drugtargets(by="Name")
+d_targets = {
+    d: d_targets[d]
+    for d in d_targets
+    if len(d_targets[d].intersection(selected_targets)) > 0
+}
+d_targets = {i: d_targets[i[1]] for i in assoc.drespo.index if i[1] in d_targets}
 
-dmax = np.log(assoc.drespo_obj.maxconcentration[drug])
+plot_df = assoc.drespo.loc[list(d_targets.keys())].T.corr()
 
+pal = dict(BCL2="#fc8d62", BCL2L1="#656565", MCL1="#2b8cbe", Multiple="#32cd32")
 
-df = assoc.build_df(
-    drug=[drug, drug2],
-    crispr=genes,
-    gexp=["BCL2L1", "MARCH5"],
-    sinfo=["cancer_type", "growth", "model_name", "institute", "ploidy"],
-    crispr_discretise=True
-).dropna()
-df["crispr"] = pd.Categorical(df["crispr"], order)
+row_colors = [
+    pal["Multiple"] if len(d_targets[i]) > 1 else pal[list(d_targets[i])[0]]
+    for i in plot_df.index
+]
+col_colors = [
+    pal["Multiple"] if len(d_targets[i]) > 1 else pal[list(d_targets[i])[0]]
+    for i in plot_df.columns
+]
 
+plot_df.columns = ["; ".join(d_targets[i]) for i in plot_df.columns]
 
-#
+# Plot
 
-df_coread = (
-    pd.concat(
-        [
-            df.query(f"cancer_type == 'Colorectal Carcinoma'"),
-            assoc.samplesheet.load_coread_info(),
-            gsea_h[gsea_h["gset"] == "HALLMARK_EPITHELIAL_MESENCHYMAL_TRANSITION"].set_index("sample")["score"].rename("EMT")
-        ],
-        axis=1,
-        sort=False,
-    )
-    .dropna(subset=[drug])
-    .sort_values("crispr", ascending=False)
-)
-df_coread.to_excel(f"{dpath}/matrix_MCL1_COREAD.xlsx")
-# df_coread = df_coread[df_coread.index.isin(assoc.gexp)]
-
-
-#
-
-df_brca = (
-    pd.concat(
-        [
-            df.query(f"cancer_type == 'Breast Carcinoma'"),
-            assoc.samplesheet.load_brca_info(),
-        ],
-        axis=1,
-        sort=False,
-    )
-    .dropna(subset=[drug])
-    .sort_values("crispr", ascending=False)
-)
-df_brca.to_excel(f"{dpath}/matrix_MCL1_BRCA.xlsx")
-
-
-#
-
-order = ["MCL1_1284", "AZD5991", "crispr_MCL1", "crispr_MARCH5", "gexp_BCL2L1"]
-
-plot_df = df_coread.rename(columns={drug: "MCL1_1284", drug2: "AZD5991"})
-plot_df = pd.melt(plot_df, id_vars=["Joint Classification"], value_vars=order).dropna()
-
-f, axs = plt.subplots(
-    len(order),
-    1,
-    sharex="none",
-    sharey="none",
-    dpi=300
+g = sns.clustermap(
+    plot_df, figsize=(6, 6), row_colors=row_colors, col_colors=col_colors, cmap="mako"
 )
 
-for i, t in enumerate(order):
-    g = sns.boxplot(
-        x="value", y="Joint Classification", data=plot_df.query(f"variable == '{t}'"),
-        orient="h",
-        linewidth=0.3,
-        fliersize=1,
-        notch=False,
-        saturation=1.0,
-        showcaps=False,
-        boxprops=DTracePlot.BOXPROPS,
-        whiskerprops=DTracePlot.WHISKERPROPS,
-        flierprops=DTracePlot.FLIERPROPS,
-        medianprops=dict(linestyle="-", linewidth=1.0),
-        ax=axs[i]
-    )
+g.ax_heatmap.set_xlabel(None)
+g.ax_heatmap.set_ylabel(None)
 
-    axs[i].set_xlabel("")
-    axs[i].set_ylabel(t)
+handles = [
+    mpatches.Circle([0.0, 0.0], 0.25, facecolor=v, label=k) for k, v in pal.items()
+]
+g.ax_col_dendrogram.legend(handles=handles, loc="center left", bbox_to_anchor=(1, 0.5), frameon=False)
 
-plt.gcf().set_size_inches(1.5, len(order))
-
-plt.savefig(
-    f"{rpath}/hit_cris_boxplots.pdf", bbox_inches="tight"
-)
-plt.show()
-
-
-#
-
-order = ["MCL1_1284", "AZD5991", "crispr_MCL1", "crispr_MARCH5", "gexp_BCL2L1"]
-
-plot_df = df_brca.rename(columns={drug: "MCL1_1284", drug2: "AZD5991"})
-plot_df = pd.melt(plot_df, id_vars=["PAM50"], value_vars=order).dropna()
-
-f, axs = plt.subplots(
-    len(order),
-    1,
-    sharex="none",
-    sharey="none",
-    dpi=300
-)
-
-for i, t in enumerate(order):
-    g = sns.boxplot(
-        x="value", y="PAM50", data=plot_df.query(f"variable == '{t}'"),
-        orient="h",
-        linewidth=0.3,
-        fliersize=1,
-        notch=False,
-        saturation=1.0,
-        showcaps=False,
-        boxprops=DTracePlot.BOXPROPS,
-        whiskerprops=DTracePlot.WHISKERPROPS,
-        flierprops=DTracePlot.FLIERPROPS,
-        medianprops=dict(linestyle="-", linewidth=1.0),
-        ax=axs[i]
-    )
-
-    axs[i].set_xlabel("")
-    axs[i].set_ylabel(t)
-
-plt.gcf().set_size_inches(1.5, len(order))
-
-plt.savefig(
-    f"{rpath}/hit_pam50_boxplots.pdf", bbox_inches="tight"
-)
-plt.show()
-
-
-#
-
-methy_samples = list(set(assoc.methy).intersection(df_coread.index))
-df_coread_methy_pca = DataPCA.perform_pca(assoc.methy[methy_samples])
-df_coread_methy = pd.concat([df_coread, df_coread_methy_pca["column"]["pcs"]], axis=1, sort=False).loc[methy_samples]
-
-pcs_pval_coread = [f"PC{i+1}" for i in range(10)]
-pcs_pval_coread = pd.Series(
-    f_regression(df_coread_methy[pcs_pval_coread], df_coread_methy[drug])[1], index=pcs_pval_coread
-).sort_values()
-
-
-#
-
-plt.figure(figsize=(2.0, 1.5), dpi=300)
-sc = plt.scatter(
-    df_coread_methy["PC1"],
-    df_coread_methy["PC4"],
-    c=df_coread_methy[drug],
-    cmap=DTracePlot.CMAP_DTRACE,
-    s=10,
-    norm=MidpointNormalize(midpoint=dmax),
-)
-cb = plt.colorbar(sc)
-plt.show()
-
-
-#
-
-loadings_coread_methy = df_coread_methy_pca["column"]["pca"].components_
-loadings_coread_methy = pd.DataFrame(
-    loadings_coread_methy,
-    index=[f"PC{i+1}" for i in range(10)],
-    columns=assoc.methy[methy_samples].index,
-).T
-
-
-gsea = DTraceEnrichment(
-    gmts=[
-        "h.all.v6.2.symbols.gmt",
-        "c2.cp.kegg.v6.2.symbols.gmt"
-    ],
-    verbose=1,
-)
-
-loadings_coread_methy_gsea = {}
-for gmt in gsea.gmts:
-    logging.getLogger("DTrace").info(gmt)
-
-    loadings_coread_methy_gsea[gmt] = {}
-    for pc in loadings_coread_methy:
-        loadings_coread_methy_gsea[gmt][pc] = gsea.gsea_enrichments(loadings_coread_methy[pc], gmt)
-
-loadings_coread_methy_gsea["h.all.v6.2.symbols.gmt"]["PC4"]
-loadings_coread_methy_gsea["c2.cp.kegg.v6.2.symbols.gmt"]["PC4"]
+plt.savefig(f"{rpath}/hit_BCL2_inhbitors_clustermap.pdf", bbox_inches="tight")
+plt.close("all")
 
 
 # Copyright (C) 2019 Emanuel Goncalves
