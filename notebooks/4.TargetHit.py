@@ -157,6 +157,17 @@ hue_order = [
 
 #
 
+mcl1_resp = assoc.build_df(
+    drug=hit.drugs,
+    crispr=genes,
+    sinfo=["cancer_type", "model_name"],
+)
+
+mcl1_resp[mcl1_resp["cancer_type"] == "Ovarian Carcinoma"].sort_values([(1956, 'MCL1_1284', 'RS')]).head(60)
+
+
+#
+
 hit.drugresponse_boxplots(
     assoc, ctypes=ctypes, hue_order=hue_order, order=order, genes=genes
 )

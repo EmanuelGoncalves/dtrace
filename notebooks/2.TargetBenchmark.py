@@ -22,6 +22,8 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
+from crispy.Utils import Utils
+from scipy.stats import ttest_ind
 from dtrace.DTraceUtils import rpath, dpath
 from dtrace.Associations import Association
 from dtrace.TargetBenchmark import TargetBenchmark
@@ -103,6 +105,7 @@ dgs = [
     ("Cetuximab", "EGFR"),
 ]
 
+dg = ("AZD5582", "RIOK1")
 for dg in dgs:
     pair = assoc.by(assoc.lmm_drug_crispr, drug_name=dg[0], gene_name=dg[1]).iloc[0]
 
@@ -477,6 +480,86 @@ plt.xlabel("Target / Proxy (log ratio adj. p-value)")
 plt.ylabel("Count")
 
 plt.savefig(f"{rpath}/target_benchmark_fdr_ratio_histogram.pdf", bbox_inches="tight")
+
+
+# Drug-target CRISPR variability between drug significant association
+
+plot_df = assoc.lmm_drug_crispr.query("target == 'T'")
+plot_df["crispr_std"] = assoc.crispr.loc[plot_df["GeneSymbol"]].std(1).values
+plot_df["drug_std"] = (
+    assoc.drespo.loc[[tuple(v) for v in plot_df[target.dinfo].values]].std(1).values
+)
+plot_df["signif"] = plot_df["fdr"].apply(lambda v: "Yes" if v < target.fdr else "No")
+
+pal = {"No": target.PAL_DTRACE[1], "Yes": target.PAL_DTRACE[2]}
+
+for l in ["crispr_std", "drug_std"]:
+    plt.figure(figsize=(1.0, 1.5), dpi=600)
+
+    ax = sns.boxplot(
+        "signif",
+        l,
+        data=plot_df,
+        palette=pal,
+        linewidth=0.3,
+        fliersize=1.5,
+        flierprops=target.FLIERPROPS,
+        showcaps=False,
+        notch=True,
+    )
+
+    t, p = ttest_ind(
+        plot_df.query(f"signif == 'Yes'")[l],
+        plot_df.query(f"signif == 'No'")[l],
+        equal_var=False,
+    )
+
+    ax.text(
+        0.95,
+        0.05,
+        f"Welch's t-test p={p:.1e}",
+        fontsize=4,
+        transform=ax.transAxes,
+        ha="right",
+    )
+
+    if l == "crispr_std":
+        ness_std = assoc.crispr.loc[Utils.get_non_essential_genes()].std(1).median()
+        plt.axhline(ness_std, ls=":", lw=0.3, c="k", zorder=0)
+
+        ess_std = assoc.crispr.loc[Utils.get_essential_genes()].std(1).median()
+        plt.axhline(ess_std, ls=":", lw=0.3, c="k", zorder=0)
+
+    plt.title("Drug ~ Gene association")
+    plt.xlabel("Significant association\n(adj. p-value < 10%)")
+    plt.ylabel(
+        "Drug-target fold-change\nstandard deviation"
+        if l == "crispr_std"
+        else "Drug IC50 (ln)\nstandard deviation"
+    )
+
+    plt.savefig(
+        f"{rpath}/target_benchmark_drug_signif_{l}_boxplot.pdf", bbox_inches="tight"
+    )
+
+
+# Drug
+
+d_info = assoc.drespo_obj.drugsheet.groupby("Name")[["Pathway", "Drug Type"]].first()
+d_info = d_info.replace({"Drug Type": {"targeted": "Targeted"}})
+
+plot_df = pd.DataFrame(
+    [
+        dict(
+            drug=d,
+            signif=int(d in target.d_sets_name["significant"]),
+            dtype=d_info.loc[d, "Drug Type"],
+            pathway=d_info.loc[d, "Pathway"],
+        )
+        for d in target.d_targets
+        if d in target.d_sets_name["all"]
+    ]
+)
 
 
 # Copyright (C) 2019 Emanuel Goncalves

@@ -68,6 +68,8 @@ class TargetBenchmark(DTracePlot):
         self.fdr = fdr
         self.assoc = assoc
 
+        self.dinfo = ["DRUG_ID", "DRUG_NAME", "VERSION"]
+
         # Drug targets
         self.d_targets = self.assoc.drespo_obj.get_drugtargets(by="Name")
         self.d_targets_id = self.assoc.drespo_obj.get_drugtargets(by="id")
@@ -886,7 +888,7 @@ class TargetBenchmark(DTracePlot):
             [
                 d
                 for d in self.d_sets_name["tested"]
-                if d not in self.d_sets_name["not_significant"]
+                if d not in self.d_sets_name["significant"]
             ]
         )
         plot_df = pd.Series(plot_df)[self.PPI_ORDER + ["X"]]

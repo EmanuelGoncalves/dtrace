@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import itertools as it
 import dtrace.DataImporter as DataImporter
-from limix.qtl import st_scan
+from limix.qtl import scan
 from dtrace.DTraceUtils import dpath
 from sklearn.linear_model import RidgeCV
 from sklearn.preprocessing import StandardScaler
@@ -232,7 +232,7 @@ class Association:
             )
 
         # Linear Mixed Model
-        lmm = st_scan(X, Y, K=K, M=m, lik=lik, verbose=False)
+        lmm = scan(X, Y, K=K, M=m, lik=lik, verbose=False)
 
         return lmm, dict(x=X, y=Y, k=K, m=m)
 
@@ -359,7 +359,7 @@ class Association:
             k /= k.values.diagonal().mean()
 
             # Linear Mixed Model
-            lmm = st_scan(x, y, K=k, lik="normal", verbose=False)
+            lmm = scan(x, y, K=k, lik="normal", verbose=False)
 
             # Export
             lmm_drug.append(
@@ -439,7 +439,7 @@ class Association:
             k /= k.values.diagonal().mean()
 
             # Linear Mixed Model
-            lmm = st_scan(x, y, K=k, lik="normal", verbose=False)
+            lmm = scan(x, y, K=k, lik="normal", verbose=False)
 
             # Export
             lmm_drug.append(
@@ -486,7 +486,7 @@ class Association:
             k /= k.values.diagonal().mean()
 
             # Linear Mixed Model
-            lmm = st_scan(x, y, K=k, lik="normal", verbose=False)
+            lmm = scan(x, y, K=k, lik="normal", verbose=False)
 
             # Export
             lmm_crispr.append(
