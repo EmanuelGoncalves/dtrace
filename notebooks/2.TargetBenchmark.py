@@ -27,6 +27,7 @@ from scipy.stats import ttest_ind
 from dtrace.DTraceUtils import rpath, dpath
 from dtrace.Associations import Association
 from dtrace.TargetBenchmark import TargetBenchmark
+from dtrace.RobustAssociations import RobustAssociations
 
 
 # ### Import data-sets and associations
@@ -103,9 +104,11 @@ dgs = [
     ("Rigosertib", "PLK1"),
     ("Linsitinib", "CNPY2"),
     ("Cetuximab", "EGFR"),
+    ("Olaparib", "PARP1"),
+    ("Olaparib", "PARP2"),
 ]
 
-dg = ("AZD5582", "RIOK1")
+dg = ("Olaparib", "PARP2")
 for dg in dgs:
     pair = assoc.by(assoc.lmm_drug_crispr, drug_name=dg[0], gene_name=dg[1]).iloc[0]
 
@@ -560,6 +563,35 @@ plot_df = pd.DataFrame(
         if d in target.d_sets_name["all"]
     ]
 )
+
+
+# Core-essential analysis
+
+ess_genes = assoc.crispr_obj.import_sanger_essential_genes()
+plot_df = assoc.lmm_drug_crispr.query(f"fdr < {target.fdr}")
+plot_df["essential"] = plot_df["GeneSymbol"].isin(ess_genes).values
+
+
+#
+
+plot_df = pd.concat([
+    assoc.genomic.loc["BRCA1_mut"],
+    assoc.genomic.loc["BRCA2_mut"],
+    assoc.crispr.loc["PARP1"],
+    assoc.crispr.loc["PARP2"],
+    assoc.samplesheet.samplesheet["cancer_type"],
+], axis=1, sort=False).dropna()
+plot_df = plot_df[plot_df["cancer_type"] == "Breast Carcinoma"]
+
+for g_mut, g_crispr in [("BRCA2_mut", "PARP1"), ("BRCA1_mut", "PARP1")]:
+    plt.figure(figsize=(0.75, 1.5), dpi=300)
+    g = RobustAssociations.plot_boxplot_discrete(g_mut, g_crispr, plot_df)
+    plt.ylabel(f"{g_crispr}\n(scaled log2 FC)")
+    plt.savefig(
+        f"{rpath}/genomic_boxplot_{g_mut}_{g_crispr}.pdf",
+        bbox_inches="tight",
+        transparent=True,
+    )
 
 
 # Copyright (C) 2019 Emanuel Goncalves

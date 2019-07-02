@@ -9,7 +9,7 @@ from dtrace.DTracePlot import DTracePlot
 
 
 class Preliminary(DTracePlot):
-    HIST_KDE_KWS = dict(cumulative=True, cut=0)
+    HIST_KDE_KWS = dict(cumulative=False, cut=0)
 
     @classmethod
     def _pairplot_fix_labels(cls, g, pca, by):
@@ -178,15 +178,17 @@ class DrugPreliminary(Preliminary):
             sns.distplot(
                 df[df["VERSION"] == s]["count"],
                 color=cls.DRUG_PAL[s],
-                hist=False,
+                hist=True,
+                hist_kws=dict(lw=0),
+                kde=False,
                 label=s,
-                kde_kws=cls.HIST_KDE_KWS,
+                bins=15,
             )
 
-        plt.xlabel("Number of cell lines screened")
-        plt.ylabel(f"Fraction of {df.shape[0]} drugs")
+        plt.xlabel("Number of drugs measure per cell line")
+        plt.ylabel(f"Number of cell lines")
 
-        plt.title("Cumulative distribution of drug measurements")
+        plt.title("Histogram of drugs screened per cell lines")
 
         plt.legend(loc=4, frameon=False, prop={"size": 6})
 
@@ -197,15 +199,16 @@ class DrugPreliminary(Preliminary):
         sns.distplot(
             df["count"],
             color=cls.PAL_DTRACE[2],
-            hist=False,
-            kde_kws=cls.HIST_KDE_KWS,
+            hist=True,
+            kde=False,
+            hist_kws=dict(lw=0),
             label=None,
         )
 
-        plt.xlabel("Number of drugs screened")
-        plt.ylabel(f"Fraction of {df.shape[0]} cell lines")
+        plt.xlabel("Number of IC50s")
+        plt.ylabel(f"Number of drugs")
 
-        plt.title("Cumulative distribution of drug measurements")
+        plt.title("Histogram of measured IC50s per drug")
 
         plt.legend().remove()
 

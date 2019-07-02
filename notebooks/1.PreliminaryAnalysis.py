@@ -74,9 +74,8 @@ num_resp_crispr = assoc.crispr_obj.perform_number_responses(
 
 # Drug-response (IC50s) measurements across cell lines cumulative distribution
 
-plt.figure(figsize=(3, 1.5), dpi=300)
+plt.figure(figsize=(2.5, 1.5), dpi=300)
 DrugPreliminary.histogram_drug(assoc.drespo.count(1))
-plt.gcf().set_size_inches(3, 1.5)
 plt.savefig(
     f"{rpath}/preliminary_drug_histogram_drug.pdf",
     bbox_inches="tight",
@@ -105,7 +104,7 @@ plt.show()
 
 # Cumulative distribution of samples with measurements across all compounds screened
 
-plt.figure(figsize=(3, 1.5), dpi=300)
+plt.figure(figsize=(2.5, 1.5), dpi=300)
 DrugPreliminary.histogram_sample(assoc.drespo.count(0))
 plt.savefig(
     f"{rpath}/preliminary_drug_histogram_samples.pdf",

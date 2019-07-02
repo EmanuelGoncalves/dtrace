@@ -326,7 +326,7 @@ class DTracePlot(CrispyPlot):
         return ax
 
     @classmethod
-    def plot_boxplot_discrete(cls, x, y, df, pal=None):
+    def plot_boxplot_discrete(cls, x, y, df, pal=None, notch=False):
         g = sns.boxplot(
             x=x,
             y=y,
@@ -334,7 +334,7 @@ class DTracePlot(CrispyPlot):
             data=df,
             linewidth=0.3,
             fliersize=1,
-            notch=False,
+            notch=notch,
             saturation=1.0,
             showcaps=False,
             boxprops=DTracePlot.BOXPROPS,
