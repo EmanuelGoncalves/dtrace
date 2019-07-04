@@ -108,7 +108,7 @@ dgs = [
     ("Olaparib", "PARP2"),
 ]
 
-dg = ("Olaparib", "PARP2")
+dg = ("Vandetinib", "RBM14")
 for dg in dgs:
     pair = assoc.by(assoc.lmm_drug_crispr, drug_name=dg[0], gene_name=dg[1]).iloc[0]
 
@@ -151,7 +151,7 @@ for dg in dgs:
 # Zecha J, Reiter K, Qiao H, Helm D, Koch H, Schoof M, Canevari G, Casale E, Depaolini SR, Feuchtinger A, et al. (2017)
 # The target landscape of clinical kinase drugs. Science 358: eaan4368
 
-plt.figure(figsize=(2.5, 0.75), dpi=300)
+plt.figure(figsize=(0.75, 2.), dpi=300)
 target.boxplot_kinobead()
 plt.savefig(
     f"{rpath}/target_benchmark_kinobeads.pdf", bbox_inches="tight", transparent=True
@@ -184,8 +184,7 @@ plt.savefig(
 # gene-essentiality and gene-expression.
 
 for dtype in ["crispr", "gexp"]:
-
-    fig, axs = plt.subplots(2, 1, figsize=(2.5, 5), dpi=300)
+    fig, axs = plt.subplots(2, 1, figsize=(1.5, 3), dpi=300)
 
     # Boxplot
     target.drugs_ppi(dtype, ax=axs[0])
@@ -577,6 +576,7 @@ plot_df["essential"] = plot_df["GeneSymbol"].isin(ess_genes).values
 plot_df = pd.concat([
     assoc.genomic.loc["BRCA1_mut"],
     assoc.genomic.loc["BRCA2_mut"],
+    (assoc.genomic.loc["BRCA1_mut"] | assoc.genomic.loc["BRCA2_mut"]).rename("BRCA1\\2_mut"),
     assoc.crispr.loc["PARP1"],
     assoc.crispr.loc["PARP2"],
     assoc.samplesheet.samplesheet["cancer_type"],

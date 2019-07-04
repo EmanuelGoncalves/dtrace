@@ -185,7 +185,7 @@ class DrugPreliminary(Preliminary):
                 bins=15,
             )
 
-        plt.xlabel("Number of drugs measure per cell line")
+        plt.xlabel("Number of drugs screened")
         plt.ylabel(f"Number of cell lines")
 
         plt.title("Histogram of drugs screened per cell lines")
@@ -236,18 +236,23 @@ class DrugPreliminary(Preliminary):
 
     @classmethod
     def growth_correlation_top_drugs(cls, g_corr, n_features=20):
-        sns.barplot(
-            "pearson",
+        g = sns.barplot(
             "DRUG_NAME",
+            "pearson",
+            orient="v",
             data=g_corr.head(n_features),
             color=cls.PAL_DTRACE[2],
             linewidth=0,
         )
 
+        for item in g.get_xticklabels():
+            item.set_rotation(90)
+
         plt.axvline(0, c=cls.PAL_DTRACE[1], lw=0.1, ls="-", zorder=0)
 
-        plt.xlabel("Drug correlation with growth rate\n(Pearson's R)")
-        plt.ylabel("")
+        plt.xlabel("")
+        plt.ylabel("Pearson's R")
+        plt.title("Drug correlation with growth rate")
 
     @classmethod
     def growth_corrs_pcs_barplot(cls, df):

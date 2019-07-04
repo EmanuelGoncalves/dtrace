@@ -192,7 +192,7 @@ plt.show()
 
 # Top correlated drugs with growth-rate
 
-plt.figure(figsize=(2, 4), dpi=300)
+plt.figure(figsize=(2.5, 1), dpi=300)
 DrugPreliminary.growth_correlation_top_drugs(g_corr)
 plt.savefig(
     f"{rpath}/preliminary_drug_pca_growth_corrplot_top.pdf",

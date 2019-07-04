@@ -196,6 +196,8 @@ class TargetBenchmark(DTracePlot):
             return "#bbbbbb"
 
     def boxplot_kinobead(self):
+        plt.figure(figsize=(0.75, 2.), dpi=300)
+
         order = ["No", "Yes"]
         pal = {"No": self.PAL_DTRACE[1], "Yes": self.PAL_DTRACE[0]}
 
@@ -210,25 +212,29 @@ class TargetBenchmark(DTracePlot):
 
         # Plot
         ax = sns.boxplot(
-            self.catds["catds"],
             self.catds["signif"],
+            self.catds["catds"],
             palette=pal,
             linewidth=0.3,
             fliersize=1.5,
             order=order,
             flierprops=self.FLIERPROPS,
             showcaps=False,
-            orient="h",
+            orient="v",
         )
 
-        for i, s in enumerate(order):
-            ax.scatter(gmean(catds_signif[s]), i, marker="+", lw=0.3, color="k", s=3)
+        # for i, s in enumerate(order):
+        #     ax.scatter(gmean(catds_signif[s]), i, marker="+", lw=0.3, color="k", s=3)
 
-        ax.set_xscale("log")
+        ax.set_yscale("log")
 
-        ax.set_title(f"Drug-Gene association\n(Mann-Whitney p-value={p:.2g})")
-        ax.set_ylabel("Significant")
-        ax.set_xlabel("Kinobeads selectivity (apparent pKd [nM])")
+        ax.set_title(f"Drug-gene association")
+        ax.set_xlabel("Significant")
+        ax.set_ylabel("Kinobeads affinity (pKd [nM])")
+
+        plt.savefig(
+            f"{rpath}/target_benchmark_kinobeads.pdf", bbox_inches="tight", transparent=True
+        )
 
     def beta_histogram(self):
         kde_kws = dict(cut=0, lw=1, zorder=1, alpha=0.8)
