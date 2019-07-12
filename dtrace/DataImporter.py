@@ -8,9 +8,12 @@ import warnings
 import numpy as np
 import pandas as pd
 import crispy as cy
-from dtrace.DTraceUtils import dpath
+import pkg_resources
 from sklearn.decomposition import PCA
-from dtrace.DTracePlot import DTracePlot
+from DTracePlot import DTracePlot
+
+
+dpath = pkg_resources.resource_filename("dtrace", "data/")
 
 
 class DataPCA:
@@ -49,7 +52,7 @@ class Sample:
     def __init__(
         self,
         index="model_id",
-        samplesheet_file="meta/model_list_2018-09-28_1452.csv",
+        samplesheet_file="meta/model_list_2019-06-21_1535.csv.gz",
         growthrate_file="meta/growth_rates_rapid_screen_1536_v1.3.0_20190222.csv",
         samples_origin="meta/samples_origin.csv",
     ):
@@ -630,12 +633,13 @@ class PPI:
         string_file="ppi/9606.protein.links.full.v10.5.txt",
         string_alias_file="ppi/9606.protein.aliases.v10.5.txt",
         biogrid_file="ppi/BIOGRID-ORGANISM-Homo_sapiens-3.4.157.tab2.txt",
+        drug_targets=None,
     ):
         self.string_file = string_file
         self.string_alias_file = string_alias_file
         self.biogrid_file = biogrid_file
 
-        self.drug_targets = DrugResponse.get_drugtargets()
+        self.drug_targets = DrugResponse.get_drugtargets() if drug_targets is None else drug_targets
 
     def ppi_annotation(self, df, ppi_type, ppi_kws, target_thres=5):
         df_genes, df_drugs = set(df["GeneSymbol"]), set(df["DRUG_ID"])
@@ -1243,34 +1247,43 @@ class CTDR2:
             f"{dpath}/{self.data_dir}/v22.meta.per_compound.txt", sep="\t", index_col=0
         )
 
-    def import_depmap18q4_samplesheet(self):
-        ss = pd.read_csv(f"{dpath}/{self.data_dir}/sample_info.csv")
-        ss["CCLE_ID"] = ss["CCLE_name"].apply(lambda v: v.split("_")[0])
-        return ss
-
-    def import_ctrp_aucs(self):
+    def import_ctrp_aucs(self, remove_duplicates=True):
         ctrp_samples = self.import_samplesheet()
 
         ctrp_aucs = pd.read_csv(
             f"{dpath}/{self.data_dir}/v22.data.auc_sensitivities.txt", sep="\t"
         )
+
         ctrp_aucs = pd.pivot_table(
             ctrp_aucs, index="index_cpd", columns="index_ccl", values="area_under_curve"
         )
+
         ctrp_aucs = ctrp_aucs.rename(
-            columns=ctrp_samples.set_index("index_ccl")["ccl_name"]
+            columns=ctrp_samples.set_index("index_ccl")["DepMap_ID"]
         )
+
+        if remove_duplicates:
+            c_counts = ctrp_aucs.columns.value_counts()
+            ctrp_aucs = ctrp_aucs[c_counts[c_counts == 1].index]
 
         return ctrp_aucs
 
-    def import_ceres(self):
-        ss = self.import_depmap18q4_samplesheet().set_index("Broad_ID")
+    def get_drugtargets(cls, by="id"):
+        if by == "id":
+            d_targets = cls.drugsheet["gene_symbol_of_protein_target"].dropna().to_dict()
 
-        ceres = pd.read_csv(f"{dpath}/{self.data_dir}/gene_effect.csv", index_col=0).T
-        ceres = ceres.rename(columns=ss["CCLE_ID"])
-        ceres.index = [i.split(" ")[0] for i in ceres.index]
+        else:
+            d_targets = (
+                cls.drugsheet
+                .groupby("cpd_name")["gene_symbol_of_protein_target"]
+                .first()
+                .dropna()
+                .to_dict()
+            )
 
-        return ceres
+        d_targets = {k: {t.strip() for t in d_targets[k].split(";")} for k in d_targets}
+
+        return d_targets
 
     def get_compound_by_target(
         self, target, target_field="gene_symbol_of_protein_target"
@@ -1279,8 +1292,68 @@ class CTDR2:
         ss = ss[[target in t.split(";") for t in ss[target_field]]]
         return ss
 
-    def get_data(self):
+    def get_data(self, dtype="auc"):
         return self.drespo.copy()
+
+    def filter(self, dtype="auc", subset=None, min_meas=0.75):
+        df = self.get_data(dtype=dtype)
+
+        # Filter by mininum number of observations
+        df = df[df.count(1) > (df.shape[1] * min_meas)]
+
+        if subset is not None:
+            df = df.loc[:, df.columns.isin(subset)]
+            assert df.shape[1] != 0, "No columns after filter by subset"
+
+        return df
+
+    def perform_pca(self, n_components=10, subset=None):
+        for dtype in ["auc"]:
+            df = DataPCA.perform_pca(
+                self.filter(dtype, subset=subset), n_components=n_components
+            )
+
+            for by in df:
+                df[by]["pcs"].round(5).to_csv(f"{dpath}/PCA_drug_CTDR2_{dtype}_{by}_pcs.csv")
+                df[by]["vex"].round(5).to_csv(f"{dpath}/PCA_drug_CTDR2_{dtype}_{by}_vex.csv")
+
+    @staticmethod
+    def import_pca():
+        pca = {}
+        for dtype in ["auc"]:
+            pca[dtype] = {}
+
+            for by in ["row", "column"]:
+                pca[dtype][by] = {}
+
+                pca[dtype][by]["pcs"] = pd.read_csv(
+                    f"{dpath}/PCA_drug_CTDR2_{dtype}_{by}_pcs.csv",
+                    index_col=[0, 1, 2] if by == "row" else 0,
+                )
+                pca[dtype][by]["vex"] = pd.read_csv(
+                    f"{dpath}/PCA_drug_CTDR2_{dtype}_{by}_vex.csv", index_col=0, header=None
+                ).iloc[:, 0]
+
+        return pca
+
+
+class Ceres:
+    def __init__(self, data_dir="CTRPv2.2/"):
+        self.data_dir = data_dir
+        self.ceres = self.import_ceres()
+
+    def import_ceres_samplesheet(self):
+        ss = pd.read_csv(f"{dpath}/{self.data_dir}/Achilles_sample_info.csv")
+        ss["CCLE_ID"] = ss["CCLE_name"].apply(lambda v: v.split("_")[0])
+        return ss
+
+    def import_ceres(self):
+        ceres = pd.read_csv(f"{dpath}/{self.data_dir}/Achilles_gene_effect.csv", index_col=0).T
+        ceres.index = [i.split(" ")[0] for i in ceres.index]
+        return ceres
+
+    def get_data(self):
+        return self.ceres.copy()
 
     def filter(self, subset=None):
         df = self.get_data()

@@ -13,8 +13,8 @@ from crispy.Utils import Utils
 from crispy.QCPlot import QCplot
 from matplotlib.lines import Line2D
 from scipy.stats import gaussian_kde
+from scipy.stats import mannwhitneyu
 from dtrace.DTracePlot import DTracePlot
-from scipy.stats import mannwhitneyu, gmean
 from dtrace.DataImporter import KinobeadCATDS
 from sklearn.preprocessing import MinMaxScaler
 

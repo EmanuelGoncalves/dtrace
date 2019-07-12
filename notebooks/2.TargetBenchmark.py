@@ -18,16 +18,17 @@
 # %load_ext autoreload
 # %autoreload 2
 
+import textwrap
 import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 from crispy.Utils import Utils
 from scipy.stats import ttest_ind
+from dtrace.DTracePlot import DTracePlot
 from dtrace.DTraceUtils import rpath, dpath
 from dtrace.Associations import Association
 from dtrace.TargetBenchmark import TargetBenchmark
-from dtrace.RobustAssociations import RobustAssociations
 
 
 # ### Import data-sets and associations
@@ -151,7 +152,7 @@ for dg in dgs:
 # Zecha J, Reiter K, Qiao H, Helm D, Koch H, Schoof M, Canevari G, Casale E, Depaolini SR, Feuchtinger A, et al. (2017)
 # The target landscape of clinical kinase drugs. Science 358: eaan4368
 
-plt.figure(figsize=(0.75, 2.), dpi=300)
+plt.figure(figsize=(0.75, 2.0), dpi=300)
 target.boxplot_kinobead()
 plt.savefig(
     f"{rpath}/target_benchmark_kinobeads.pdf", bbox_inches="tight", transparent=True
@@ -573,25 +574,74 @@ plot_df["essential"] = plot_df["GeneSymbol"].isin(ess_genes).values
 
 #
 
-plot_df = pd.concat([
-    assoc.genomic.loc["BRCA1_mut"],
-    assoc.genomic.loc["BRCA2_mut"],
-    (assoc.genomic.loc["BRCA1_mut"] | assoc.genomic.loc["BRCA2_mut"]).rename("BRCA1\\2_mut"),
-    assoc.crispr.loc["PARP1"],
-    assoc.crispr.loc["PARP2"],
-    assoc.samplesheet.samplesheet["cancer_type"],
-], axis=1, sort=False).dropna()
-plot_df = plot_df[plot_df["cancer_type"] == "Breast Carcinoma"]
+plot_df = pd.concat(
+    [
+        assoc.genomic.loc["BRCA1_mut"],
+        assoc.genomic.loc["BRCA2_mut"],
+        (assoc.genomic.loc["BRCA1_mut"] | assoc.genomic.loc["BRCA2_mut"]).rename(
+            "BRCA_mut"
+        ),
+        assoc.crispr.loc["PARP1"],
+        assoc.crispr.loc["PARP2"],
+        assoc.samplesheet.samplesheet["cancer_type"],
+    ],
+    axis=1,
+    sort=False,
+).dropna()
 
-for g_mut, g_crispr in [("BRCA2_mut", "PARP1"), ("BRCA1_mut", "PARP1")]:
-    plt.figure(figsize=(0.75, 1.5), dpi=300)
-    g = RobustAssociations.plot_boxplot_discrete(g_mut, g_crispr, plot_df)
-    plt.ylabel(f"{g_crispr}\n(scaled log2 FC)")
-    plt.savefig(
-        f"{rpath}/genomic_boxplot_{g_mut}_{g_crispr}.pdf",
-        bbox_inches="tight",
-        transparent=True,
-    )
+tissues = [{"Breast Carcinoma", "Ovarian Carcinoma"}, {"Ewing's Sarcoma"}]
+
+f, axs = plt.subplots(2, len(tissues), sharex="none", sharey="all", figsize=(1.5, 2.), dpi=600)
+
+for j, t in enumerate(tissues):
+    for i, g_crispr in enumerate(["PARP1", "PARP2"]):
+        ax = axs[i][j]
+
+        df = plot_df[plot_df["cancer_type"].isin(t)]
+        x, y = df["BRCA_mut"], df[g_crispr]
+
+        sns.boxplot(
+            x=x,
+            y=y,
+            palette=DTracePlot.PAL_1_0,
+            data=df,
+            linewidth=0.1,
+            fliersize=1,
+            saturation=1.0,
+            showcaps=False,
+            boxprops=dict(linewidth=.3),
+            whiskerprops=dict(linewidth=.3),
+            flierprops=DTracePlot.FLIERPROPS,
+            sym="",
+            medianprops=dict(linestyle="-", linewidth=.3),
+            ax=ax,
+        )
+
+        sns.stripplot(
+            x=x,
+            y=y,
+            palette=DTracePlot.PAL_1_0,
+            data=df,
+            edgecolor="white",
+            linewidth=0.1,
+            s=1.5,
+            alpha=.8,
+            ax=ax,
+        )
+
+        ax.set_title("\n".join(t) if i == 0 else "")
+        ax.set_xlabel("BRCA1/2 mut" if i == 1 else "")
+        ax.set_ylabel(g_crispr if j == 0 else "")
+        ax.grid(True, ls="-", lw=0.1, alpha=1.0, zorder=0, axis="y")
+
+plt.subplots_adjust(hspace=0.05, wspace=0.05)
+plt.savefig(
+    f"{rpath}/genomic_boxplot_BRCA.pdf",
+    bbox_inches="tight",
+    transparent=True,
+)
+
+plt.close("all")
 
 
 # Copyright (C) 2019 Emanuel Goncalves

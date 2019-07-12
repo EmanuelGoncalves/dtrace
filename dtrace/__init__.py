@@ -5,7 +5,6 @@ import sys
 import logging
 import seaborn as sns
 from dtrace.DTracePlot import DTracePlot
-from dtrace.DTraceEnrichment import DTraceEnrichment
 
 # - Version
 __version__ = "0.5.0"
@@ -35,4 +34,4 @@ if not logger.handlers:
 
 
 # - DTrace handlers
-__all__ = ["DTracePlot", "DTraceEnrichment", "__version__", "__name__"]
+__all__ = ["__version__", "__name__"]

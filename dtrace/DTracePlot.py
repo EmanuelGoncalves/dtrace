@@ -47,9 +47,9 @@ class DTracePlot(CrispyPlot):
         name="DTraceCMAP", colors=[PAL_DTRACE[0], "0.9", PAL_DTRACE[1]], N=33
     )
 
-    BOXPROPS = dict(linewidth=1.0)
-    WHISKERPROPS = dict(linewidth=1.0)
-    MEDIANPROPS = dict(linestyle="-", linewidth=1.0, color=PAL_DTRACE[0])
+    BOXPROPS = dict(linewidth=.3)
+    WHISKERPROPS = dict(linewidth=.3)
+    MEDIANPROPS = dict(linestyle="-", linewidth=.3, color=PAL_DTRACE[0])
     FLIERPROPS = dict(
         marker="o",
         markerfacecolor="black",
@@ -326,13 +326,17 @@ class DTracePlot(CrispyPlot):
         return ax
 
     @classmethod
-    def plot_boxplot_discrete(cls, x, y, df, pal=None, notch=False):
-        g = sns.boxplot(
+    def plot_boxplot_discrete(cls, x, y, df, pal=None, notch=False, ax=None):
+
+        if ax is None:
+            ax = plt.gca()
+
+        sns.boxplot(
             x=x,
             y=y,
             palette=cls.PAL_1_0 if pal is None else pal,
             data=df,
-            linewidth=0.3,
+            linewidth=0.1,
             fliersize=1,
             notch=notch,
             saturation=1.0,
@@ -341,6 +345,7 @@ class DTracePlot(CrispyPlot):
             whiskerprops=DTracePlot.WHISKERPROPS,
             flierprops=DTracePlot.FLIERPROPS,
             medianprops=dict(linestyle="-", linewidth=1.0),
+            ax=ax,
         )
 
-        return g
+        return ax

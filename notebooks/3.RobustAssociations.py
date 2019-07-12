@@ -284,4 +284,30 @@ plt.savefig(
 plt.show()
 
 
+#
+
+pairs_targets = assoc.lmm_robust_genomic[assoc.lmm_robust_genomic["target"].isin(["T"])]
+pairs_targets = {tuple(i) for i in pairs_targets[assoc.drespo_obj.DRUG_COLUMNS + ["GeneSymbol"]].values}
+
+pairs_network = assoc.lmm_robust_genomic[assoc.lmm_robust_genomic["target"].isin(["1", "2", "3"])]
+pairs_network = {tuple(i) for i in pairs_network[assoc.drespo_obj.DRUG_COLUMNS + ["GeneSymbol"]].values}
+
+pairs_unconnected = assoc.lmm_robust_genomic[assoc.lmm_robust_genomic["target"].isin(["4", "5", "-"])]
+pairs_unconnected = {tuple(i) for i in pairs_unconnected[assoc.drespo_obj.DRUG_COLUMNS + ["GeneSymbol"]].values}
+
+
+genomic_pairs = assoc.lmm_robust_genomic.query(f"(drug_fdr < .1) & (crispr_fdr < .1)")
+genomic_pairs = genomic_pairs[genomic_pairs["target"].isin(["T", "1", "2", "3"])]
+genomic_pairs = {tuple(i) for i in genomic_pairs[assoc.drespo_obj.DRUG_COLUMNS + ["GeneSymbol"]].values}
+
+gexp_pairs = assoc.lmm_robust_gexp.query(f"(drug_fdr < .1) & (crispr_fdr < .1)")
+gexp_pairs = gexp_pairs[gexp_pairs["target"].isin(["T", "1", "2", "3"])]
+gexp_pairs = {tuple(i) for i in gexp_pairs[assoc.drespo_obj.DRUG_COLUMNS + ["GeneSymbol"]].values}
+
+f"{(len(genomic_pairs.union(gexp_pairs)) / len(pairs_network) * 100):.1f}"
+f"{(len(genomic_pairs.union(gexp_pairs)) / len(pairs_targets) * 100):.1f}"
+f"{(len(genomic_pairs.union(gexp_pairs)) / len(pairs_unconnected) * 100):.1f}"
+f"{(len(genomic_pairs.union(gexp_pairs)) / (len(pairs_targets) + len(pairs_network)) * 100):.1f}"
+
+
 # Copyright (C) 2019 Emanuel Goncalves

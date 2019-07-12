@@ -4,14 +4,17 @@
 import logging
 import numpy as np
 import pandas as pd
+import pkg_resources
 import itertools as it
-import dtrace.DataImporter as DataImporter
+import DataImporter as DataImporter
 from limix.qtl import scan
-from dtrace.DTraceUtils import dpath
 from sklearn.linear_model import RidgeCV
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import ShuffleSplit
 from statsmodels.stats.multitest import multipletests
+
+
+dpath = pkg_resources.resource_filename("dtrace", "data/")
 
 
 class Association:
@@ -85,7 +88,7 @@ class Association:
         logging.getLogger("DTrace").info(
             f"#(Drugs)={self.drespo.shape[0]}; "
             f"#(Genes)={self.crispr.shape[0]}; "
-            f"#(Genomic)={self.genomic.shape[0]}; ",
+            f"#(Genomic)={self.genomic.shape[0]}; "
         )
 
         # Association files
@@ -193,7 +196,7 @@ class Association:
         return K
 
     @staticmethod
-    def lmm_association_limix(y, x, m=None, k=None, add_intercept=True, lik="normal"):
+    def lmm_association_limix(y, x, m=None, k=None, add_intercept=True, lik="normal", filter_std=True):
         # Build matrices
         Y = y.dropna()
         Y = pd.DataFrame(
@@ -215,7 +218,9 @@ class Association:
         # Covariates
         if m is not None:
             m = m.loc[Y.index]
-            # m = pd.DataFrame(StandardScaler().fit_transform(m), index=m.index, columns=m.columns)
+
+            if filter_std:
+                m = m.loc[:, m.std() > 0]
 
         # Add intercept
         if add_intercept and (m is not None):
@@ -232,7 +237,7 @@ class Association:
             )
 
         # Linear Mixed Model
-        lmm = scan(X, Y, K=K, M=m, lik=lik, verbose=False)
+        lmm = scan(X, Y, K=K.values, M=m, lik=lik, verbose=False)
 
         return lmm, dict(x=X, y=Y, k=K, m=m)
 
@@ -270,34 +275,42 @@ class Association:
 
     @staticmethod
     def lmm_single_association(y, x, m=None, k=None, expand_drug_id=True, verbose=0):
+        cols_rename = dict(
+            effect_name="GeneSymbol", pv20="pval", effsize="beta", effsize_se="beta_se"
+        )
+
         drug = y.columns[0]
 
         if verbose:
+            v_label = f"Drug {drug[1]} from screen {drug[2]} with ID {drug[0]}" if expand_drug_id else drug
             logging.getLogger("DTrace").info(
-                f"[lmm_single_association] Drug {drug[1]} from screen {drug[2]} with ID {drug[0]}",
+                f"[lmm_single_association] {v_label}"
             )
 
         lmm, params = Association.lmm_association_limix(y, x, m, k)
 
-        df = pd.DataFrame(
-            dict(
-                beta=lmm.variant_effsizes.values,
-                pval=lmm.variant_pvalues.values,
-                GeneSymbol=params["x"].columns,
-            )
+        effect_sizes = lmm.effsizes["h2"].query("effect_type == 'candidate'")
+        effect_sizes = effect_sizes.set_index("test").drop(
+            columns=["trait", "effect_type"]
         )
 
+        pvalues = lmm.stats["pv20"]
+
+        res = pd.concat([effect_sizes, pvalues], axis=1, sort=False)
+        res = res.reset_index(drop=True).rename(columns=cols_rename)
+
         if expand_drug_id:
-            df = df.assign(DRUG_ID=drug[0])
-            df = df.assign(DRUG_NAME=drug[1])
-            df = df.assign(VERSION=drug[2])
+            res = res.assign(DRUG_ID=drug[0])
+            res = res.assign(DRUG_NAME=drug[1])
+            res = res.assign(VERSION=drug[2])
 
         else:
-            df = df.assign(DRUG_ID=drug)
+            res = res.assign(DRUG_ID=drug)
 
-        df = df.assign(n_samples=params["y"].shape[0])
+        res = res.assign(samples=params["y"].shape[0])
+        res = res.assign(ncovariates=params["m"].shape[1])
 
-        return df
+        return res
 
     def lmm_single_associations(
         self, verbose=0, add_covariates=True, add_random_effects=True
@@ -409,7 +422,7 @@ class Association:
 
         X = self.get_xdata(xtype)
         samples = set(X).intersection(self.samples)
-        print(
+        logging.getLogger("DTrace").info(
             f"Assoc={lmm_res_signif.shape[0]}; Genes={len(genes)}; Drugs={len(drugs)}; Samples={len(samples)}"
         )
 
@@ -866,7 +879,11 @@ class Association:
             df.append(self.crispr.loc[crispr].T.add_prefix("crispr_"))
 
             if crispr_discretise:
-                df.append(self.discretise_essentiality(crispr, self.crispr).rename("crispr").to_frame())
+                df.append(
+                    self.discretise_essentiality(crispr, self.crispr)
+                    .rename("crispr")
+                    .to_frame()
+                )
 
         if gexp is not None:
             df.append(self.gexp.loc[gexp].T.add_prefix("gexp_"))
@@ -880,7 +897,7 @@ class Association:
             df.append(wes_df)
 
         if cn is not None:
-            df.append(self.cn.loc[cn].T.add_prefix('cn_'))
+            df.append(self.cn.loc[cn].T.add_prefix("cn_"))
 
         if genomic is not None:
             genomic_df = self.genomic.loc[genomic].T
@@ -907,3 +924,136 @@ class Association:
         discrete = pd.Series(discrete).replace("", "None")
 
         return discrete
+
+
+class AssociationCTDR2:
+    def __init__(
+        self,
+        dtype="auc",
+        pval_method="bonferroni",
+        ppi_thres=900,
+        load_lmm_crispr=False,
+        load_ppi=False,
+    ):
+        self.dtype = dtype
+        self.ppi_thres = ppi_thres
+        self.pval_method = pval_method
+
+        # Import data-sets
+        self.crispr_obj = DataImporter.Ceres()
+        self.drespo_obj = DataImporter.CTDR2()
+
+        self.samples = list(
+            set.intersection(
+                set(self.drespo_obj.get_data().columns),
+                set(self.crispr_obj.get_data().columns),
+            )
+        )
+
+        logging.getLogger("DTrace").info(f"#(Samples)={len(self.samples)}")
+
+        # Import PPI and samplesheet
+        self.ppi = DataImporter.PPI(drug_targets=self.drespo_obj.get_drugtargets())
+
+        # Filter
+        self.crispr = self.crispr_obj.filter(subset=self.samples)
+        self.drespo = self.drespo_obj.filter(subset=self.samples, dtype=self.dtype)
+
+        logging.getLogger("DTrace").info(
+            f"#(Drugs)={self.drespo.shape[0]}; " f"#(Genes)={self.crispr.shape[0]}; "
+        )
+
+        # Association files
+        self.lmm_drug_crispr_file = (
+            f"{dpath}/drug_lmm_regressions_{self.dtype}_crispr_ctdr2.csv.gz"
+        )
+
+        if load_lmm_crispr:
+            self.lmm_drug_crispr = pd.read_csv(self.lmm_drug_crispr_file)
+
+        # Load PPI
+        if load_ppi:
+            self.ppi_string = self.ppi.build_string_ppi(score_thres=self.ppi_thres)
+            self.ppi_string_corr = self.ppi.ppi_corr(self.ppi_string, self.crispr)
+
+    def get_covariates(self):
+        # Cell lines culture conditions
+        culture = pd.get_dummies(
+            self.drespo_obj.samplesheet.groupby("DepMap_ID")["culture_media"].first()
+        )
+
+        # Cell lines growth rate
+        drug_growth = self.drespo_obj.import_pca()[self.dtype]["column"]["pcs"]["PC1"]
+
+        # Merge covariates
+        covariates = pd.concat([drug_growth, culture], axis=1, sort=False).loc[self.samples]
+
+        return covariates
+
+    def annotate_drug(self, associations):
+        d_targets = self.drespo_obj.get_drugtargets()
+
+        associations["DRUG_TARGETS"] = [
+            ";".join(d_targets[d]) if d in d_targets else np.nan
+            for d in associations["DRUG_ID"]
+        ]
+
+        associations["DRUG_NAME"] = self.drespo_obj.drugsheet.loc[
+            associations["DRUG_ID"], "cpd_name"
+        ].values
+        associations["broad_cpd_id"] = self.drespo_obj.drugsheet.loc[
+            associations["DRUG_ID"].values, "broad_cpd_id"
+        ].values
+        associations["cpd_status"] = self.drespo_obj.drugsheet.loc[
+            associations["DRUG_ID"].values, "cpd_status"
+        ].values
+        associations["target_or_activity_of_compound"] = self.drespo_obj.drugsheet.loc[
+            associations["DRUG_ID"].values, "target_or_activity_of_compound"
+        ].values
+
+        return associations
+
+    def lmm_single_associations(
+        self, verbose=0, add_covariates=True, add_random_effects=True
+    ):
+        # - Kinship matrix (random effects)
+        k = (
+            Association.kinship(self.crispr[self.samples].T)
+            if add_random_effects
+            else None
+        )
+        m = self.get_covariates() if add_covariates else None
+
+        # - Single feature linear mixed regression
+        # Association
+        lmm_single = pd.concat(
+            [
+                Association.lmm_single_association(
+                    y=self.drespo.loc[[d], self.samples].T,
+                    x=self.crispr[self.samples].T,
+                    k=k,
+                    m=m,
+                    verbose=verbose,
+                    expand_drug_id=False,
+                )
+                for d in self.drespo.index
+            ]
+        )
+
+        # Multiple p-value correction
+        lmm_single = Association.multipletests_per_drug(
+            lmm_single, field="pval", method=self.pval_method, index_cols=["DRUG_ID"]
+        )
+
+        # Annotate drug target
+        lmm_single = self.annotate_drug(lmm_single)
+
+        # Annotate association distance to target
+        lmm_single = self.ppi.ppi_annotation(
+            lmm_single, ppi_type="string", ppi_kws=dict(score_thres=900), target_thres=5
+        )
+
+        # Sort p-values
+        lmm_single = lmm_single.sort_values(["fdr", "pval"])
+
+        return lmm_single
