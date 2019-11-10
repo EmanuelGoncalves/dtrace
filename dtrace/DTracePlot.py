@@ -49,7 +49,7 @@ class DTracePlot(CrispyPlot):
 
     BOXPROPS = dict(linewidth=.3)
     WHISKERPROPS = dict(linewidth=.3)
-    MEDIANPROPS = dict(linestyle="-", linewidth=.3, color=PAL_DTRACE[0])
+    MEDIANPROPS = dict(linestyle="-", linewidth=.3, color="black")
     FLIERPROPS = dict(
         marker="o",
         markerfacecolor="black",
@@ -190,7 +190,7 @@ class DTracePlot(CrispyPlot):
             boxprops=cls.BOXPROPS,
             whiskerprops=cls.WHISKERPROPS,
             flierprops=cls.FLIERPROPS,
-            medianprops=dict(linestyle="-", linewidth=1.0),
+            medianprops=cls.MEDIANPROPS,
         )
 
         sns.regplot(
@@ -320,9 +320,6 @@ class DTracePlot(CrispyPlot):
             n = np.sum(dataframe[y] == c)
             ax.text(text_x, i, f"N={n}", ha="left", va="center", fontsize=n_fontsize)
 
-        # x_lim = ax.get_xlim()
-        # ax.set_xlim(x_lim[0], text_x)
-
         return ax
 
     @classmethod
@@ -341,10 +338,10 @@ class DTracePlot(CrispyPlot):
             notch=notch,
             saturation=1.0,
             showcaps=False,
-            boxprops=DTracePlot.BOXPROPS,
-            whiskerprops=DTracePlot.WHISKERPROPS,
-            flierprops=DTracePlot.FLIERPROPS,
-            medianprops=dict(linestyle="-", linewidth=1.0),
+            boxprops=cls.BOXPROPS,
+            whiskerprops=cls.WHISKERPROPS,
+            flierprops=cls.FLIERPROPS,
+            medianprops=cls.MEDIANPROPS,
             ax=ax,
         )
 

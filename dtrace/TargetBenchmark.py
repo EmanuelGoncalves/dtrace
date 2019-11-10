@@ -8,7 +8,6 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
-from natsort import natsorted
 from crispy.Utils import Utils
 from crispy.QCPlot import QCplot
 from matplotlib.lines import Line2D
@@ -232,10 +231,6 @@ class TargetBenchmark(DTracePlot):
         ax.set_xlabel("Significant")
         ax.set_ylabel("Kinobeads affinity (pKd [nM])")
 
-        plt.savefig(
-            f"{rpath}/target_benchmark_kinobeads.pdf", bbox_inches="tight", transparent=True
-        )
-
     def beta_histogram(self):
         kde_kws = dict(cut=0, lw=1, zorder=1, alpha=0.8)
         hist_kws = dict(alpha=0.4, zorder=1, linewidth=0)
@@ -448,7 +443,7 @@ class TargetBenchmark(DTracePlot):
 
     def top_associations_barplot(self, ntop=50, n_cols=10):
         # Filter for signif associations
-        df = self.assoc.by(self.assoc.lmm_drug_crispr, fdr=self.fdr).sort_values("fdr")
+        df = self.assoc.by(self.assoc.lmm_drug_crispr, fdr=self.fdr).sort_values(["fdr", "pval"])
         df = df.groupby(["DRUG_NAME", "GeneSymbol"]).first()
         df = df.sort_values("fdr").reset_index()
         df = df.assign(logpval=-np.log10(df["pval"]).values)
@@ -473,40 +468,29 @@ class TargetBenchmark(DTracePlot):
         df = pd.concat(df_).reset_index()
 
         # Plot
+        n_rows = int(np.ceil(ntop / n_cols))
+
         f, axs = plt.subplots(
-            int(np.ceil(ntop / n_cols)),
+            n_rows,
             1,
-            sharex="none",
-            sharey="all",
+            sharex="none", sharey="all",
             gridspec_kw=dict(hspace=0.0),
-            dpi=300,
+            figsize=(n_cols, n_rows * 1.7),
         )
 
         # Barplot
         for irow in set(df["irow"]):
+            ax = axs[irow]
             df_irow = df[df["irow"] == irow]
 
-            df_irow_ = df_irow.query("target != 'T'")
-            axs[irow].bar(
-                df_irow_["xpos"],
-                df_irow_["logpval"],
-                0.8,
-                color=self.PAL_DTRACE[2],
-                align="center",
-                zorder=5,
-                linewidth=0,
-            )
-
-            df_irow_ = df_irow.query("target == 'T'")
-            axs[irow].bar(
-                df_irow_["xpos"],
-                df_irow_["logpval"],
-                0.8,
-                color=self.PAL_DTRACE[0],
-                align="center",
-                zorder=5,
-                linewidth=0,
-            )
+            for t_type, c_idx in [("target != 'T'", 2), ("target == 'T'", 0)]:
+                ax.bar(
+                    df_irow.query(t_type)["xpos"].values,
+                    df_irow.query(t_type)["logpval"].values,
+                    color=self.PAL_DTRACE[c_idx],
+                    align="center",
+                    linewidth=0,
+                )
 
             for k, v in (
                 df_irow.groupby("DRUG_NAME")["xpos"]
@@ -515,10 +499,10 @@ class TargetBenchmark(DTracePlot):
                 .to_dict()
                 .items()
             ):
-                axs[irow].text(
+                ax.text(
                     v - 1.2,
                     0.1,
-                    textwrap.fill(k, 15),
+                    textwrap.fill(k.split(" / ")[0], 15),
                     va="bottom",
                     fontsize=7,
                     zorder=10,
@@ -527,7 +511,7 @@ class TargetBenchmark(DTracePlot):
                 )
 
             for g, p in df_irow[["GeneSymbol", "xpos"]].values:
-                axs[irow].text(
+                ax.text(
                     p,
                     0.1,
                     g,
@@ -542,10 +526,10 @@ class TargetBenchmark(DTracePlot):
             for x, y, t, b in df_irow[["xpos", "logpval", "target", "beta"]].values:
                 c = self.PAL_DTRACE[0] if t == "T" else self.PAL_DTRACE[2]
 
-                axs[irow].text(
+                ax.text(
                     x, y + 0.25, t, color=c, ha="center", fontsize=6, zorder=10
                 )
-                axs[irow].text(
+                ax.text(
                     x,
                     -3,
                     f"{b:.1f}",
@@ -559,131 +543,6 @@ class TargetBenchmark(DTracePlot):
             axs[irow].axes.get_xaxis().set_ticks([])
             axs[irow].set_ylabel("Drug association\n(-log10 p-value)")
 
-        plt.gcf().set_size_inches(10, 8)
-
-    def manhattan_plot(self, n_genes=20):
-        # Import gene genomic coordinates from CRISPR-Cas9 library
-        crispr_lib = (
-            Utils.get_crispr_lib().groupby("gene").agg({"start": "min", "chr": "first"})
-        )
-
-        # Plot data-frame
-        df = self.assoc.lmm_drug_crispr.copy()
-        df = df.assign(pos=crispr_lib.loc[df["GeneSymbol"], "start"].values)
-        df = df.assign(
-            chr=crispr_lib.loc[df["GeneSymbol"], "chr"]
-            .apply(lambda v: v.replace("chr", ""))
-            .values
-        )
-        df = df.sort_values(["chr", "pos"])
-
-        # Most frequently associated genes
-        top_genes = (
-            self.assoc.lmm_drug_crispr.groupby("GeneSymbol")["fdr"]
-            .min()
-            .sort_values()
-            .head(n_genes)
-        )
-        top_genes_pal = dict(
-            zip(
-                *(
-                    top_genes.index,
-                    sns.color_palette("tab20", n_colors=n_genes).as_hex(),
-                )
-            )
-        )
-
-        # Plot
-        chrms = set(df["chr"])
-        label_fdr = "Significant"
-
-        f, axs = plt.subplots(
-            1,
-            len(chrms),
-            sharex="none",
-            sharey="row",
-            gridspec_kw=dict(wspace=0),
-            figsize=(8, 3),
-            dpi=300,
-        )
-        for i, name in enumerate(natsorted(chrms)):
-            df_group = df[df["chr"] == name]
-
-            # Plot non-significant
-            df_nonsignif = df_group.query(f"fdr >= {self.fdr}")
-            axs[i].scatter(
-                df_nonsignif["pos"],
-                -np.log10(df_nonsignif["pval"]),
-                c=self.PAL_DTRACE[(i % 2) + 1],
-                s=2,
-            )
-
-            # Plot significant
-            df_signif = df_group.query(f"fdr < {self.fdr}")
-            df_signif = df_signif[~df_signif["GeneSymbol"].isin(top_genes.index)]
-            axs[i].scatter(
-                df_signif["pos"],
-                -np.log10(df_signif["pval"]),
-                c=self.PAL_DTRACE[0],
-                s=2,
-                zorder=3,
-                label=label_fdr,
-            )
-
-            # Plot significant associations of top frequent genes
-            df_genes = df_group.query(f"fdr < {self.fdr}")
-            df_genes = df_genes[df_genes["GeneSymbol"].isin(top_genes.index)]
-            for pos, pval, gene in df_genes[["pos", "pval", "GeneSymbol"]].values:
-                axs[i].scatter(
-                    pos,
-                    -np.log10(pval),
-                    c=top_genes_pal[gene],
-                    s=6,
-                    zorder=4,
-                    label=gene,
-                    marker="2",
-                    lw=0.75,
-                )
-
-            # Misc
-            axs[i].axes.get_xaxis().set_ticks([])
-            axs[i].set_xlabel(name)
-            axs[i].set_ylim(0)
-            axs[i].grid(axis="y", lw=0.1, color=self.PAL_DTRACE[1], zorder=0)
-
-            if i == 0:
-                sns.despine(ax=axs[i], right=True, top=False)
-                axs[i].set_ylabel("Drug-gene association (-log10 p-value)")
-
-            elif i == (len(chrms) - 1):
-                sns.despine(ax=axs[i], left=True, right=False, top=False)
-
-            else:
-                sns.despine(ax=axs[i], left=True, right=True, top=False)
-                axs[i].yaxis.set_ticks_position("none")
-
-        f.add_subplot(111, frameon=False)
-        plt.tick_params(
-            labelcolor="none", top="off", bottom="off", left="off", right="off"
-        )
-        plt.grid(False)
-        plt.xlabel("Chromosome")
-
-        # Legend
-        order_legend = [label_fdr] + list(top_genes.index)
-        by_label = {
-            l: p for ax in axs for p, l in zip(*(ax.get_legend_handles_labels()))
-        }
-        by_label = [(l, by_label[l]) for l in order_legend]
-
-        plt.legend(
-            list(zip(*by_label))[1],
-            list(zip(*by_label))[0],
-            loc="center left",
-            bbox_to_anchor=(1.01, 0.5),
-            prop={"size": 5},
-            frameon=False,
-        )
 
     def drug_notarget_barplot(self, drug, genes):
         df = self.assoc.by(self.assoc.lmm_drug_crispr, drug_name=drug)
@@ -764,42 +623,6 @@ class TargetBenchmark(DTracePlot):
         plt.legend(
             labels.values(), labels.keys(), bbox_to_anchor=(0.5, 1.0), frameon=False
         )
-
-    def signif_essential_heatmap(self):
-        ess_genes = self.assoc.crispr_obj.import_sanger_essential_genes()
-
-        plot_df = pd.concat(
-            [
-                self.assoc.lmm_drug_crispr.groupby("DRUG_NAME")["fdr"]
-                .min()
-                .apply(lambda v: "Yes" if v < self.fdr else "No")
-                .rename("crispr_fdr"),
-                pd.Series(
-                    {
-                        d: "Yes"
-                        if len(self.d_targets[d].intersection(ess_genes)) > 0
-                        else "No"
-                        for d in self.d_sets_name["tested"]
-                    }
-                ).rename("essential"),
-            ],
-            axis=1,
-            sort=False,
-        ).dropna()
-
-        plot_df = pd.pivot_table(
-            plot_df.reset_index(),
-            index="crispr_fdr",
-            columns="essential",
-            values="index",
-            aggfunc="count",
-        )
-
-        g = sns.heatmap(plot_df, annot=True, cbar=False, fmt=".0f", cmap="Greys")
-
-        g.set_xlabel("Essential target")
-        g.set_ylabel("CRISPR association")
-        g.set_title("Drug association")
 
     def signif_per_screen(self):
         df = self.assoc.lmm_drug_crispr.groupby(self.assoc.dcols).first().reset_index()
@@ -1079,6 +902,8 @@ class TargetBenchmark(DTracePlot):
 
         ax.set_ylabel("Drug-gene association\n(-log10 p-value)")
         ax.set_title(f"{drug} associations")
+
+        return plot_df
 
     def signif_volcano(self):
         plot_df = self.assoc.by(self.assoc.lmm_drug_crispr, fdr=self.fdr)

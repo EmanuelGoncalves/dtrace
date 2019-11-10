@@ -29,7 +29,7 @@ from dtrace.RobustAssociations import RobustAssociations
 
 # ### Import data-sets and associations
 
-assoc = Association(dtype="ic50", load_associations=True, load_robust=True)
+assoc = Association(load_associations=True, load_robust=True)
 
 robust = RobustAssociations(assoc)
 
@@ -50,7 +50,6 @@ robust.assoc.lmm_robust_gexp.query("crispr_fdr < 0.1 & drug_fdr < 0.1").head(
 
 # Frequency of the genomic features across the cancer cell lines
 
-plt.figure(dpi=300)
 robust.genomic_histogram()
 plt.savefig(
     f"{rpath}/robust_mobems_countplot.pdf", bbox_inches="tight", transparent=True
@@ -108,7 +107,7 @@ rassocs = [
 # d, c, g = ('Linifanib', 'STAT5B', 'XRN1_mut')
 for d, c, g in rassocs:
     pair = robust.assoc.by(
-        robust.assoc.lmm_robust_genomic, drug_name=d, gene_name=c, feature=g
+        robust.assoc.lmm_robust_genomic, drug_name=d, gene_name=c, x_feature=g
     ).iloc[0]
 
     drug = tuple(pair[robust.assoc.dcols])
@@ -141,17 +140,16 @@ for d, c, g in rassocs:
 rassocs = [
     ("MCL1_1284", "MCL1", "BCL2L1"),
     ("Linsitinib", "IGF1R", "IGF1R"),
-    ("SN1041137233", "ERBB2", "ERBB2"),
+    ("EGFRM_5104", "ERBB2", "ERBB2"),
     ("Nutlin-3a (-)", "MDM2", "BAX"),
     ("Venetoclax", "BCL2", "CDC42BPA"),
     ("AZD5582", "MAP3K7", "TNF"),
-    ("SN1021632995", "MAP3K7", "TNF"),
-    ("SN1043546339", "MAP3K7", "TNF"),
+    ("IAP_5620", "MAP3K7", "TNF"),
 ]
 
 for d, c, g in rassocs:
     pair = robust.assoc.by(
-        robust.assoc.lmm_robust_gexp, drug_name=d, gene_name=c, feature=g
+        robust.assoc.lmm_robust_gexp, drug_name=d, gene_name=c, x_feature=g
     ).iloc[0]
 
     drug = tuple(pair[robust.assoc.dcols])
@@ -255,59 +253,6 @@ plt.savefig(
     bbox_inches="tight",
     transparent=True,
 )
-
-
-# MCL1 robust association significantly correlated mutation
-
-drug, gene_crispr, gene_mut = (2354, "MCL1_8070", "RS"), "MCL1", "PFKFB1"
-
-plot_df = robust.assoc.build_df(
-    drug=[drug], crispr=[gene_crispr], wes=[gene_mut], sinfo=["institute"]
-).dropna()
-plot_df = plot_df.rename(columns={drug: "drug"})
-
-grid = RobustAssociations.plot_corrplot_discrete(
-    f"crispr_{gene_crispr}", "drug", f"wes_{gene_mut}", "institute", plot_df
-)
-dmax = np.log(robust.assoc.drespo_obj.maxconcentration[drug])
-grid.ax_joint.axhline(
-    y=dmax, linewidth=0.3, color=robust.PAL_DTRACE[2], ls=":", zorder=0
-)
-grid.set_axis_labels(f"{gene_crispr} (scaled log2 FC)", f"{drug[1]} (ln IC50)")
-plt.suptitle(gene_mut, y=1.05, fontsize=8)
-plt.gcf().set_size_inches(1.5, 1.5)
-plt.savefig(
-    f"{rpath}/robust_scatter_wes_{drug[1]}_{gene_crispr}_{gene_mut}.pdf",
-    bbox_inches="tight",
-    transparent=True,
-)
-plt.show()
-
-
-#
-
-pairs_targets = assoc.lmm_robust_genomic[assoc.lmm_robust_genomic["target"].isin(["T"])]
-pairs_targets = {tuple(i) for i in pairs_targets[assoc.drespo_obj.DRUG_COLUMNS + ["GeneSymbol"]].values}
-
-pairs_network = assoc.lmm_robust_genomic[assoc.lmm_robust_genomic["target"].isin(["1", "2", "3"])]
-pairs_network = {tuple(i) for i in pairs_network[assoc.drespo_obj.DRUG_COLUMNS + ["GeneSymbol"]].values}
-
-pairs_unconnected = assoc.lmm_robust_genomic[assoc.lmm_robust_genomic["target"].isin(["4", "5", "-"])]
-pairs_unconnected = {tuple(i) for i in pairs_unconnected[assoc.drespo_obj.DRUG_COLUMNS + ["GeneSymbol"]].values}
-
-
-genomic_pairs = assoc.lmm_robust_genomic.query(f"(drug_fdr < .1) & (crispr_fdr < .1)")
-genomic_pairs = genomic_pairs[genomic_pairs["target"].isin(["T", "1", "2", "3"])]
-genomic_pairs = {tuple(i) for i in genomic_pairs[assoc.drespo_obj.DRUG_COLUMNS + ["GeneSymbol"]].values}
-
-gexp_pairs = assoc.lmm_robust_gexp.query(f"(drug_fdr < .1) & (crispr_fdr < .1)")
-gexp_pairs = gexp_pairs[gexp_pairs["target"].isin(["T", "1", "2", "3"])]
-gexp_pairs = {tuple(i) for i in gexp_pairs[assoc.drespo_obj.DRUG_COLUMNS + ["GeneSymbol"]].values}
-
-f"{(len(genomic_pairs.union(gexp_pairs)) / len(pairs_network) * 100):.1f}"
-f"{(len(genomic_pairs.union(gexp_pairs)) / len(pairs_targets) * 100):.1f}"
-f"{(len(genomic_pairs.union(gexp_pairs)) / len(pairs_unconnected) * 100):.1f}"
-f"{(len(genomic_pairs.union(gexp_pairs)) / (len(pairs_targets) + len(pairs_network)) * 100):.1f}"
 
 
 # Copyright (C) 2019 Emanuel Goncalves

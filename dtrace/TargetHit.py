@@ -86,8 +86,8 @@ class TargetHit(DTracePlot):
 
         plot_df = df.query("target != 'T'")
         ax.bar(
-            plot_df["xpos"],
-            plot_df["logpval"],
+            plot_df["xpos"].values,
+            plot_df["logpval"].values,
             0.8,
             color=self.PAL_DTRACE[2],
             align="center",
@@ -112,7 +112,7 @@ class TargetHit(DTracePlot):
             ax.text(
                 v - 1.2,
                 0.1,
-                textwrap.fill(k, 15),
+                textwrap.fill(k.split(" / ")[0], 15),
                 va="bottom",
                 fontsize=8,
                 zorder=10,
@@ -416,23 +416,26 @@ class TargetHit(DTracePlot):
         plt.ylabel("")
 
     def drugresponse_boxplots(self, data, ctypes, hue_order, order, genes):
+        # Build dataframe
         plot_df = self.assoc.build_df(
             drug=self.drugs,
             crispr=genes,
             crispr_discretise=True,
             sinfo=["cancer_type"],
-        )
+        ).dropna()
+
         plot_df["cancer_type"] = plot_df["cancer_type"].apply(
             lambda v: v if v in ctypes else "Other"
         )
 
-        #
-        pal = pd.Series(self.get_palette_continuous(len(hue_order)), index=hue_order)
+        # Color pallete
+        pal = pd.Series(sns.color_palette("tab10", n_colors=len(hue_order)).as_hex(), index=hue_order)
 
+        # Figure
         nrows = 2
         ncols = int(len(self.drugs) / nrows)
 
-        fig, axs = plt.subplots(nrows, ncols, sharex="all", sharey="all", dpi=300)
+        fig, axs = plt.subplots(nrows, ncols, sharex="none", sharey="none", dpi=300)
 
         for i, d in enumerate(self.drugs):
             ax = axs[i % nrows, int(np.floor(i / nrows))]
@@ -458,6 +461,9 @@ class TargetHit(DTracePlot):
 
             ax.set_xlabel(f"{d[1]} (ln IC50, {d[2]})")
             ax.set_ylabel("")
+
+            if int(np.floor(i / nrows)) != 0:
+                ax.axes.get_yaxis().set_visible(False)
 
             ax.legend().remove()
 

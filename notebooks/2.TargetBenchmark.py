@@ -18,14 +18,12 @@
 # %load_ext autoreload
 # %autoreload 2
 
-import textwrap
 import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 from crispy.Utils import Utils
 from scipy.stats import ttest_ind
-from dtrace.DTracePlot import DTracePlot
 from dtrace.DTraceUtils import rpath, dpath
 from dtrace.Associations import Association
 from dtrace.TargetBenchmark import TargetBenchmark
@@ -33,7 +31,7 @@ from dtrace.TargetBenchmark import TargetBenchmark
 
 # ### Import data-sets and associations
 
-assoc = Association(dtype="ic50", load_associations=True, load_ppi=True)
+assoc = Association(load_associations=True, load_ppi=True)
 
 target = TargetBenchmark(assoc=assoc, fdr=0.1)
 
@@ -48,28 +46,6 @@ assoc.lmm_drug_crispr.head(15)
 # Top associations between drug-response and gene-expression
 
 assoc.lmm_drug_gexp.head(15)
-
-
-# Surrogate pathway adj. p-value ratio
-
-pratio = target.surrogate_pathway_ratio()
-pratio.to_excel(f"{dpath}/drug_target_proxy_fdr_ratio.xlsx")
-
-
-# Manhattan plot of the drug-gene associations, x-axis represents the gene genomic coordinate (obtained from the sgRNAs)
-# and y-axis represent the -log10 association p-value.
-
-# Spikes on the same genomic location represent associations with multiple inhibitors with the same target/
-# mode-of-action.
-
-target.manhattan_plot(n_genes=20)
-plt.savefig(
-    f"{rpath}/target_benchmark_manhattan.png",
-    bbox_inches="tight",
-    transparent=True,
-    dpi=300,
-)
-plt.show()
 
 
 # Volcano plot of the significant associations.
@@ -191,7 +167,7 @@ for dtype in ["crispr", "gexp"]:
     target.drugs_ppi(dtype, ax=axs[0])
 
     axs[0].set_xlabel("Associated gene position in PPI")
-    axs[0].set_ylabel("Bonferroni adj. p-value")
+    axs[0].set_ylabel("Adj. p-value")
     axs[0].set_title("Significant associations\n(adj. p-value < 10%)")
 
     # Count plot
@@ -209,13 +185,14 @@ for dtype in ["crispr", "gexp"]:
 
 # Background distribution of all Drug-Gene associations tested.
 
-plt.figure(figsize=(2.5, 2.5), dpi=300)
-target.drugs_ppi_countplot_background()
-plt.savefig(
-    f"{rpath}/target_benchmark_ppi_distance_{dtype}_countplot_bkg.pdf",
-    bbox_inches="tight",
-    transparent=True,
-)
+for dtype in ["crispr", "gexp"]:
+    plt.figure(figsize=(2.5, 2.5), dpi=300)
+    target.drugs_ppi_countplot_background(dtype)
+    plt.savefig(
+        f"{rpath}/target_benchmark_ppi_distance_{dtype}_countplot_bkg.pdf",
+        bbox_inches="tight",
+        transparent=True,
+    )
 
 
 # Breakdown numbers of (i) all the drugs screened, (ii) unique drugs, (iii) their annotation status, and (iv) those
@@ -247,18 +224,6 @@ plt.figure(figsize=(2, 2), dpi=300)
 target.pichart_drugs_significant()
 plt.savefig(
     f"{rpath}/target_benchmark_association_signif_piechart.pdf",
-    bbox_inches="tight",
-    transparent=True,
-)
-
-
-# Heatmap counting the number of drugs which have a significant association with CRISPR and/or target a core-essential
-# gene.
-
-plt.figure(figsize=(1, 1), dpi=300)
-target.signif_essential_heatmap()
-plt.savefig(
-    f"{rpath}/target_benchmark_signif_essential_heatmap.pdf",
     bbox_inches="tight",
     transparent=True,
 )
@@ -313,23 +278,19 @@ plt.savefig(
 # Top associations
 
 drugs = [
-    "SN1021632995",
     "AZD5582",
-    "SN1043546339",
-    "VE-821",
-    "AZ20",
+    "IAP_5620",
     "VE821",
-    "VX-970",
     "AZD6738",
     "VE-822",
     "Cetuximab",
 ]
 
 for d in drugs:
-    plt.figure(figsize=(1.5, 2), dpi=300)
-    target.drug_top_associations(d, fdr_thres=0.25)
+    plot_df = target.drug_top_associations(d, fdr_thres=0.25)
+    plt.gcf().set_size_inches(.2 * plot_df.shape[0], 1.5)
     plt.savefig(
-        f"{rpath}/target_benchmark_{d}_top_associations_barplot.pdf",
+        f"{rpath}/target_benchmark_top_associations_barplot_{d}.pdf",
         bbox_inches="tight",
         transparent=True,
         dpi=600,
@@ -388,19 +349,19 @@ dgs = [
     ("WEHI-539", "BCL2L1"),
 ]
 for dg in dgs:
-    pair = assoc.by(assoc.lmm_drug_crispr, drug_name=dg[0], gene_name=dg[1]).iloc[0]
+    pair = assoc.by(assoc.lmm_drug_gexp, drug_name=dg[0], gene_name=dg[1]).iloc[0]
 
     drug = tuple(pair[assoc.dcols])
 
     dmax = np.log(assoc.drespo_obj.maxconcentration[drug])
     annot_text = f"Beta={pair['beta']:.2g}, FDR={pair['fdr']:.1e}"
 
-    plot_df = assoc.build_df(drug=[drug], crispr=[dg[1]]).dropna()
+    plot_df = assoc.build_df(drug=[drug], gexp=[dg[1]]).dropna()
     plot_df = plot_df.rename(columns={drug: "drug"})
     plot_df["Institute"] = "Sanger"
 
     g = target.plot_corrplot(
-        f"crispr_{dg[1]}",
+        f"gexp_{dg[1]}",
         "drug",
         "Institute",
         plot_df,
@@ -464,27 +425,6 @@ for d, t, o, e in ppi_examples:
     graph.write_pdf(f"{rpath}/association_ppi_{d}.pdf")
 
 
-# Surrogate pathway histogram
-
-plt.figure(figsize=(2.0, 2.0), dpi=600)
-
-sns.distplot(
-    pratio["ratio_fdr"],
-    color=target.PAL_DTRACE[2],
-    kde=False,
-    hist_kws={"lw": 0},
-    bins=45,
-)
-
-plt.axvline(0, linewidth=0.1, color="#e1e1e1", ls="-", zorder=0)
-
-plt.title("Drug-response pathway surrogate")
-plt.xlabel("Target / Proxy (log ratio adj. p-value)")
-plt.ylabel("Count")
-
-plt.savefig(f"{rpath}/target_benchmark_fdr_ratio_histogram.pdf", bbox_inches="tight")
-
-
 # Drug-target CRISPR variability between drug significant association
 
 plot_df = assoc.lmm_drug_crispr.query("target == 'T'")
@@ -496,12 +436,12 @@ plot_df["signif"] = plot_df["fdr"].apply(lambda v: "Yes" if v < target.fdr else 
 
 pal = {"No": target.PAL_DTRACE[1], "Yes": target.PAL_DTRACE[2]}
 
-for l in ["crispr_std", "drug_std"]:
+for dtype in ["crispr_std", "drug_std"]:
     plt.figure(figsize=(1.0, 1.5), dpi=600)
 
     ax = sns.boxplot(
         "signif",
-        l,
+        dtype,
         data=plot_df,
         palette=pal,
         linewidth=0.3,
@@ -512,8 +452,8 @@ for l in ["crispr_std", "drug_std"]:
     )
 
     t, p = ttest_ind(
-        plot_df.query(f"signif == 'Yes'")[l],
-        plot_df.query(f"signif == 'No'")[l],
+        plot_df.query(f"signif == 'Yes'")[dtype],
+        plot_df.query(f"signif == 'No'")[dtype],
         equal_var=False,
     )
 
@@ -526,7 +466,7 @@ for l in ["crispr_std", "drug_std"]:
         ha="right",
     )
 
-    if l == "crispr_std":
+    if dtype == "crispr_std":
         ness_std = assoc.crispr.loc[Utils.get_non_essential_genes()].std(1).median()
         plt.axhline(ness_std, ls=":", lw=0.3, c="k", zorder=0)
 
@@ -537,111 +477,12 @@ for l in ["crispr_std", "drug_std"]:
     plt.xlabel("Significant association\n(adj. p-value < 10%)")
     plt.ylabel(
         "Drug-target fold-change\nstandard deviation"
-        if l == "crispr_std"
+        if dtype == "crispr_std"
         else "Drug IC50 (ln)\nstandard deviation"
     )
 
     plt.savefig(
-        f"{rpath}/target_benchmark_drug_signif_{l}_boxplot.pdf", bbox_inches="tight"
+        f"{rpath}/target_benchmark_drug_signif_{dtype}_boxplot.pdf", bbox_inches="tight"
     )
-
-
-# Drug
-
-d_info = assoc.drespo_obj.drugsheet.groupby("Name")[["Pathway", "Drug Type"]].first()
-d_info = d_info.replace({"Drug Type": {"targeted": "Targeted"}})
-
-plot_df = pd.DataFrame(
-    [
-        dict(
-            drug=d,
-            signif=int(d in target.d_sets_name["significant"]),
-            dtype=d_info.loc[d, "Drug Type"],
-            pathway=d_info.loc[d, "Pathway"],
-        )
-        for d in target.d_targets
-        if d in target.d_sets_name["all"]
-    ]
-)
-
-
-# Core-essential analysis
-
-ess_genes = assoc.crispr_obj.import_sanger_essential_genes()
-plot_df = assoc.lmm_drug_crispr.query(f"fdr < {target.fdr}")
-plot_df["essential"] = plot_df["GeneSymbol"].isin(ess_genes).values
-
-
-#
-
-plot_df = pd.concat(
-    [
-        assoc.genomic.loc["BRCA1_mut"],
-        assoc.genomic.loc["BRCA2_mut"],
-        (assoc.genomic.loc["BRCA1_mut"] | assoc.genomic.loc["BRCA2_mut"]).rename(
-            "BRCA_mut"
-        ),
-        assoc.crispr.loc["PARP1"],
-        assoc.crispr.loc["PARP2"],
-        assoc.samplesheet.samplesheet["cancer_type"],
-    ],
-    axis=1,
-    sort=False,
-).dropna()
-
-tissues = [{"Breast Carcinoma", "Ovarian Carcinoma"}, {"Ewing's Sarcoma"}]
-
-f, axs = plt.subplots(2, len(tissues), sharex="none", sharey="all", figsize=(1.5, 2.), dpi=600)
-
-for j, t in enumerate(tissues):
-    for i, g_crispr in enumerate(["PARP1", "PARP2"]):
-        ax = axs[i][j]
-
-        df = plot_df[plot_df["cancer_type"].isin(t)]
-        x, y = df["BRCA_mut"], df[g_crispr]
-
-        sns.boxplot(
-            x=x,
-            y=y,
-            palette=DTracePlot.PAL_1_0,
-            data=df,
-            linewidth=0.1,
-            fliersize=1,
-            saturation=1.0,
-            showcaps=False,
-            boxprops=dict(linewidth=.3),
-            whiskerprops=dict(linewidth=.3),
-            flierprops=DTracePlot.FLIERPROPS,
-            sym="",
-            medianprops=dict(linestyle="-", linewidth=.3),
-            ax=ax,
-        )
-
-        sns.stripplot(
-            x=x,
-            y=y,
-            palette=DTracePlot.PAL_1_0,
-            data=df,
-            edgecolor="white",
-            linewidth=0.1,
-            s=1.5,
-            alpha=.8,
-            ax=ax,
-        )
-
-        ax.set_title("\n".join(t) if i == 0 else "")
-        ax.set_xlabel("BRCA1/2 mut" if i == 1 else "")
-        ax.set_ylabel(g_crispr if j == 0 else "")
-        ax.grid(True, ls="-", lw=0.1, alpha=1.0, zorder=0, axis="y")
-
-plt.subplots_adjust(hspace=0.05, wspace=0.05)
-plt.savefig(
-    f"{rpath}/genomic_boxplot_BRCA.pdf",
-    bbox_inches="tight",
-    transparent=True,
-)
-
-plt.close("all")
-
 
 # Copyright (C) 2019 Emanuel Goncalves

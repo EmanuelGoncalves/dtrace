@@ -25,9 +25,7 @@ from dtrace.Preliminary import DrugPreliminary, CrisprPreliminary
 
 
 # ### Import data-sets
-dtype = "ic50"
-
-assoc = Association(dtype=dtype)
+assoc = Association()
 
 
 # ## Principal Component Analysis (PCA)
@@ -35,7 +33,7 @@ assoc = Association(dtype=dtype)
 # Import PCA results performed on the drug-response and CRISPR-Cas9 data-sets both per drug/gene and per samples. Note
 # PCA is performed after running the first notebook (0.Associations).
 
-pca_drug = assoc.drespo_obj.import_pca()[dtype]
+pca_drug = assoc.drespo_obj.import_pca()
 pca_crispr = assoc.crispr_obj.import_pca()
 
 
@@ -43,30 +41,12 @@ pca_crispr = assoc.crispr_obj.import_pca()
 #
 # Correlation of cell lines growth rates (unperturbed) with drug-response (ln IC50).
 
-g_corr = assoc.drespo_obj.perform_growth_corr(subset=assoc.samples)[dtype]
+g_corr = assoc.drespo_obj.perform_growth_corr(subset=assoc.samples)
 
 
 # Correlation of cell lines growth rates (unperturbed) with CRISPR-Cas9 (scaled log2 fold-change; median essential = -1)
 
 c_corr = assoc.crispr_obj.perform_growth_corr(subset=assoc.samples)
-
-
-# ## Strong viability responses
-#
-# Count for each compound the number of IC50s that are lower than 50% of the maximum concentration used for the
-# respective compound
-
-num_resp_drug = assoc.drespo_obj.perform_number_responses(
-    resp_thres=0.5, subset=assoc.samples
-)
-
-
-# Count for each gene the number of fold-changes (scaled log2) that are lower than -0.5, i.e. have a viability impact
-# lower than 50% of that observed in the set of known essential genes.
-
-num_resp_crispr = assoc.crispr_obj.perform_number_responses(
-    thres=-0.5, subset=assoc.samples
-)
 
 
 # # Drug-response
@@ -78,24 +58,6 @@ plt.figure(figsize=(2.5, 1.5), dpi=300)
 DrugPreliminary.histogram_drug(assoc.drespo.count(1))
 plt.savefig(
     f"{rpath}/preliminary_drug_histogram_drug.pdf",
-    bbox_inches="tight",
-    transparent=True,
-)
-plt.show()
-
-
-# Cumulative distribution of strong drug-response measurements. Strong response measurements are defined as IC50 < 50%
-# Max. concentration
-
-plt.figure(figsize=(3, 1.5), dpi=300)
-DrugPreliminary.histogram_strong_response(num_resp_drug)
-plt.xlabel("Number of cell lines screened")
-plt.ylabel("Fraction of drugs")
-plt.title(
-    "Cumulative distribution of drug measurements lower than\n50% of the maximum screened concentration"
-)
-plt.savefig(
-    f"{rpath}/preliminary_drug_response_histogram.pdf",
     bbox_inches="tight",
     transparent=True,
 )
@@ -205,24 +167,6 @@ plt.show()
 # # CRISPR-Cas9
 
 
-# Cumulative distribution of strong gene essentiality measurements. Strong response measurements are defined as log2
-# scaled fold-changes lower than 50% of that observed in known essential genes.
-
-plt.figure(figsize=(3, 2), dpi=300)
-DrugPreliminary.histogram_strong_response(num_resp_crispr)
-plt.xlabel("Number of cell lines")
-plt.ylabel("Fraction of genes")
-plt.title(
-    "Cumulative distribution of scaled fold-changes lower than\n50% of the effect observed in known essential genes"
-)
-plt.savefig(
-    f"{rpath}/preliminary_crispr_response_histogram.pdf",
-    bbox_inches="tight",
-    transparent=True,
-)
-plt.show()
-
-
 # Principal components of the genes in the CRISPR-Cas9 data-set
 
 plt.figure(figsize=(4, 4), dpi=300)
@@ -283,7 +227,7 @@ plt.show()
 # CRISPR samples principal component correlation with growth rates
 
 CrisprPreliminary.corrplot_pcs_growth(
-    pca_crispr, assoc.samplesheet.samplesheet["growth"], "PC4"
+    pca_crispr, assoc.samplesheet.samplesheet["growth"], "PC3"
 )
 plt.gcf().set_size_inches(1.5, 1.5)
 plt.savefig(
@@ -294,21 +238,4 @@ plt.savefig(
 plt.show()
 
 
-# CRISPR gene principal component correlation with essentiality
-#
-# Correlation CRISPR genes PC1 with number of times a gene has a strong essentiality profile across the cell lines.
-# Strong essentiality is defined as true if: scaled log2 FC < -0.5 (meaning 50% of the effect of known essential genes).
-
-CrisprPreliminary.corrplot_pcs_essentiality(pca_crispr, num_resp_crispr, "PC1")
-plt.gcf().set_size_inches(2, 2)
-plt.savefig(
-    f"{rpath}/preliminary_crispr_pca_essentiality_corrplot.pdf",
-    bbox_inches="tight",
-    transparent=True,
-)
-plt.show()
-
-
 # Copyright (C) 2019 Emanuel Goncalves
-
-

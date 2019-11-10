@@ -31,7 +31,7 @@ from dtrace.Associations import Association
 
 # ### Import data-sets and associations
 
-assoc = Association(dtype="ic50", load_associations=True, combine_lmm=True)
+assoc = Association(load_associations=True, combine_lmm=True)
 
 
 # ## MCL1 inhibitors associations
@@ -114,57 +114,18 @@ plt.savefig(
 )
 
 
-# ### Gene-essentiality correlation plots
-
-genes = [("MARCH5", "MCL1")]
-for gene_x, gene_y in genes:
-    plot_df = pd.concat(
-        [
-            assoc.crispr.loc[gene_x].rename(gene_x),
-            assoc.crispr.loc[gene_y].rename(gene_y),
-            assoc.crispr_obj.institute.rename("Institute"),
-        ],
-        axis=1,
-        sort=False,
-    ).dropna()
-
-    g = DTracePlot().plot_corrplot(gene_x, gene_y, "Institute", plot_df, add_hline=True)
-
-    g.set_axis_labels(f"{gene_x} (scaled log2 FC)", f"{gene_y} (scaled log2 FC)")
-
-    plt.gcf().set_size_inches(1.5, 1.5)
-    plt.savefig(
-        f"{rpath}/hit_scatter_{gene_x}_{gene_y}.pdf",
-        bbox_inches="tight",
-        transparent=True,
-    )
-
-
 # ## Stratification of MCL1i drug-response
 
 # ### MCL1i inhibitors across all cell lines.
 
-ctypes = ["Breast Carcinoma", "Colorectal Carcinoma", "Acute Myeloid Leukemia"]
+ctypes = ["Breast Carcinoma", "Acute Myeloid Leukemia"]
 genes = ["MCL1", "MARCH5"]
 order = ["None", "MARCH5", "MCL1", "MCL1 + MARCH5"]
 hue_order = [
     "Other",
     "Breast Carcinoma",
-    "Colorectal Carcinoma",
     "Acute Myeloid Leukemia",
 ]
-
-
-#
-
-mcl1_resp = assoc.build_df(
-    drug=hit.drugs,
-    crispr=genes,
-    sinfo=["cancer_type", "model_name"],
-)
-
-mcl1_resp[mcl1_resp["cancer_type"] == "Ovarian Carcinoma"].sort_values([(1956, 'MCL1_1284', 'RS')]).head(60)
-
 
 #
 
@@ -178,49 +139,44 @@ plt.savefig(
 
 # ### Drug-response of highly selective MCL1i (MCL1_1284 and AZD5991) in breast and colorectal carcinomas.
 
-for drug in [(1956, "MCL1_1284", "RS"), (2235, "AZD5991", "RS")]:
+for drug in hit.drugs:
+    # Build dataframe
     plot_df = assoc.build_df(
         drug=[drug], crispr=genes, crispr_discretise=True, sinfo=["cancer_type"]
-    )
+    ).dropna()
     plot_df["ctype"] = plot_df["cancer_type"].apply(
         lambda v: v if v in ctypes else "Other"
     )
     plot_df = plot_df.rename(columns={drug: "drug"})
 
-    ctypes = ["Colorectal Carcinoma", "Breast Carcinoma"]
+    # Vertical lines
+    d_aml = plot_df.query("cancer_type == 'Acute Myeloid Leukemia'")["drug"].mean()
+    d_max = np.log(assoc.drespo_obj.maxconcentration[drug])
 
-    fig, axs = plt.subplots(1, len(ctypes), sharey="all", sharex="all", dpi=300)
+    # Plot
+    _, ax = plt.subplots(1, 1)
 
-    for i, tissue in enumerate(ctypes):
-        df = plot_df.query(f"ctype == '{tissue}'")
+    g = DTracePlot().plot_multiple(
+        "drug", "crispr", plot_df, n_offset=1, n_fontsize=5, order=order, ax=ax
+    )
 
-        g = DTracePlot().plot_multiple(
-            "drug", "crispr", df, n_offset=1, n_fontsize=5, ax=axs[i]
+    for x, c in [(d_aml, 0), (d_max, 2)]:
+        ax.axvline(
+            x, linewidth=0.3, color=DTracePlot.PAL_DTRACE[c], ls=":", zorder=2
         )
 
-        sns.despine(ax=axs[i])
+    ax.set_xlabel(f"{drug[1]} (ln IC50, {drug[2]})")
+    ax.set_ylabel("")
 
-        dmax = np.log(assoc.drespo_obj.maxconcentration[drug])
-        axs[i].axvline(
-            dmax, linewidth=0.3, color=DTracePlot.PAL_DTRACE[2], ls=":", zorder=0
-        )
+    ax.set_title("Breast Carcinoma")
 
-        daml = plot_df.query("cancer_type == 'Acute Myeloid Leukemia'")["drug"].mean()
-        axs[i].axvline(
-            daml, linewidth=0.3, color=DTracePlot.PAL_DTRACE[0], ls=":", zorder=0
-        )
-
-        axs[i].set_xlabel(f"{drug[1]} (ln IC50, {drug[2]})")
-        axs[i].set_ylabel("")
-
-        axs[i].set_title(tissue)
-
-    plt.gcf().set_size_inches(2 * len(ctypes), 0.75)
+    plt.gcf().set_size_inches(2, 0.75)
     plt.savefig(
-        f"{rpath}/hit_drugresponse_boxplot_tissue_{drug[1]}.pdf",
+        f"{rpath}/hit_drugresponse_boxplot_tissue_{drug[1].split(' / ')[0]}.pdf",
         bbox_inches="tight",
         transparent=True,
     )
+    plt.close("all")
 
 
 # ### MCL1 copy-number amplification

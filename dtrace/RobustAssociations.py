@@ -27,7 +27,7 @@ class RobustAssociations(DTracePlot):
                 df = df[
                     [
                         len(self.assoc.genomic_obj.mobem_feature_to_gene(i)) != 0
-                        for i in df["feature"]
+                        for i in df["x_feature"]
                     ]
                 ]
 
@@ -42,7 +42,7 @@ class RobustAssociations(DTracePlot):
     def get_associations_count(self):
         cols, values = (
             ["DRUG_ID", "DRUG_NAME", "VERSION", "GeneSymbol"],
-            ["feature", "target"],
+            ["x_feature", "target"],
         )
 
         filters = [
@@ -77,9 +77,7 @@ class RobustAssociations(DTracePlot):
         return df_count, df_count_ppi
 
     def genomic_histogram(self, ntop=40):
-        plot_df = (
-            self.assoc.genomic.drop(["msi_status"]).sum(1).rename("count").reset_index()
-        )
+        plot_df = self.assoc.genomic.sum(1).rename("count").reset_index()
 
         plot_df["genes"] = [
             self.assoc.genomic_obj.mobem_feature_to_gene(i) for i in plot_df["index"]
@@ -109,6 +107,8 @@ class RobustAssociations(DTracePlot):
             saturation=1,
         )
 
+        plt.grid(axis="x", lw=0.3, color=self.PAL_DTRACE[1], zorder=0)
+
         plt.xlabel("Number of occurrences")
         plt.ylabel("")
 
@@ -127,8 +127,8 @@ class RobustAssociations(DTracePlot):
 
             feature = "DRUG_NAME" if d == "drug" else "GeneSymbol"
 
-            plot_df = self.get_associations(dtype).query("feature != 'msi_status'")
-            plot_df = plot_df.groupby([feature, "feature"])[beta, pval, fdr].first()
+            plot_df = self.get_associations(dtype).query("x_feature != 'msi_status'")
+            plot_df = plot_df.groupby([feature, "x_feature"])[beta, pval, fdr].first()
             plot_df = plot_df.reset_index()
             plot_df = plot_df.sort_values([fdr, pval])
             plot_df = plot_df.head(ntop)
@@ -139,7 +139,7 @@ class RobustAssociations(DTracePlot):
             if dtype == "genomic":
                 plot_df = plot_df.assign(
                     type=[
-                        self.assoc.genomic_obj.mobem_feature_type(i) for i in plot_df["feature"]
+                        self.assoc.genomic_obj.mobem_feature_type(i) for i in plot_df["x_feature"]
                     ]
                 )
 
@@ -151,7 +151,7 @@ class RobustAssociations(DTracePlot):
                 ax.scatter(plot_df[beta], plot_df["y"], c=self.PAL_DTRACE[2])
 
             # Labels
-            for fc, y, drug, genetic in plot_df[[beta, "y", feature, "feature"]].values:
+            for fc, y, drug, genetic in plot_df[[beta, "y", feature, "x_feature"]].values:
                 if dtype == "genomic":
                     g_genes = "; ".join(
                         self.assoc.genomic_obj.mobem_feature_to_gene(genetic)
@@ -188,9 +188,7 @@ class RobustAssociations(DTracePlot):
 
             ax.set_xlabel("Effect size (beta)")
             ax.set_ylabel("")
-            ax.set_title(
-                "{} associations".format(d.capitalize() if d == "drug" else d.upper())
-            )
+            ax.set_title(f"{d.capitalize() if d == 'drug' else d.upper()} associations")
             ax.axes.get_yaxis().set_ticks([])
 
             sns.despine(left=True, ax=ax)
@@ -207,7 +205,7 @@ class RobustAssociations(DTracePlot):
 
     def robust_associations_barplot(self):
         #
-        hue_order = ["Both", "Drug", "CRISPR", "Total"]
+        hue_order = ["Both", "Drug", "CRISPR"]
         pal = {
             "Both": "#fc8d62",
             "Drug": "#ababab",

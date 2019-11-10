@@ -52,9 +52,9 @@ class Sample:
     def __init__(
         self,
         index="model_id",
-        samplesheet_file="meta/model_list_2019-06-21_1535.csv.gz",
-        growthrate_file="meta/growth_rates_rapid_screen_1536_v1.3.0_20190222.csv",
-        samples_origin="meta/samples_origin.csv",
+        samplesheet_file="meta/ModelList_20191106.csv",
+        growthrate_file="meta/GrowthRates_v1.3.0_20190222.csv",
+        samples_origin="meta/SamplesOrigin_20191106.csv",
     ):
         self.index = index
 
@@ -109,123 +109,61 @@ class DrugResponse:
 
     SAMPLE_COLUMNS = ["model_id"]
     DRUG_COLUMNS = ["DRUG_ID", "DRUG_NAME", "VERSION"]
-    DRUG_OWNERS = ["AZ", "GDSC", "MGH", "Nathaneal.Gray"]
 
     def __init__(
         self,
-        drugresponse_file_v17="drug/screening_set_384_all_owners_fitted_data_20180308_updated.csv",
-        drugresponse_file_rs="drug/fitted_rapid_screen_1536_v1.4.0_20190531_updated.csv",
+        drugresponse_file="drug/DrugResponse_IC50_v1.5.1_20191108.csv",
+        drugmaxconcentration_file="drug/DrugResponse_MaxC_v1.5.1_20191108.csv",
     ):
-        """
-        Two experimental versions were used to acquire drug-response measurements, i.e. v17 and RS (chronologically
-        ordered), hence raw intentisity measurements are processed and exported to different files.
-
-        :param drugresponse_file_v17:
-        :param drugresponse_file_rs:
-        """
-        self.drugresponse_file_v17 = drugresponse_file_v17
-        self.drugresponse_file_rs = drugresponse_file_rs
+        self.drugresponse_file = drugresponse_file
+        self.drugmaxconcentration_file = drugmaxconcentration_file
 
         self.drugsheet = self.get_drugsheet()
 
-        # Import and Merge drug response matrices (IC50s and AUCs) and RMSE estimates
-        self.drugresponse = self.__import_matrices__()
+        # Import and Merge drug response matrix (IC50)
+        self.drugresponse = pd.read_csv(f"{dpath}/{self.drugresponse_file}", index_col=[0, 1, 2])
 
         # Drug max concentration
-        self.maxconcentration = pd.concat(
-            [
-                self.d_rs.groupby(self.DRUG_COLUMNS)["maxc"].min(),
-                self.d_v17.groupby(self.DRUG_COLUMNS)["maxc"].min(),
-            ],
-            sort=False,
-        ).sort_values()
-
-    def __import_matrices__(self):
-        self.d_v17 = pd.read_csv(f"{dpath}/{self.drugresponse_file_v17}").assign(
-            VERSION="v17"
-        )
-        self.d_rs = pd.read_csv(f"{dpath}/{self.drugresponse_file_rs}").assign(
-            VERSION="RS"
-        )
-
-        drugresponse = dict()
-        for index_value, n in [("ln_IC50", "ic50"), ("AUC", "auc"), ("RMSE", "rmse")]:
-            d_v17_matrix = pd.pivot_table(
-                self.d_v17,
-                index=self.DRUG_COLUMNS,
-                columns=self.SAMPLE_COLUMNS,
-                values=index_value,
-            )
-
-            d_vrs_matrix = pd.pivot_table(
-                self.d_rs,
-                index=self.DRUG_COLUMNS,
-                columns=self.SAMPLE_COLUMNS,
-                values=index_value,
-            )
-
-            df = pd.concat([d_v17_matrix, d_vrs_matrix], axis=0, sort=False)
-
-            # Filter drug response
-            ds = self.drugsheet[self.drugsheet["Owner"].isin(self.DRUG_OWNERS)]
-            df = df[[i[0] in ds.index for i in df.index]]
-
-            az_approved_drugs = pd.read_csv(f"{dpath}/AZ_release_compounds.csv", index_col=0).query("Use")
-            df = df[[i[0] in az_approved_drugs.index if ds.loc[i[0], "Owner"] == "AZ" else True for i in df.index]]
-
-            mgh_approved_drugs = self.drugsheet.query("Owner == 'MGH'")
-            mgh_approved_drugs = mgh_approved_drugs[mgh_approved_drugs["Suitable for publication"] == "Y"]
-            df = df[[i[0] in mgh_approved_drugs.index if ds.loc[i[0], "Owner"] == "MGH" else True for i in df.index]]
-
-            drugresponse[n] = df.copy()
-
-        return drugresponse
+        self.maxconcentration = pd.read_csv(f"{dpath}/{self.drugmaxconcentration_file}", index_col=[0, 1, 2]).iloc[:, 0]
 
     def perform_pca(self, n_components=10, subset=None):
-        for dtype in ["ic50", "auc"]:
-            df = DataPCA.perform_pca(
-                self.filter(dtype, subset=subset), n_components=n_components
-            )
+        df = DataPCA.perform_pca(
+            self.filter(subset=subset), n_components=n_components
+        )
 
-            for by in df:
-                df[by]["pcs"].round(5).to_csv(f"{dpath}/PCA_drug_{dtype}_{by}_pcs.csv")
-                df[by]["vex"].round(5).to_csv(f"{dpath}/PCA_drug_{dtype}_{by}_vex.csv")
+        for by in df:
+            df[by]["pcs"].round(5).to_csv(f"{dpath}/PCA_drug_{by}_pcs.csv")
+            df[by]["vex"].round(5).to_csv(f"{dpath}/PCA_drug_{by}_vex.csv")
 
     @staticmethod
     def import_pca():
         pca = {}
-        for dtype in ["ic50", "auc"]:
-            pca[dtype] = {}
 
-            for by in ["row", "column"]:
-                pca[dtype][by] = {}
+        for by in ["row", "column"]:
+            pca[by] = {}
 
-                pca[dtype][by]["pcs"] = pd.read_csv(
-                    f"{dpath}/PCA_drug_{dtype}_{by}_pcs.csv",
-                    index_col=[0, 1, 2] if by == "row" else 0,
-                )
-                pca[dtype][by]["vex"] = pd.read_csv(
-                    f"{dpath}/PCA_drug_{dtype}_{by}_vex.csv", index_col=0, header=None
-                ).iloc[:, 0]
+            pca[by]["pcs"] = pd.read_csv(
+                f"{dpath}/PCA_drug_{by}_pcs.csv",
+                index_col=[0, 1, 2] if by == "row" else 0,
+            )
+            pca[by]["vex"] = pd.read_csv(
+                f"{dpath}/PCA_drug_{by}_vex.csv", index_col=0, header=None
+            ).iloc[:, 0]
 
         return pca
 
     def perform_growth_corr(self, subset=None):
         ss = Sample()
 
-        g_corr = {}
-        for dtype in ["ic50", "auc"]:
-            corr = ss.growth_corr(self.filter(dtype, subset=subset))
-            corr.round(5).to_csv(
-                f"{dpath}/growth_drug_correlation_{dtype}.csv", index=False
-            )
+        corr = ss.growth_corr(self.filter(subset=subset))
+        corr.round(5).to_csv(
+            f"{dpath}/growth_drug_correlation.csv", index=False
+        )
 
-            g_corr[dtype] = corr
-
-        return g_corr
+        return corr
 
     def perform_number_responses(self, resp_thres=0.5, subset=None):
-        df = self.filter("ic50", subset=subset)
+        df = self.filter(subset=subset)
 
         num_resp = {
             d: np.sum(
@@ -241,8 +179,8 @@ class DrugResponse:
         return num_resp
 
     @staticmethod
-    def get_drugsheet(drugsheet_file="meta/drugsheet_20190531.xlsx"):
-        return pd.read_excel(f"{dpath}/{drugsheet_file}", index_col=0)
+    def get_drugsheet(drugsheet_file="meta/DrugSheet_20191106.csv"):
+        return pd.read_csv(f"{dpath}/{drugsheet_file}", index_col=0)
 
     @classmethod
     def get_drugtargets(cls, by="id"):
@@ -262,22 +200,20 @@ class DrugResponse:
 
         return d_targets
 
-    def get_data(self, dtype="ic50"):
-        return self.drugresponse[dtype].copy()
+    def get_data(self):
+        return self.drugresponse.copy()
 
     def filter(
         self,
-        dtype="ic50",
         subset=None,
         min_events=3,
         min_meas=0.75,
         max_c=0.5,
         filter_max_concentration=True,
-        filter_owner=True,
         filter_combinations=True,
     ):
         # Drug max screened concentration
-        df = self.get_data(dtype="ic50")
+        df = self.get_data()
         d_maxc = np.log(self.maxconcentration * max_c)
 
         # - Filters
@@ -292,16 +228,11 @@ class DrugResponse:
         if filter_max_concentration:
             df = df[[sum(df.loc[i] < d_maxc.loc[i]) >= min_events for i in df.index]]
 
-        # Filter by owners
-        if filter_owner:
-            ds = self.drugsheet[self.drugsheet["Owner"].isin(self.DRUG_OWNERS)]
-            df = df[[i[0] in ds.index for i in df.index]]
-
         # Filter combinations
         if filter_combinations:
             df = df[[" + " not in i[1] for i in df.index]]
 
-        return self.get_data(dtype).loc[df.index, df.columns]
+        return self.get_data().loc[df.index, df.columns]
 
     def is_in_druglist(self, drug_ids):
         return np.all([d in self.drugsheet.index for d in drug_ids])
@@ -355,40 +286,13 @@ class CRISPR:
 
     """
 
-    LOW_QUALITY_SAMPLES = ["SIDM00096", "SIDM01085", "SIDM00958"]
-
     def __init__(
         self,
-        sanger_fc_file="crispr/sanger_depmap18_fc_corrected.csv",
-        sanger_qc_file="crispr/sanger_depmap18_fc_ess_aucs.csv",
-        broad_fc_file="crispr/broad_depmap18q4_fc_corrected.csv",
-        broad_qc_file="crispr/broad_depmap18q4_fc_ess_aucs.csv",
-        ess_broad_file="crispr/depmap19Q1_essential_genes.txt",
-        ess_sanger_file="crispr/projectscore_essential_genes.txt",
+        fc_file="crispr/CRISPR_corrected_qnorm_20191108.csv",
+        institute_file="crispr/CRISPR_Institute_Origin_20191108.csv",
     ):
-        self.SANGER_FC_FILE = sanger_fc_file
-        self.SANGER_QC_FILE = sanger_qc_file
-        self.SANGER_ESS_FILE = ess_sanger_file
-
-        self.BROAD_FC_FILE = broad_fc_file
-        self.BROAD_QC_FILE = broad_qc_file
-        self.BROAD_ESS_FILE = ess_broad_file
-
-        self.crispr, self.institute = self.__merge_matricies()
-
-        self.crispr = self.crispr.drop(columns=self.LOW_QUALITY_SAMPLES)
-
-        self.qc_ess = self.__merge_qc_arrays()
-
-    def import_broad_essential_genes(self):
-        broad_ess = pd.read_csv(f"{dpath}/{self.BROAD_ESS_FILE}")["gene"]
-        broad_ess = list(set(broad_ess.apply(lambda v: v.split(" ")[0])))
-        return broad_ess
-
-    def import_sanger_essential_genes(self):
-        sanger_ess = pd.read_csv(f"{dpath}/{self.SANGER_ESS_FILE}")
-        sanger_ess = list(set(sanger_ess[sanger_ess["CoreFitness"]]["GeneSymbol"]))
-        return sanger_ess
+        self.crispr = pd.read_csv(f"{dpath}/{fc_file}", index_col=0)
+        self.institute = pd.read_csv(f"{dpath}/{institute_file}", index_col=0, header=None).iloc[:, 0]
 
     def perform_pca(self, n_components=10, subset=None):
         df = DataPCA.perform_pca(self.filter(subset=subset), n_components=n_components)
@@ -404,12 +308,8 @@ class CRISPR:
         for by in ["row", "column"]:
             pca[by] = {}
 
-            pca[by]["pcs"] = pd.read_csv(
-                f"{dpath}/PCA_CRISPR_{by}_pcs.csv", index_col=0
-            )
-            pca[by]["vex"] = pd.read_csv(
-                f"{dpath}/PCA_CRISPR_{by}_vex.csv", index_col=0, header=None
-            ).iloc[:, 0]
+            pca[by]["pcs"] = pd.read_csv(f"{dpath}/PCA_CRISPR_{by}_pcs.csv", index_col=0)
+            pca[by]["vex"] = pd.read_csv(f"{dpath}/PCA_CRISPR_{by}_vex.csv", index_col=0, header=None).iloc[:, 0]
 
         return pca
 
@@ -430,50 +330,6 @@ class CRISPR:
         num_resp.to_csv(f"{dpath}/number_responses_CRISPR.csv", index=False)
 
         return num_resp
-
-    def __merge_qc_arrays(self):
-        gdsc_qc = pd.read_csv(
-            f"{dpath}/{self.SANGER_QC_FILE}", header=None, index_col=0
-        ).iloc[:, 0]
-        broad_qc = pd.read_csv(
-            f"{dpath}/{self.BROAD_QC_FILE}", header=None, index_col=0
-        ).iloc[:, 0]
-
-        qcs = pd.concat(
-            [
-                gdsc_qc[self.institute[self.institute == "Sanger"].index],
-                broad_qc[self.institute[self.institute == "Broad"].index],
-            ]
-        )
-
-        return qcs
-
-    def import_sanger_foldchanges(self):
-        return pd.read_csv(f"{dpath}/{self.SANGER_FC_FILE}", index_col=0)
-
-    def import_broad_foldchanges(self):
-        return pd.read_csv(f"{dpath}/{self.BROAD_FC_FILE}", index_col=0)
-
-    def __merge_matricies(self):
-        gdsc_fc = self.import_sanger_foldchanges().dropna()
-        broad_fc = self.import_broad_foldchanges().dropna()
-
-        genes = list(set(gdsc_fc.index).intersection(broad_fc.index))
-
-        merged_matrix = pd.concat(
-            [
-                gdsc_fc.loc[genes],
-                broad_fc.loc[genes, [i for i in broad_fc if i not in gdsc_fc.columns]],
-            ],
-            axis=1,
-            sort=False,
-        )
-
-        institute = pd.Series(
-            {s: "Sanger" if s in gdsc_fc.columns else "Broad" for s in merged_matrix}
-        )
-
-        return merged_matrix, institute
 
     def get_data(self, scale=True):
         df = self.crispr.copy()
@@ -639,7 +495,9 @@ class PPI:
         self.string_alias_file = string_alias_file
         self.biogrid_file = biogrid_file
 
-        self.drug_targets = DrugResponse.get_drugtargets() if drug_targets is None else drug_targets
+        self.drug_targets = (
+            DrugResponse.get_drugtargets() if drug_targets is None else drug_targets
+        )
 
     def ppi_annotation(self, df, ppi_type, ppi_kws, target_thres=5):
         df_genes, df_drugs = set(df["GeneSymbol"]), set(df["DRUG_ID"])
@@ -772,7 +630,7 @@ class PPI:
             ]
 
         logging.getLogger("DTrace").info(
-            f"Experimental System Type considered: {'; '.join(set(biogrid['Experimental System Type']))}",
+            f"Experimental System Type considered: {'; '.join(set(biogrid['Experimental System Type']))}"
         )
 
         # Filter by experimental type
@@ -780,7 +638,7 @@ class PPI:
             biogrid = biogrid[[i in exp_type for i in biogrid["Experimental System"]]]
 
         logging.getLogger("DTrace").info(
-            f"Experimental System considered: {'; '.join(set(biogrid['Experimental System']))}",
+            f"Experimental System considered: {'; '.join(set(biogrid['Experimental System']))}"
         )
 
         # Interaction source map
@@ -1051,84 +909,12 @@ class GeneExpression:
         for by in ["row", "column"]:
             pca[by] = {}
 
-            pca[by]["pcs"] = pd.read_csv(
-                f"{dpath}/PCA_GExp_{by}_pcs.csv", index_col=0
-            )
+            pca[by]["pcs"] = pd.read_csv(f"{dpath}/PCA_GExp_{by}_pcs.csv", index_col=0)
             pca[by]["vex"] = pd.read_csv(
                 f"{dpath}/PCA_GExp_{by}_vex.csv", index_col=0, header=None
             ).iloc[:, 0]
 
         return pca
-
-
-class Methylation:
-    """
-    Import module for Illumina Methylation 450k arrays
-
-    """
-
-    def __init__(self, methy_gene_promoter="genomic/methy_beta_gene_promoter.csv.gz"):
-        self.methy_promoter = pd.read_csv(f"{dpath}/{methy_gene_promoter}", index_col=0)
-
-    def get_data(self):
-        return self.methy_promoter.copy()
-
-    def filter(self, subset=None):
-        df = self.get_data()
-
-        # Subset matrices
-        if subset is not None:
-            df = df.loc[:, df.columns.isin(subset)]
-
-        return df
-
-    @staticmethod
-    def discretise(beta):
-        if beta < 0.33:
-            return "umethylated"
-        elif beta > 0.66:
-            return "methylated"
-        else:
-            return "hemimethylated"
-
-
-class Proteomics:
-    def __init__(self, proteomics_file="genomic/proteomics_coread.csv.gz"):
-        self.proteomics = pd.read_csv(f"{dpath}/{proteomics_file}", index_col=0)
-
-    def get_data(self):
-        return self.proteomics.copy()
-
-    def filter(self, subset=None):
-        df = self.get_data()
-
-        # Subset matrices
-        if subset is not None:
-            df = df.loc[:, df.columns.isin(subset)]
-
-        return df
-
-
-class PhosphoProteomics:
-    def __init__(
-        self, phosphoproteomics_file="genomic/phosphoproteomics_coread.csv.gz"
-    ):
-        self.phosphoproteomics = pd.read_csv(
-            f"{dpath}/{phosphoproteomics_file}", index_col=0
-        )
-
-    def get_data(self):
-        return self.phosphoproteomics.copy()
-
-    def filter(self, subset=None):
-        df = self.get_data()
-
-        # Subset matrices
-        if subset is not None:
-            df = df.loc[:, df.columns.isin(subset)]
-
-        return df
-
 
 class CopyNumber:
     def __init__(self, cnv_file="genomic/copynumber_total_new_map.csv.gz"):
@@ -1158,292 +944,6 @@ class CopyNumber:
 
         else:
             return 0
-
-
-class Apoptosis:
-    def __init__(self, dfile="apoptosis/AUC_data.csv"):
-        crename = dict(
-            HT29="HT-29",
-            CW2="CW-2",
-            HCT15="HCT-15",
-            DIFI="DiFi",
-            U2OS="U-2-OS",
-            HUTU80="HuTu-80",
-            LS1034="LS-1034",
-            OUMS23="OUMS-23",
-            SNU407="SNU-407",
-            COLO205="COLO-205",
-            SNU81="SNU-81",
-            CCK81="CCK-81",
-            NCIH747="NCI-H747",
-            COLO320HSR="COLO-320-HSR",
-            SNUC2B="SNU-C2B",
-            SKCO1="SK-CO-1",
-            CaR1="CaR-1",
-            COLO678="COLO-678",
-            LS411N="LS-411N",
-            CL40="CL-40",
-            SNUC5="SNU-C5",
-            HT115="HT-115",
-            LS180="LS-180",
-            RCM1="RCM-1",
-            NCIH630="NCI-H630",
-            HCT116="HCT-116",
-            NCIH508="NCI-H508",
-            HCC56="HCC-56",
-            SNU175="SNU-175",
-            CL34="CL-34",
-            LS123="LS-123",
-            COLO741="COLO-741",
-            CL11="CL-11",
-            NCIH716="NCI-H716",
-            SNUC1="SNU-C1",
-        )
-
-        self.samplesheet = Sample().samplesheet
-
-        self.screen = pd.read_csv(f"{dpath}/{dfile}")
-        self.screen = self.screen.replace(dict(CELL_LINE=crename))
-        self.screen = self.screen[
-            self.screen["CELL_LINE"].isin(self.samplesheet["model_name"])
-        ]
-
-        model_id = self.samplesheet.reset_index().set_index("model_name")["model_id"]
-        self.screen = self.screen.assign(
-            model_id=model_id.loc[self.screen["CELL_LINE"]].values
-        )
-
-    def get_data(self, drug="DMSO", values="AUC"):
-        smatrix = self.screen[self.screen["DRUG"] == drug]
-        smatrix = pd.pivot_table(
-            smatrix, index="PEPTIDE", columns="model_id", values=values
-        )
-        return smatrix
-
-    def filter(self, subset=None):
-        df = self.get_data()
-
-        # Subset matrices
-        if subset is not None:
-            df = df.loc[:, df.columns.isin(subset)]
-
-        return df
-
-
-class CTDR2:
-    def __init__(self, data_dir="CTRPv2.2/"):
-        self.data_dir = data_dir
-        self.samplesheet = self.import_samplesheet()
-        self.drugsheet = self.import_compound_sheet()
-        self.drespo = self.import_ctrp_aucs()
-
-    def import_samplesheet(self):
-        return pd.read_csv(
-            f"{dpath}/{self.data_dir}/v22.meta.per_cell_line.txt", sep="\t"
-        )
-
-    def import_compound_sheet(self):
-        return pd.read_csv(
-            f"{dpath}/{self.data_dir}/v22.meta.per_compound.txt", sep="\t", index_col=0
-        )
-
-    def import_ctrp_aucs(self, remove_duplicates=True):
-        ctrp_samples = self.import_samplesheet()
-
-        ctrp_aucs = pd.read_csv(
-            f"{dpath}/{self.data_dir}/v22.data.auc_sensitivities.txt", sep="\t"
-        )
-
-        ctrp_aucs = pd.pivot_table(
-            ctrp_aucs, index="index_cpd", columns="index_ccl", values="area_under_curve"
-        )
-
-        ctrp_aucs = ctrp_aucs.rename(
-            columns=ctrp_samples.set_index("index_ccl")["DepMap_ID"]
-        )
-
-        if remove_duplicates:
-            c_counts = ctrp_aucs.columns.value_counts()
-            ctrp_aucs = ctrp_aucs[c_counts[c_counts == 1].index]
-
-        return ctrp_aucs
-
-    def get_drugtargets(cls, by="id"):
-        if by == "id":
-            d_targets = cls.drugsheet["gene_symbol_of_protein_target"].dropna().to_dict()
-
-        else:
-            d_targets = (
-                cls.drugsheet
-                .groupby("cpd_name")["gene_symbol_of_protein_target"]
-                .first()
-                .dropna()
-                .to_dict()
-            )
-
-        d_targets = {k: {t.strip() for t in d_targets[k].split(";")} for k in d_targets}
-
-        return d_targets
-
-    def get_compound_by_target(
-        self, target, target_field="gene_symbol_of_protein_target"
-    ):
-        ss = self.drugsheet.dropna(subset=[target_field])
-        ss = ss[[target in t.split(";") for t in ss[target_field]]]
-        return ss
-
-    def get_data(self, dtype="auc"):
-        return self.drespo.copy()
-
-    def filter(self, dtype="auc", subset=None, min_meas=0.75):
-        df = self.get_data(dtype=dtype)
-
-        # Filter by mininum number of observations
-        df = df[df.count(1) > (df.shape[1] * min_meas)]
-
-        if subset is not None:
-            df = df.loc[:, df.columns.isin(subset)]
-            assert df.shape[1] != 0, "No columns after filter by subset"
-
-        return df
-
-    def perform_pca(self, n_components=10, subset=None):
-        for dtype in ["auc"]:
-            df = DataPCA.perform_pca(
-                self.filter(dtype, subset=subset), n_components=n_components
-            )
-
-            for by in df:
-                df[by]["pcs"].round(5).to_csv(f"{dpath}/PCA_drug_CTDR2_{dtype}_{by}_pcs.csv")
-                df[by]["vex"].round(5).to_csv(f"{dpath}/PCA_drug_CTDR2_{dtype}_{by}_vex.csv")
-
-    @staticmethod
-    def import_pca():
-        pca = {}
-        for dtype in ["auc"]:
-            pca[dtype] = {}
-
-            for by in ["row", "column"]:
-                pca[dtype][by] = {}
-
-                pca[dtype][by]["pcs"] = pd.read_csv(
-                    f"{dpath}/PCA_drug_CTDR2_{dtype}_{by}_pcs.csv",
-                    index_col=[0, 1, 2] if by == "row" else 0,
-                )
-                pca[dtype][by]["vex"] = pd.read_csv(
-                    f"{dpath}/PCA_drug_CTDR2_{dtype}_{by}_vex.csv", index_col=0, header=None
-                ).iloc[:, 0]
-
-        return pca
-
-
-class Ceres:
-    def __init__(self, data_dir="CTRPv2.2/"):
-        self.data_dir = data_dir
-        self.ceres = self.import_ceres()
-
-    def import_ceres_samplesheet(self):
-        ss = pd.read_csv(f"{dpath}/{self.data_dir}/Achilles_sample_info.csv")
-        ss["CCLE_ID"] = ss["CCLE_name"].apply(lambda v: v.split("_")[0])
-        return ss
-
-    def import_ceres(self):
-        ceres = pd.read_csv(f"{dpath}/{self.data_dir}/Achilles_gene_effect.csv", index_col=0).T
-        ceres.index = [i.split(" ")[0] for i in ceres.index]
-        return ceres
-
-    def get_data(self):
-        return self.ceres.copy()
-
-    def filter(self, subset=None):
-        df = self.get_data()
-
-        if subset is not None:
-            df = df.loc[:, df.columns.isin(subset)]
-            assert df.shape[1] != 0, "No columns after filter by subset"
-
-        return df
-
-
-class RPPA:
-    def __init__(self, rppa_file="genomic/CCLE_MDAnderson_RPPA_combined.csv"):
-        self.info = [
-            "model_id",
-            "model_name",
-            "synonyms",
-            "model_type",
-            "growth_properties",
-            "doi",
-            "pmed",
-            "model_treatment",
-            "model_comments",
-            "msi_status",
-            "mutational_burden",
-            "ploidy",
-            "parent_id",
-            "mutation_data",
-            "methylation_data",
-            "expression_data",
-            "cnv_data",
-            "drug_data",
-            "sample_id",
-            "tissue",
-            "cancer_type",
-            "cancer_type_detail",
-            "age_at_sampling",
-            "sampling_day",
-            "sampling_month",
-            "sampling_year",
-            "sample_treatment",
-            "sample_treatment_details",
-            "sample_site",
-            "tnm_t",
-            "tnm_n",
-            "tnm_m",
-            "tnm_integrated",
-            "tumour_grade",
-            "patient_id",
-            "species",
-            "gender",
-            "ethnicity",
-            "smoking_status",
-            "model_relations_comment",
-            "COSMIC_ID",
-            "BROAD_ID",
-            "RRID",
-            "suppliers",
-            "Cell.Line.Name",
-            "Order",
-            "Sample.Source",
-            "Category_1",
-            "Category_2",
-            "Category_3",
-            "Sample",
-            "Sample.Name",
-            "Sample.description",
-            "Sample.Number",
-            "CCLE_ID",
-        ]
-
-        self.rppa_matrix = (
-            pd.read_csv(f"{dpath}/{rppa_file}")
-            .groupby("model_id")
-            .mean()
-            .drop(columns=self.info, errors="ignore")
-            .T
-        )
-
-    def get_data(self):
-        return self.rppa_matrix.copy()
-
-    def filter(self, subset=None):
-        df = self.get_data()
-
-        if subset is not None:
-            df = df.loc[:, df.columns.isin(subset)]
-            assert df.shape[1] != 0, "No columns after filter by subset"
-
-        return df
 
 
 class WES:
@@ -1526,148 +1026,6 @@ class RNAi:
         if subset is not None:
             df = df.loc[:, df.columns.isin(subset)]
             assert df.shape[1] != 0, "No columns after filter by subset"
-
-        return df
-
-
-class CRISPRComBat:
-    LOW_QUALITY_SAMPLES = ["SIDM00096", "SIDM01085", "SIDM00958"]
-
-    def __init__(self, dmatrix_file="InitialCombat_BroadSanger_Matrix.csv"):
-        self.ss = Sample()
-        self.datadir = f"{dpath}/crispr/"
-        self.dmatrix_file = dmatrix_file
-
-        self.crispr = pd.read_csv(f"{self.datadir}/{self.dmatrix_file}", index_col=0)
-
-    def __generate_merged_matrix(self, dmatrix="InitialCombat_BroadSanger.csv"):
-        df = pd.read_csv(f"{self.datadir}/{dmatrix}")
-
-        # Split Sanger matrix
-        idmap_sanger = (
-            self.ss.samplesheet.reset_index()
-            .dropna(subset=["model_name"])
-            .set_index("model_name")
-        )
-        crispr_sanger = df[
-            [i for i in df if i in self.ss.samplesheet["model_name"].values]
-        ]
-        crispr_sanger = crispr_sanger.rename(columns=idmap_sanger["model_id"])
-
-        # Split Broad matrix
-        idmap_broad = (
-            self.ss.samplesheet.reset_index()
-            .dropna(subset=["model_name"])
-            .set_index("BROAD_ID")
-        )
-        crispr_broad = df[
-            [i for i in df if i in self.ss.samplesheet["BROAD_ID"].values]
-        ]
-        crispr_broad = crispr_broad.rename(columns=idmap_broad["model_id"])
-
-        # Merge matrices
-        crispr = pd.concat(
-            [
-                crispr_sanger,
-                crispr_broad[[i for i in crispr_broad if i not in crispr_sanger]],
-            ],
-            axis=1,
-            sort=False,
-        ).dropna()
-        crispr.to_csv(f"{self.datadir}/InitialCombat_BroadSanger_Matrix.csv")
-
-        # Store isntitute sample origin
-        institute = pd.Series(
-            {s: "Sanger" if s in crispr_sanger else "Broad" for s in crispr}
-        )
-        institute.to_csv(f"{self.datadir}/InitialCombat_BroadSanger_Institute.csv")
-
-    def __qc_recall_curves(self):
-        qc_ess = pd.Series(
-            {
-                i: cy.QCplot.recall_curve(
-                    self.crispr[i], cy.Utils.get_essential_genes()
-                )[2]
-                for i in self.crispr
-            }
-        )
-        qc_ess.to_csv(f"{self.datadir}/InitialCombat_BroadSanger_Essential_AURC.csv")
-
-        qc_ness = pd.Series(
-            {
-                i: cy.QCplot.recall_curve(
-                    self.crispr[i], cy.Utils.get_non_essential_genes()
-                )[2]
-                for i in self.crispr
-            }
-        )
-        qc_ness.to_csv(
-            f"{self.datadir}/InitialCombat_BroadSanger_NonEssential_AURC.csv"
-        )
-
-    def get_data(self, scale=True, drop_lowquality=True):
-        df = self.crispr.copy()
-
-        if drop_lowquality:
-            df = df.drop(columns=self.LOW_QUALITY_SAMPLES)
-
-        if scale:
-            df = self.scale(df)
-
-        return df
-
-    def filter(
-        self,
-        subset=None,
-        scale=True,
-        abs_thres=None,
-        drop_core_essential=False,
-        min_events=5,
-        drop_core_essential_broad=False,
-    ):
-        df = self.get_data(scale=True)
-
-        # - Filters
-        # Subset matrices
-        if subset is not None:
-            df = df.loc[:, df.columns.isin(subset)]
-
-        # Filter by scaled scores
-        if abs_thres is not None:
-            df = df[(df.abs() > abs_thres).sum(1) >= min_events]
-
-        # Filter out core essential genes
-        if drop_core_essential:
-            df = df[~df.index.isin(cy.Utils.get_adam_core_essential())]
-
-        if drop_core_essential_broad:
-            df = df[~df.index.isin(cy.Utils.get_broad_core_essential())]
-
-        # - Subset matrices
-        return self.get_data(scale=scale).loc[df.index].reindex(columns=df.columns)
-
-    @staticmethod
-    def scale(df, essential=None, non_essential=None, metric=np.median):
-        if essential is None:
-            essential = cy.Utils.get_essential_genes(return_series=False)
-
-        if non_essential is None:
-            non_essential = cy.Utils.get_non_essential_genes(return_series=False)
-
-        assert (
-            len(essential.intersection(df.index)) != 0
-        ), "DataFrame has no index overlapping with essential list"
-
-        assert (
-            len(non_essential.intersection(df.index)) != 0
-        ), "DataFrame has no index overlapping with non essential list"
-
-        essential_metric = metric(df.reindex(essential).dropna(), axis=0)
-        non_essential_metric = metric(df.reindex(non_essential).dropna(), axis=0)
-
-        df = df.subtract(non_essential_metric).divide(
-            non_essential_metric - essential_metric
-        )
 
         return df
 
@@ -1793,5 +1151,5 @@ if __name__ == "__main__":
 
     logging.getLogger("DTrace").info(f"Samples={len(samples)}")
     logging.getLogger("DTrace").info(
-        f"Spaseness={(1 - drug_respo.count().sum() / np.prod(drug_respo.shape)) * 100:.1f}%",
+        f"Spaseness={(1 - drug_respo.count().sum() / np.prod(drug_respo.shape)) * 100:.1f}%"
     )
