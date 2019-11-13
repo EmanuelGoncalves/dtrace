@@ -66,6 +66,7 @@ plt.savefig(
     bbox_inches="tight",
     transparent=True,
 )
+plt.show()
 
 
 # Representative examples of the drug-gene associations.
@@ -76,7 +77,6 @@ dgs = [
     ("MCL1_1284", "MCL1"),
     ("MCL1_1284", "MARCH5"),
     ("Venetoclax", "BCL2"),
-    ("AZD4320", "BCL2"),
     ("Volasertib", "PLK1"),
     ("Rigosertib", "PLK1"),
     ("Linsitinib", "CNPY2"),
@@ -131,6 +131,7 @@ target.boxplot_kinobead()
 plt.savefig(
     f"{rpath}/target_benchmark_kinobeads.pdf", bbox_inches="tight", transparent=True
 )
+plt.show()
 
 
 # Association effect sizes with between drugs and their know targets
@@ -142,7 +143,7 @@ plt.savefig(
     bbox_inches="tight",
     transparent=True,
 )
-
+plt.show()
 
 # P-value histogram of the Drug-Genes associations highlighting Drug-Target associations.
 
@@ -153,6 +154,7 @@ plt.savefig(
     bbox_inches="tight",
     transparent=True,
 )
+plt.show()
 
 
 # Distribution of the signifcant Drug-Gene associations across a protein-protein interaction network, with
@@ -179,6 +181,7 @@ for dtype in ["crispr", "gexp"]:
         bbox_inches="tight",
         transparent=True,
     )
+    plt.show()
 
 
 # Background distribution of all Drug-Gene associations tested.
@@ -203,6 +206,7 @@ plt.savefig(
     bbox_inches="tight",
     transparent=True,
 )
+plt.show()
 
 
 # Histogram of drugs with at least one significant association across the protein-protein network
@@ -225,6 +229,7 @@ plt.savefig(
     bbox_inches="tight",
     transparent=True,
 )
+plt.show()
 
 target.barplot_drugs_significant()
 plt.savefig(
@@ -232,6 +237,8 @@ plt.savefig(
     bbox_inches="tight",
     transparent=True,
 )
+plt.show()
+
 
 # Number of significant associations found with drugs from the two different types of screening proceedures, i.e. RS
 # and V17.
@@ -243,6 +250,7 @@ plt.savefig(
     bbox_inches="tight",
     transparent=True,
 )
+plt.show()
 
 
 # Heatmap counting the number of drugs which have a significant association with CRISPR and/or with a genomic marker
@@ -254,6 +262,7 @@ plt.savefig(
     bbox_inches="tight",
     transparent=True,
 )
+plt.show()
 
 
 # Significant associations p-value (y-axis) spread across the number of times a drug displayed an IC50 lower than the
@@ -266,6 +275,7 @@ plt.savefig(
     bbox_inches="tight",
     transparent=True,
 )
+plt.show()
 
 
 # Drug-Gene CRISPR associations p-value (-log10) versus Drug-Genomic associations p-value (-log10).
@@ -277,6 +287,7 @@ plt.savefig(
     bbox_inches="tight",
     transparent=True,
 )
+plt.show()
 
 
 # Top associations
@@ -334,6 +345,7 @@ plt.savefig(
     bbox_inches="tight",
     dpi=300,
 )
+plt.show()
 
 
 plt.figure(figsize=(2, 2), dpi=300)
@@ -342,6 +354,7 @@ plt.axis("off")
 plt.savefig(
     f"{rpath}/target_benchmark_clustermap_betas_crispr_legend.pdf", bbox_inches="tight"
 )
+plt.show()
 
 
 # Drug association with gene-expression
@@ -488,5 +501,7 @@ for dtype in ["crispr_std", "drug_std"]:
     plt.savefig(
         f"{rpath}/target_benchmark_drug_signif_{dtype}_boxplot.pdf", bbox_inches="tight"
     )
+    plt.show()
+
 
 # Copyright (C) 2019 Emanuel Goncalves

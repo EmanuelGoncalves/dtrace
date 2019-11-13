@@ -54,6 +54,7 @@ robust.genomic_histogram()
 plt.savefig(
     f"{rpath}/robust_mobems_countplot.pdf", bbox_inches="tight", transparent=True
 )
+plt.show()
 
 
 # Top associations of drug and CRISPR wiht genomic features
@@ -62,6 +63,7 @@ robust.top_robust_features()
 plt.savefig(
     f"{rpath}/robust_top_associations.pdf", bbox_inches="tight", transparent=True
 )
+plt.show()
 
 
 # Top associations of drug and CRISPR with gene-expression
@@ -70,6 +72,7 @@ robust.top_robust_features(dtype="gene-expression")
 plt.savefig(
     f"{rpath}/robust_top_associations_gexp.pdf", bbox_inches="tight", transparent=True
 )
+plt.show()
 
 
 # Significant associations count
@@ -81,6 +84,7 @@ plt.savefig(
     bbox_inches="tight",
     transparent=True,
 )
+plt.show()
 
 
 # Significant associations count distributed by distance in the protein-protein interaction network
@@ -92,6 +96,7 @@ plt.savefig(
     bbox_inches="tight",
     transparent=True,
 )
+plt.show()
 
 
 # Representative examples of robust pharmacogenomic associations with copy-number and mutations
@@ -245,6 +250,7 @@ plt.savefig(
     bbox_inches="tight",
     transparent=True,
 )
+plt.show()
 
 plt.figure(figsize=(0.75, 1.5), dpi=300)
 g = RobustAssociations.plot_boxplot_discrete(gene_mut, f"crispr_{gene_crispr}", plot_df)
@@ -255,6 +261,7 @@ plt.savefig(
     bbox_inches="tight",
     transparent=True,
 )
+plt.show()
 
 
 # Copyright (C) 2019 Emanuel Goncalves

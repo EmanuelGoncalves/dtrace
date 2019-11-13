@@ -49,6 +49,7 @@ plt.ylabel("Association p-value (-log10)")
 plt.title("CRISPR associations with multiple MCL1 inhibitors")
 plt.gcf().set_size_inches(5, 1.5)
 plt.savefig(f"{rpath}/hit_topbarplot.pdf", bbox_inches="tight", transparent=True)
+plt.show()
 
 
 # ### Correlation plots of multiple MCL1i and MCL1/MARCH5
@@ -65,6 +66,7 @@ for g in ["MCL1", "MARCH5"]:
     plt.savefig(
         f"{rpath}/hit_target_drugs_corr_{g}.pdf", bbox_inches="tight", transparent=True
     )
+    plt.show()
 
 
 # ### BCL inhbitors association effects
@@ -75,6 +77,7 @@ for g in ["MCL1", "MARCH5"]:
 plt.figure(figsize=(1.5, 1.5), dpi=300)
 hit.plot_drug_crispr_gexp(["MCL1", "BCL2", "BCL2L1"])
 plt.savefig(f"{rpath}/hit_BCLi_crispr~gexp.pdf", bbox_inches="tight", transparent=True)
+plt.show()
 
 
 # ### MCL1i drug-response predictive features
@@ -106,12 +109,14 @@ drug_lms = hit.predict_drugresponse(assoc, features)
 plt.figure(figsize=(1.5, 2.5), dpi=300)
 hit.predict_r2_barplot(drug_lms)
 plt.savefig(f"{rpath}/hit_rsqaured_barplot.pdf", bbox_inches="tight", transparent=True)
+plt.show()
 
 plt.figure(figsize=(1.5, 3), dpi=300)
 hit.predict_feature_plot(drug_lms)
 plt.savefig(
     f"{rpath}/hit_features_stripplot.pdf", bbox_inches="tight", transparent=True
 )
+plt.show()
 
 
 # ## Stratification of MCL1i drug-response
@@ -135,6 +140,7 @@ hit.drugresponse_boxplots(
 plt.savefig(
     f"{rpath}/hit_drugresponse_boxplot.pdf", bbox_inches="tight", transparent=True
 )
+plt.show()
 
 
 # ### Drug-response of highly selective MCL1i (MCL1_1284 and AZD5991) in breast and colorectal carcinomas.
@@ -178,7 +184,7 @@ for drug in hit.drugs:
         bbox_inches="tight",
         transparent=True,
     )
-    plt.close("all")
+    plt.show()
 
 
 # ### MCL1 copy-number amplification
@@ -213,10 +219,12 @@ grid.ax_joint.axhline(
 )
 grid.set_axis_labels(f"{c} (scaled log2 FC)", f"{d} (ln IC50)")
 plt.suptitle("MCL1 amplification", y=1.05, fontsize=8)
+
 plt.gcf().set_size_inches(1.5, 1.5)
 plt.savefig(
     f"{rpath}/hit_scatter_{d}_{c}_amp.pdf", bbox_inches="tight", transparent=True
 )
+plt.show()
 
 
 # ### Correlation of BCL2, BCL2L1 and MCL1 inhibitors
@@ -261,7 +269,7 @@ handles = [
 g.ax_col_dendrogram.legend(handles=handles, loc="center left", bbox_to_anchor=(1, 0.5), frameon=False)
 
 plt.savefig(f"{rpath}/hit_BCL2_inhbitors_clustermap.pdf", bbox_inches="tight")
-plt.close("all")
+plt.show()
 
 
 # Copyright (C) 2019 Emanuel Goncalves

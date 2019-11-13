@@ -14,6 +14,9 @@ with open("dtrace/__init__.py") as f:
     exec(f.read(), version)
 
 included_files = {"dtrace": [
+    "data/drug_crispr_icon.png",
+    "data/drug_crispr_icon.pdf",
+
     "data/drug/DrugResponse_MaxC_v1.5.1_20191108.csv",
     "data/drug/DrugResponse_IC50_v1.5.1_20191108.csv",
 

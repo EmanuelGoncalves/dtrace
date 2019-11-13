@@ -1,4 +1,4 @@
-.. -*- mode: rst -*-
+![Crispy logo](dtrace/data/drug_crispr_icon.png)
 
 
 
