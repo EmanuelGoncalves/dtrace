@@ -24,7 +24,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from crispy.Utils import Utils
 from scipy.stats import ttest_ind
-from dtrace.DTraceUtils import rpath, dpath
+from dtrace.DTraceUtils import rpath
 from dtrace.Associations import Association
 from dtrace.TargetBenchmark import TargetBenchmark
 
@@ -102,8 +102,6 @@ for dg in dgs:
         "drug",
         "institute",
         plot_df,
-        add_hline=False,
-        add_vline=False,
         annot_text=annot_text,
     )
     g.ax_joint.axhline(
@@ -218,7 +216,7 @@ plt.savefig(
 )
 
 
-# Pie chart of significant associations per unique durgs ordered by distance in the PPI
+# Pie chart and barplot of significant associations per unique durgs ordered by distance in the PPI
 
 plt.figure(figsize=(2, 2), dpi=300)
 target.pichart_drugs_significant()
@@ -228,6 +226,12 @@ plt.savefig(
     transparent=True,
 )
 
+target.barplot_drugs_significant()
+plt.savefig(
+    f"{rpath}/target_benchmark_association_signif_barplot.pdf",
+    bbox_inches="tight",
+    transparent=True,
+)
 
 # Number of significant associations found with drugs from the two different types of screening proceedures, i.e. RS
 # and V17.
@@ -365,8 +369,6 @@ for dg in dgs:
         "drug",
         "Institute",
         plot_df,
-        add_hline=False,
-        add_vline=False,
         annot_text=annot_text,
     )
 
@@ -391,7 +393,7 @@ for gene_x, gene_y in [("MARCH5", "MCL1"), ("SHC1", "EGFR")]:
     plot_df = assoc.build_df(crispr=[gene_x, gene_y], sinfo=["institute"]).dropna()
 
     g = target.plot_corrplot(
-        f"crispr_{gene_x}", f"crispr_{gene_y}", "institute", plot_df, add_hline=True
+        f"crispr_{gene_x}", f"crispr_{gene_y}", "institute", plot_df
     )
 
     g.set_axis_labels(f"{gene_x} (scaled log2 FC)", f"{gene_y} (scaled log2 FC)")
@@ -465,6 +467,8 @@ for dtype in ["crispr_std", "drug_std"]:
         transform=ax.transAxes,
         ha="right",
     )
+
+    ax.grid(True, ls="-", lw=0.1, alpha=1.0, zorder=0, axis="y")
 
     if dtype == "crispr_std":
         ness_std = assoc.crispr.loc[Utils.get_non_essential_genes()].std(1).median()

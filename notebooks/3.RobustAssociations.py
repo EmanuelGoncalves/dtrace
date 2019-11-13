@@ -211,6 +211,8 @@ for d, c, g in rassocs:
         axs[i].set_xlabel(f"scaled log2 FC" if dtype == "crispr" else f"RNA-seq voom")
         axs[i].set_title(c if dtype == "crispr" else g)
 
+        axs[i].grid(True, ls="-", lw=0.1, alpha=1.0, zorder=0, axis="both")
+
         # Legend
         axs[i].legend(prop=dict(size=4), frameon=False, loc=2)
 

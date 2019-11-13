@@ -107,7 +107,7 @@ class RobustAssociations(DTracePlot):
             saturation=1,
         )
 
-        plt.grid(axis="x", lw=0.3, color=self.PAL_DTRACE[1], zorder=0)
+        plt.grid(True, ls="-", lw=0.1, alpha=1.0, zorder=0, axis="x")
 
         plt.xlabel("Number of occurrences")
         plt.ylabel("")
@@ -184,7 +184,7 @@ class RobustAssociations(DTracePlot):
                 )
 
             # Misc
-            ax.axvline(0, lw=0.1, c=self.PAL_DTRACE[1])
+            ax.grid(True, ls="-", lw=0.1, alpha=1.0, zorder=0, axis="y")
 
             ax.set_xlabel("Effect size (beta)")
             ax.set_ylabel("")
@@ -224,10 +224,10 @@ class RobustAssociations(DTracePlot):
             facet_kws={"despine": False}
         )
 
+        plt.grid(True, ls="-", lw=0.1, alpha=1.0, zorder=0, axis="y")
+
         plt.xlabel("")
         plt.ylabel("Drug-gene associations")
-
-        plt.grid(lw=0.3, c=self.PAL_DTRACE[1], axis="y", alpha=5, zorder=0)
 
     def robust_associations_barplot_ppi(self):
         #
@@ -252,4 +252,4 @@ class RobustAssociations(DTracePlot):
         for ax in g.axes[:, 0]:
             ax.set_xlabel("Drug-gene associations")
             ax.set_ylabel("PPI distance")
-            ax.grid(lw=0.3, c=self.PAL_DTRACE[1], axis="x", alpha=5, zorder=0)
+            ax.grid(True, ls="-", lw=0.1, alpha=1.0, zorder=0, axis="x")

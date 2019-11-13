@@ -5,7 +5,7 @@ import logging
 import numpy as np
 import pandas as pd
 import pkg_resources
-import DataImporter as DataImporter
+import dtrace.DataImporter as DataImporter
 from limix.qtl import scan
 from sklearn.preprocessing import StandardScaler
 from statsmodels.stats.multitest import multipletests

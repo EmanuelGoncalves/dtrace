@@ -6,8 +6,8 @@ import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 from sklearn.manifold import TSNE
-from DataImporter import DrugResponse
 from dtrace.DTracePlot import DTracePlot
+from dtrace.DataImporter import DrugResponse
 from sklearn.preprocessing import StandardScaler
 
 

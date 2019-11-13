@@ -160,6 +160,8 @@ for drug in hit.drugs:
         "drug", "crispr", plot_df, n_offset=1, n_fontsize=5, order=order, ax=ax
     )
 
+    ax.grid(True, ls="-", lw=0.1, alpha=1.0, zorder=0, axis="y")
+
     for x, c in [(d_aml, 0), (d_max, 2)]:
         ax.axvline(
             x, linewidth=0.3, color=DTracePlot.PAL_DTRACE[c], ls=":", zorder=2

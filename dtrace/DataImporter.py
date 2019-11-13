@@ -10,7 +10,7 @@ import pandas as pd
 import crispy as cy
 import pkg_resources
 from sklearn.decomposition import PCA
-from DTracePlot import DTracePlot
+from dtrace.DTracePlot import DTracePlot
 
 
 dpath = pkg_resources.resource_filename("dtrace", "data/")

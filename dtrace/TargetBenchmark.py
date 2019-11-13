@@ -8,7 +8,6 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
-from crispy.Utils import Utils
 from crispy.QCPlot import QCplot
 from matplotlib.lines import Line2D
 from scipy.stats import gaussian_kde
@@ -255,7 +254,7 @@ class TargetBenchmark(DTracePlot):
             f"Mann-Whitney U statistic={t:.2f}, p-value={p:.2e}"
         )
 
-        plt.axvline(0, c=self.PAL_DTRACE[1], lw=0.3, ls="-", zorder=0)
+        plt.grid(True, ls="-", lw=0.1, alpha=1.0, zorder=0, axis="y")
 
         plt.xlabel("Association beta")
         plt.ylabel("Density")
@@ -282,6 +281,8 @@ class TargetBenchmark(DTracePlot):
 
         plt.xlabel("Association p-value")
         plt.ylabel("Density")
+
+        plt.grid(True, ls="-", lw=0.1, alpha=1.0, zorder=0, axis="y")
 
         plt.legend(prop={"size": 6}, frameon=False)
 
@@ -313,7 +314,7 @@ class TargetBenchmark(DTracePlot):
                 color="white",
             )
 
-        plt.grid(axis="x", lw=0.3, color=self.PAL_DTRACE[1], zorder=0)
+        plt.grid(True, ls="-", lw=0.1, alpha=1.0, zorder=0, axis="x")
 
         plt.yticks(plot_df.index, plot_df["index"])
         plt.xlabel("Number of drugs")
@@ -343,7 +344,7 @@ class TargetBenchmark(DTracePlot):
                 color="white",
             )
 
-        plt.grid(axis="x", lw=0.3, color=self.PAL_DTRACE[1], zorder=0)
+        plt.grid(True, ls="-", lw=0.1, alpha=1.0, zorder=0, axis="x")
 
         plt.yticks(plot_df.index, plot_df["index"])
         plt.xlabel("Number of drugs")
@@ -413,7 +414,7 @@ class TargetBenchmark(DTracePlot):
             ax=ax,
         )
 
-        plt.grid(axis="y", lw=0.3, color=self.PAL_DTRACE[1], zorder=0)
+        plt.grid(True, ls="-", lw=0.1, alpha=1.0, zorder=0, axis="y")
 
     def drugs_ppi_countplot_background(self, dtype="crispr"):
         if dtype == "crispr":
@@ -435,7 +436,7 @@ class TargetBenchmark(DTracePlot):
             "index", "count", data=plot_df, order=self.PPI_ORDER, palette=self.PPI_PAL
         )
 
-        plt.grid(axis="y", lw=0.3, color=self.PAL_DTRACE[1], zorder=0)
+        plt.grid(True, ls="-", lw=0.1, alpha=1.0, zorder=0, axis="y")
 
         plt.xlabel("Associated gene position in PPI")
         plt.ylabel("Number of associations")
@@ -540,9 +541,9 @@ class TargetBenchmark(DTracePlot):
                     zorder=10,
                 )
 
-            axs[irow].axes.get_xaxis().set_ticks([])
-            axs[irow].set_ylabel("Drug association\n(-log10 p-value)")
-
+            ax.axes.get_xaxis().set_ticks([])
+            ax.grid(True, ls="-", lw=0.1, alpha=1.0, zorder=0, axis="y")
+            ax.set_ylabel("Drug association\n(-log10 p-value)")
 
     def drug_notarget_barplot(self, drug, genes):
         df = self.assoc.by(self.assoc.lmm_drug_crispr, drug_name=drug)
@@ -585,7 +586,7 @@ class TargetBenchmark(DTracePlot):
                 zorder=10,
             )
 
-        ax.grid(axis="x", lw=0.3, color=self.PAL_DTRACE[1], zorder=0)
+        ax.grid(True, ls="-", lw=0.1, alpha=1.0, zorder=0, axis="x")
 
         ax.set_yticks(df.index)
         ax.set_yticklabels(df["GeneSymbol"])
@@ -648,7 +649,7 @@ class TargetBenchmark(DTracePlot):
                 color=self.PAL_DTRACE[2],
             )
 
-        plt.grid(axis="y", lw=0.3, color=self.PAL_DTRACE[1], zorder=0)
+        plt.grid(True, ls="-", lw=0.1, alpha=1.0, zorder=0, axis="y")
 
         plt.xticks(df.index, df["VERSION"])
         plt.ylabel("Number of drugs")
@@ -736,6 +737,35 @@ class TargetBenchmark(DTracePlot):
             wedgeprops=dict(linewidth=0),
         )
 
+    def barplot_drugs_significant(self):
+        plot_df = self.d_signif_ppi["target"].value_counts().to_dict()
+        plot_df["X"] = len(
+            [
+                d
+                for d in self.d_sets_name["tested"]
+                if d not in self.d_sets_name["significant"]
+            ]
+        )
+        plot_df = pd.Series(plot_df)[self.PPI_ORDER + ["X"]].reset_index().rename(columns={"index": "target", 0: "drugs"})
+
+        _, ax = plt.subplots(1, 1, figsize=(2, 2))
+        sns.barplot("target", "drugs", data=plot_df, palette=self.PPI_PAL, linewidth=0, ax=ax)
+        for i, row in plot_df.iterrows():
+            ax.text(
+                i,
+                row["drugs"],
+                f"{(row['drugs'] / plot_df['drugs'].sum() * 100):.1f}%",
+                va="bottom",
+                ha="center",
+                fontsize=5,
+                zorder=10,
+                color=self.PAL_DTRACE[2],
+            )
+        ax.tick_params(axis='x', which='both', bottom=False)
+        ax.grid(True, ls="-", lw=0.1, alpha=1.0, zorder=0, axis="y")
+        ax.set_xlabel("Drug significant asociations\nshortest distance to target")
+        ax.set_ylabel("Number of drugs (with target in PPI)")
+
     def signif_maxconcentration_scatter(self):
         # Build data-frame
         d_frist = self.assoc.lmm_drug_crispr.groupby(self.assoc.dcols).first()
@@ -795,6 +825,8 @@ class TargetBenchmark(DTracePlot):
             -np.log10(0.1), ls=":", lw=0.5, color=self.PAL_DTRACE[2], zorder=0
         )
 
+        grid.ax_joint.grid(True, ls="-", lw=0.1, alpha=1.0, zorder=0, axis="both")
+
         grid.set_axis_labels(
             "Measurements lower than max Concentration\n(%)",
             "Drug lowest association FDR\n(min, -log10)",
@@ -827,6 +859,8 @@ class TargetBenchmark(DTracePlot):
 
         plt.axhline(-np.log10(0.1), ls=":", lw=0.5, color=self.PAL_DTRACE[2], zorder=0)
         plt.axvline(-np.log10(0.1), ls=":", lw=0.5, color=self.PAL_DTRACE[2], zorder=0)
+
+        plt.grid(True, ls="-", lw=0.1, alpha=1.0, zorder=0, axis="both")
 
         plt.xlabel("Drug ~ CRISPR association FDR\n(-log10)")
         plt.ylabel("Drug ~ Genomic association FDR\n(-log10)")
@@ -897,7 +931,8 @@ class TargetBenchmark(DTracePlot):
                 zorder=10,
             )
 
-        sns.despine(right=True, top=True, ax=ax)
+        ax.grid(True, ls="-", lw=0.1, alpha=1.0, zorder=0, axis="y")
+
         ax.axes.get_xaxis().set_ticks([])
 
         ax.set_ylabel("Drug-gene association\n(-log10 p-value)")
@@ -925,7 +960,7 @@ class TargetBenchmark(DTracePlot):
                 alpha=0.5,
             )
 
-        plt.axhline(0, lw=0.1, ls="-", c=self.PAL_DTRACE[1], alpha=0.8, zorder=0)
+        plt.grid(True, ls="-", lw=0.1, alpha=1.0, zorder=0, axis="both")
 
         plt.legend(
             frameon=False,

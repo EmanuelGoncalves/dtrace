@@ -14,47 +14,55 @@ with open("dtrace/__init__.py") as f:
     exec(f.read(), version)
 
 included_files = {"dtrace": [
-    "data/meta/drugsheet_20190210.xlsx",
+    "data/drug/DrugResponse_MaxC_v1.5.1_20191108.csv",
+    "data/drug/DrugResponse_IC50_v1.5.1_20191108.csv",
 
-    "data/drug/screening_set_384_all_owners_fitted_data_20180308_updated.csv",
-    "data/drug/fitted_rapid_screen_1536_v1.2.1_20181026_updated.csv",
+    "data/crispr/CRISPR_corrected_qnorm_20191108.csv",
+    "data/crispr/CRISPR_Institute_Origin_20191108.csv",
 
-    "data/crispr/sanger_depmap18_fc_corrected.csv",
-    "data/crispr/sanger_depmap18_fc_ess_aucs.csv",
-    "data/crispr/broad_depmap18q4_fc_corrected.csv",
-    "data/crispr/broad_depmap18q4_fc_ess_aucs.csv",
-    "data/crispr/depmap19Q1_essential_genes.txt",
-    "data/crispr/projectscore_essential_genes.txt",
-
-    "data/meta/model_list_2018-09-28_1452.csv",
-    "data/meta/growth_rates_rapid_screen_1536_v1.2.2_20181113.csv",
-    "data/meta/samples_origin.csv",
+    "data/meta/DrugSheet_20191106.csv",
+    "data/meta/GrowthRates_v1.3.0_20190222.csv",
+    "data/meta/SamplesOrigin_20191106.csv",
+    "data/meta/ModelList_20191106.csv",
 
     "data/genomic/PANCAN_mobem.csv",
-
     "data/genomic/rnaseq_voom.csv.gz",
     "data/genomic/rnaseq_rpkm.csv.gz",
+    "data/genomic/WES_variants.csv.gz",
+    "data/genomic/copynumber_total_new_map.csv.gz",
 
     "data/ppi/9606.protein.links.full.v10.5.txt",
     "data/ppi/9606.protein.aliases.v10.5.txt",
     "data/ppi/BIOGRID-ORGANISM-Homo_sapiens-3.4.157.tab2.txt",
 
-    "data/genomic/WES_variants.csv.gz",
-
-    "data/pathways/c1.all.v6.2.symbols.gmt",
-    "data/pathways/c2.cp.biocarta.v6.2.symbols.gmt",
-    "data/pathways/c2.cp.kegg.v6.2.symbols.gmt",
-    "data/pathways/c2.cp.reactome.v6.2.symbols.gmt",
-    "data/pathways/c2.cp.v6.2.symbols.gmt",
-    "data/pathways/c5.all.v6.2.symbols.gmt",
-    "data/pathways/c5.bp.v6.2.symbols.gmt",
-    "data/pathways/c5.cc.v6.2.symbols.gmt",
-    "data/pathways/c5.mf.v6.2.symbols.gmt",
-    "data/pathways/h.all.v6.2.symbols.gmt",
-
-    "data/ubq/Definite Ligase List.xlsx",
     "data/klaeger_et_al_catds_most_potent.csv",
+    "data/klaeger_et_al_idmap.csv",
     "data/klaeger_et_al_catds.csv",
+
+    "data/PCA_GExp_row_vex.csv",
+    "data/PCA_GExp_row_pcs.csv",
+    "data/PCA_GExp_column_vex.csv",
+    "data/PCA_GExp_column_pcs.csv",
+
+    "data/PCA_drug_row_vex.csv",
+    "data/PCA_drug_row_pcs.csv",
+    "data/PCA_drug_column_vex.csv",
+    "data/PCA_drug_column_pcs.csv",
+
+    "data/PCA_CRISPR_row_vex.csv",
+    "data/PCA_CRISPR_row_pcs.csv",
+    "data/PCA_CRISPR_column_vex.csv",
+    "data/PCA_CRISPR_column_pcs.csv",
+
+    "data/growth_drug_correlation.csv",
+    "data/growth_CRISPR_correlation.csv",
+
+    "data/drug_lmm_regressions_gexp.csv.gz",
+    "data/drug_lmm_regressions_genomic.csv.gz",
+    "data/drug_lmm_regressions_crispr.csv.gz",
+
+    "data/drug_lmm_regressions_robust_genomic.csv.gz",
+    "data/drug_lmm_regressions_robust_gexp.csv.gz",
 ]}
 
 setuptools.setup(

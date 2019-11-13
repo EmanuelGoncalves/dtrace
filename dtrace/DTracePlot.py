@@ -68,8 +68,6 @@ class DTracePlot(CrispyPlot):
         y,
         style,
         dataframe,
-        add_hline=True,
-        add_vline=True,
         diag_line=False,
         annot_text=None,
         lowess=False,
@@ -121,11 +119,7 @@ class DTracePlot(CrispyPlot):
         )
 
         # Extra
-        if add_hline:
-            grid.ax_joint.axhline(0, ls="-", lw=0.1, c=cls.PAL_DTRACE[1], zorder=0)
-
-        if add_vline:
-            grid.ax_joint.axvline(0, ls="-", lw=0.1, c=cls.PAL_DTRACE[1], zorder=0)
+        grid.ax_joint.grid(True, ls="-", lw=0.1, alpha=1.0, zorder=0, axis="both")
 
         if diag_line:
             (x0, x1), (y0, y1) = grid.ax_joint.get_xlim(), grid.ax_joint.get_ylim()
@@ -235,11 +229,7 @@ class DTracePlot(CrispyPlot):
             ha="right",
         )
 
-        if add_hline:
-            grid.ax_joint.axhline(0, ls="-", lw=0.3, c=cls.PAL_1_0[0], alpha=0.2)
-
-        if add_vline:
-            grid.ax_joint.axvline(0, ls="-", lw=0.3, c=cls.PAL_1_0[0], alpha=0.2)
+        grid.ax_joint.grid(True, ls="-", lw=0.1, alpha=1.0, zorder=0, axis="both")
 
         grid.set_axis_labels("{} (log2 FC)".format(x), "{} (ln IC50)".format(y))
 
@@ -344,5 +334,7 @@ class DTracePlot(CrispyPlot):
             medianprops=cls.MEDIANPROPS,
             ax=ax,
         )
+
+        plt.grid(True, ls="-", lw=0.1, alpha=1.0, zorder=0, axis="y")
 
         return ax

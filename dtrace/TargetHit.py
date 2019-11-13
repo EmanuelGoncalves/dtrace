@@ -148,6 +148,8 @@ class TargetHit(DTracePlot):
                 zorder=10,
             )
 
+        ax.grid(True, ls="-", lw=0.1, alpha=1.0, zorder=0, axis="y")
+
         ax.axes.get_xaxis().set_ticks([])
 
     def plot_target_drugs_corr(self, data, gene, order=None):
@@ -214,10 +216,13 @@ class TargetHit(DTracePlot):
 
             #
             dmax = np.log(data.drespo_obj.maxconcentration[d])
-            axs[i].axvline(dmax, ls="-", lw=0.1, c=self.PAL_DTRACE[1], zorder=0)
+            axs[i].axvline(dmax, ls="-", lw=0.3, c=self.PAL_DTRACE[1], zorder=0)
 
             #
-            axs[i].axhline(-0.5, ls="-", lw=0.1, c=self.PAL_DTRACE[1], zorder=0)
+            axs[i].axhline(-0.5, ls="-", lw=0.3, c=self.PAL_DTRACE[1], zorder=0)
+
+            #
+            axs[i].grid(True, ls="-", lw=0.1, alpha=1.0, zorder=0, axis="both")
 
             #
             axs[i].set_ylabel(f"{gene}\n(scaled log2 FC)" if i == 0 else "")
@@ -275,8 +280,7 @@ class TargetHit(DTracePlot):
                     zorder=1,
                 )
 
-        ax.axhline(0, ls="-", lw=0.1, c=DTracePlot.PAL_DTRACE[1], zorder=0)
-        ax.axvline(0, ls="-", lw=0.1, c=DTracePlot.PAL_DTRACE[1], zorder=0)
+        ax.grid(True, ls="-", lw=0.1, alpha=1.0, zorder=0, axis="both")
 
         ax.legend(loc=3, frameon=False, prop={"size": 5}).get_title().set_fontsize("5")
 
@@ -364,7 +368,7 @@ class TargetHit(DTracePlot):
             hue_order=pal.index,
         )
 
-        plt.axvline(0, ls="-", lw=0.3, c=DTracePlot.PAL_DTRACE[2], zorder=0)
+        plt.grid(True, ls="-", lw=0.1, alpha=1.0, zorder=0, axis="x")
 
         plt.xlabel("R-squared")
         plt.ylabel("")
@@ -409,7 +413,7 @@ class TargetHit(DTracePlot):
             hue_order=pal.index,
         )
 
-        plt.axvline(0, ls="-", lw=0.3, c=DTracePlot.PAL_DTRACE[2], zorder=0)
+        plt.grid(True, ls="-", lw=0.1, alpha=1.0, zorder=0, axis="x")
 
         plt.legend(frameon=False, prop={"size": 5}).get_title().set_fontsize("5")
         plt.xlabel("Median beta")
@@ -455,6 +459,8 @@ class TargetHit(DTracePlot):
                 palette=pal,
                 ax=ax,
             )
+
+            ax.grid(True, ls="-", lw=0.1, alpha=1.0, zorder=0, axis="y")
 
             dmax = np.log(data.drespo_obj.maxconcentration[d])
             ax.axvline(dmax, linewidth=0.3, color=self.PAL_DTRACE[2], ls=":", zorder=0)

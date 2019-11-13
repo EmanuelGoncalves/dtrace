@@ -145,7 +145,7 @@ class Preliminary(DTracePlot):
 
         g.annotate(pearsonr, template="R={val:.2g}, p={p:.1e}", frameon=False)
 
-        g.ax_joint.axvline(0, ls="-", lw=0.1, c=cls.PAL_DTRACE[1], zorder=0)
+        g.ax_joint.grid(True, ls="-", lw=0.1, alpha=1.0, zorder=0, axis="both")
 
         vexp = pca["column"]["vex"][pc]
         g.set_axis_labels(
@@ -185,6 +185,8 @@ class DrugPreliminary(Preliminary):
                 bins=15,
             )
 
+        plt.grid(True, ls="-", lw=0.1, alpha=1.0, zorder=0, axis="y")
+
         plt.xlabel("Number of drugs screened")
         plt.ylabel(f"Number of cell lines")
 
@@ -204,6 +206,8 @@ class DrugPreliminary(Preliminary):
             hist_kws=dict(lw=0),
             label=None,
         )
+
+        plt.grid(True, ls="-", lw=0.1, alpha=1.0, zorder=0, axis="y")
 
         plt.xlabel("Number of IC50s")
         plt.ylabel(f"Number of drugs")
@@ -227,7 +231,7 @@ class DrugPreliminary(Preliminary):
                 label=s,
             )
 
-        plt.axvline(0, c=cls.PAL_DTRACE[1], lw=0.1, ls="-", zorder=0)
+        plt.grid(True, ls="-", lw=0.1, alpha=1.0, zorder=0, axis="x")
 
         plt.xlabel("Drug correlation with growth rate\n(Pearson's R)")
         plt.ylabel("Density")
@@ -248,7 +252,7 @@ class DrugPreliminary(Preliminary):
         for item in g.get_xticklabels():
             item.set_rotation(90)
 
-        plt.axvline(0, c=cls.PAL_DTRACE[1], lw=0.1, ls="-", zorder=0)
+        plt.grid(True, ls="-", lw=0.1, alpha=1.0, zorder=0, axis="y")
 
         plt.xlabel("")
         plt.ylabel("Pearson's R")
@@ -256,9 +260,9 @@ class DrugPreliminary(Preliminary):
 
     @classmethod
     def growth_corrs_pcs_barplot(cls, df):
-        sns.barplot(df["pearson"], df["index"], color=cls.PAL_DTRACE[2])
+        sns.barplot(df["pearson"], df["index"], color=cls.PAL_DTRACE[2], linewidth=0)
 
-        plt.grid(axis="x", lw=0.1, color=cls.PAL_DTRACE[1], zorder=0)
+        plt.grid(True, ls="-", lw=0.1, alpha=1.0, zorder=0, axis="x")
 
         plt.xlabel("Pearson correlation coefficient")
         plt.ylabel("")
@@ -307,9 +311,9 @@ class CrisprPreliminary(Preliminary):
 
     @classmethod
     def growth_corrs_pcs_barplot(cls, df):
-        sns.barplot(df["pearson"], df["index"], color=cls.PAL_DTRACE[2])
+        sns.barplot(df["pearson"], df["index"], color=cls.PAL_DTRACE[2], linewidth=0)
 
-        plt.grid(axis="x", lw=0.1, color=cls.PAL_DTRACE[1], zorder=0)
+        plt.grid(True, ls="-", lw=0.1, alpha=1.0, zorder=0, axis="x")
 
         plt.xlabel("Pearson correlation coefficient")
         plt.ylabel("")
