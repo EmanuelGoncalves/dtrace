@@ -112,8 +112,8 @@ class DrugResponse:
 
     def __init__(
         self,
-        drugresponse_file="drug/DrugResponse_IC50_v1.5.1_20191108.csv",
-        drugmaxconcentration_file="drug/DrugResponse_MaxC_v1.5.1_20191108.csv",
+        drugresponse_file="drug/DrugResponse_IC50_v1.5.1_20191108.csv.gz",
+        drugmaxconcentration_file="drug/DrugResponse_MaxC_v1.5.1_20191108.csv.gz",
     ):
         self.drugresponse_file = drugresponse_file
         self.drugmaxconcentration_file = drugmaxconcentration_file
@@ -288,8 +288,8 @@ class CRISPR:
 
     def __init__(
         self,
-        fc_file="crispr/CRISPR_corrected_qnorm_20191108.csv",
-        institute_file="crispr/CRISPR_Institute_Origin_20191108.csv",
+        fc_file="crispr/CRISPR_corrected_qnorm_20191108.csv.gz",
+        institute_file="crispr/CRISPR_Institute_Origin_20191108.csv.gz",
     ):
         self.crispr = pd.read_csv(f"{dpath}/{fc_file}", index_col=0)
         self.institute = pd.read_csv(f"{dpath}/{institute_file}", index_col=0, header=None).iloc[:, 0]
@@ -403,7 +403,7 @@ class Genomic:
     """
 
     def __init__(
-        self, mobem_file="genomic/PANCAN_mobem.csv", drop_factors=True, add_msi=True
+        self, mobem_file="genomic/PANCAN_mobem.csv.gz", drop_factors=True, add_msi=True
     ):
         self.sample = Sample()
 
@@ -486,14 +486,12 @@ class PPI:
 
     def __init__(
         self,
-        string_file="ppi/9606.protein.links.full.v10.5.txt",
-        string_alias_file="ppi/9606.protein.aliases.v10.5.txt",
-        biogrid_file="ppi/BIOGRID-ORGANISM-Homo_sapiens-3.4.157.tab2.txt",
+        string_file="ppi/9606.protein.links.full.v10.5.txt.gz",
+        string_alias_file="ppi/9606.protein.aliases.v10.5.txt.gz",
         drug_targets=None,
     ):
         self.string_file = string_file
         self.string_alias_file = string_alias_file
-        self.biogrid_file = biogrid_file
 
         self.drug_targets = (
             DrugResponse.get_drugtargets() if drug_targets is None else drug_targets
@@ -505,9 +503,6 @@ class PPI:
         # PPI annotation
         if ppi_type == "string":
             ppi = self.build_string_ppi(**ppi_kws)
-
-        elif ppi_type == "biogrid":
-            ppi = self.build_biogrid_ppi(**ppi_kws)
 
         else:
             raise Exception("ppi_type not supported, choose from: string or biogrid")
@@ -601,86 +596,6 @@ class PPI:
             res = f"{int(target_thres)}+"
 
         return res
-
-    def build_biogrid_ppi(
-        self, exp_type=None, int_type=None, organism=9606, export_pickle=None
-    ):
-        # 'Affinity Capture-MS', 'Affinity Capture-Western'
-        # 'Reconstituted Complex', 'PCA', 'Two-hybrid', 'Co-crystal Structure', 'Co-purification'
-
-        # Import
-        biogrid = pd.read_csv(f"{dpath}/{self.biogrid_file}", sep="\t")
-
-        # Filter organism
-        biogrid = biogrid[
-            (biogrid["Organism Interactor A"] == organism)
-            & (biogrid["Organism Interactor B"] == organism)
-        ]
-
-        # Filter non matching genes
-        biogrid = biogrid[
-            (biogrid["Official Symbol Interactor A"] != "-")
-            & (biogrid["Official Symbol Interactor B"] != "-")
-        ]
-
-        # Physical interactions only
-        if int_type is not None:
-            biogrid = biogrid[
-                [i in int_type for i in biogrid["Experimental System Type"]]
-            ]
-
-        logging.getLogger("DTrace").info(
-            f"Experimental System Type considered: {'; '.join(set(biogrid['Experimental System Type']))}"
-        )
-
-        # Filter by experimental type
-        if exp_type is not None:
-            biogrid = biogrid[[i in exp_type for i in biogrid["Experimental System"]]]
-
-        logging.getLogger("DTrace").info(
-            f"Experimental System considered: {'; '.join(set(biogrid['Experimental System']))}"
-        )
-
-        # Interaction source map
-        biogrid["interaction"] = (
-            biogrid["Official Symbol Interactor A"]
-            + "<->"
-            + biogrid["Official Symbol Interactor B"]
-        )
-
-        # Unfold associations
-        biogrid = {
-            (s, t)
-            for p1, p2 in biogrid[
-                ["Official Symbol Interactor A", "Official Symbol Interactor B"]
-            ].values
-            for s, t in [(p1, p2), (p2, p1)]
-            if s != t
-        }
-
-        # Build igraph network
-        # igraph network
-        net_i = igraph.Graph(directed=False)
-
-        # Initialise network lists
-        edges = [(px, py) for px, py in biogrid]
-        vertices = list({p for p1, p2 in biogrid for p in [p1, p2]})
-
-        # Add nodes
-        net_i.add_vertices(vertices)
-
-        # Add edges
-        net_i.add_edges(edges)
-
-        # Simplify
-        net_i = net_i.simplify()
-        logging.getLogger("DTrace").info(net_i.summary())
-
-        # Export
-        if export_pickle is not None:
-            net_i.write_pickle(export_pickle)
-
-        return net_i
 
     def build_string_ppi(self, score_thres=900, export_pickle=None):
         # ENSP map to gene symbol
