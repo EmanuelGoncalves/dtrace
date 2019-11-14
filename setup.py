@@ -17,26 +17,25 @@ included_files = {"dtrace": [
     "data/drug_crispr_icon.png",
     "data/drug_crispr_icon.pdf",
 
-    "data/drug/DrugResponse_MaxC_v1.5.1_20191108.csv",
-    "data/drug/DrugResponse_IC50_v1.5.1_20191108.csv",
+    "data/drug/DrugResponse_MaxC_v1.5.1_20191108.csv.gz",
+    "data/drug/DrugResponse_IC50_v1.5.1_20191108.csv.gz",
 
-    "data/crispr/CRISPR_corrected_qnorm_20191108.csv",
-    "data/crispr/CRISPR_Institute_Origin_20191108.csv",
+    "data/crispr/CRISPR_corrected_qnorm_20191108.csv.gz",
+    "data/crispr/CRISPR_Institute_Origin_20191108.csv.gz",
 
     "data/meta/DrugSheet_20191106.csv",
     "data/meta/GrowthRates_v1.3.0_20190222.csv",
     "data/meta/SamplesOrigin_20191106.csv",
     "data/meta/ModelList_20191106.csv",
 
-    "data/genomic/PANCAN_mobem.csv",
+    "data/genomic/PANCAN_mobem.csv.gz",
     "data/genomic/rnaseq_voom.csv.gz",
     "data/genomic/rnaseq_rpkm.csv.gz",
     "data/genomic/WES_variants.csv.gz",
     "data/genomic/copynumber_total_new_map.csv.gz",
 
-    "data/ppi/9606.protein.links.full.v10.5.txt",
-    "data/ppi/9606.protein.aliases.v10.5.txt",
-    "data/ppi/BIOGRID-ORGANISM-Homo_sapiens-3.4.157.tab2.txt",
+    "data/ppi/9606.protein.links.full.v10.5.txt.gz",
+    "data/ppi/9606.protein.aliases.v10.5.txt.gz",
 
     "data/klaeger_et_al_catds_most_potent.csv",
     "data/klaeger_et_al_idmap.csv",
@@ -74,7 +73,7 @@ setuptools.setup(
     author="Emanuel Goncalves",
     author_email="eg14@sanger.ac.uk",
     long_description=long_description,
-    description="Integration of drug sensitivity and gene essentiality screens inform on drug mode-of-action",
+    description="Integration of drug sensitivity and gene essentiality screens to inform on drug mode-of-action",
     long_description_content_type="text/markdown",
     url="https://github.com/EmanuelGoncalves/dtrace",
     packages=setuptools.find_packages(),
