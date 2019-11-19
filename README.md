@@ -28,7 +28,7 @@ unzip data.zip
 cd ..
 ```
 
-Install module:
+Install module and initiate jupyter notebooks:
 ```
 python3 setup.py sdist bdist_wheel
 
