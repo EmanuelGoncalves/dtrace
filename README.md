@@ -14,11 +14,11 @@ Clone code repository
 git clone https://github.com/EmanuelGoncalves/dtrace.git
 ```
 
-Get data and unzip from [figshare](https://10.6084/m9.figshare.10336760)
+Get data and unzip from [figshare](https://10.6084/m9.figshare.10338413)
 ```
 cd dtrace
 
-wget https://10.6084/m9.figshare.10336760
+wget https://10.6084/m9.figshare.10338413
 
 gzip data.zip
 
