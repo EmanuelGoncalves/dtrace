@@ -104,6 +104,7 @@ features = [
     "BAD",
 ]
 drug_lms = hit.predict_drugresponse(assoc, features)
+drug_lms.to_csv(f"{rpath}/hit_rsquared.csv")
 
 plt.figure(figsize=(1.5, 2.5), dpi=300)
 hit.predict_r2_barplot(drug_lms)
@@ -157,6 +158,9 @@ for drug in hit.drugs:
     # Vertical lines
     d_aml = plot_df.query("cancer_type == 'Acute Myeloid Leukemia'")["drug"].mean()
     d_max = np.log(assoc.drespo_obj.maxconcentration[drug])
+
+    # Filter by tissue
+    plot_df = plot_df[plot_df["cancer_type"] == "Breast Carcinoma"]
 
     # Plot
     _, ax = plt.subplots(1, 1)

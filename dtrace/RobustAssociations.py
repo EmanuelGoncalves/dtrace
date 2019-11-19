@@ -220,6 +220,7 @@ class RobustAssociations(DTracePlot):
             data=self.assoc_count,
             palette=pal,
             kind="bar",
+            linewidth=0,
             hue_order=hue_order,
             facet_kws={"despine": False}
         )
@@ -241,6 +242,7 @@ class RobustAssociations(DTracePlot):
             "ftype",
             row="dtype",
             data=self.assoc_count_ppi,
+            linewidth=0,
             palette=pal,
             kind="bar",
             order=order,

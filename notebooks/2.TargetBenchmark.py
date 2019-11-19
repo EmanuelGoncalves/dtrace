@@ -85,7 +85,7 @@ dgs = [
     ("Olaparib", "PARP2"),
 ]
 
-dg = ("Vandetinib", "RBM14")
+dg = ("Linsitinib", "IGF1R")
 for dg in dgs:
     pair = assoc.by(assoc.lmm_drug_crispr, drug_name=dg[0], gene_name=dg[1]).iloc[0]
 
@@ -406,7 +406,7 @@ for gene_x, gene_y in [("MARCH5", "MCL1"), ("SHC1", "EGFR")]:
     plot_df = assoc.build_df(crispr=[gene_x, gene_y], sinfo=["institute"]).dropna()
 
     g = target.plot_corrplot(
-        f"crispr_{gene_x}", f"crispr_{gene_y}", "institute", plot_df
+        f"crispr_{gene_x}", f"crispr_{gene_y}", "institute", plot_df, annot_text="",
     )
 
     g.set_axis_labels(f"{gene_x} (scaled log2 FC)", f"{gene_y} (scaled log2 FC)")

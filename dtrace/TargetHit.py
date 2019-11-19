@@ -407,7 +407,7 @@ class TargetHit(DTracePlot):
             order=order,
             orient="h",
             edgecolor="white",
-            linewidth=0.5,
+            linewidth=0.1,
             s=3,
             palette=pal,
             hue_order=pal.index,

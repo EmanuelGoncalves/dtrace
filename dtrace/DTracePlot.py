@@ -156,8 +156,6 @@ class DTracePlot(CrispyPlot):
         discrete_pal=None,
         hue_order=None,
         annot_text=None,
-        add_hline=False,
-        add_vline=False,
     ):
         # Defaults
         if scatter_kws is None:
