@@ -9,26 +9,23 @@ Description
 This module contains all the Python scripts and results of the [analysis](). ipython notebooks are provided in the 
 notebooks directory along with all the generated plots from the analysis. 
 
-The module can then be installed with the following steps.
-
-Clone the repository with the code
+Clone code repository
 ```
 git clone https://github.com/EmanuelGoncalves/dtrace.git
-
 ```
 
-Get data and unzip it from [figshare](https://figshare.com/s/e19de0b17988f2add568)
+Get data and unzip from [figshare](https://10.6084/m9.figshare.10336760)
 ```
 cd dtrace
 
-wget 
+wget https://10.6084/m9.figshare.10336760
 
-unzip data.zip
+gzip data.zip
 
 cd ..
 ```
 
-Install module and initiate jupyter notebooks:
+Install module and initiate jupyter notebooks
 ```
 python3 setup.py sdist bdist_wheel
 
