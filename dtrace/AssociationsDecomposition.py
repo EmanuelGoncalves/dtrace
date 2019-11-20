@@ -48,7 +48,7 @@ class SingleLMMTSNE:
         # Drugs into
         drugs = {tuple(i) for i in lmm_dsingle[DrugResponse.DRUG_COLUMNS].values}
         drugs_annot = {tuple(i) for i in drugs if i[0] in self.dtargets}
-        drugs_screen = {v: {d for d in drugs if d[2] == v} for v in ["v17", "RS"]}
+        drugs_screen = {v: {d for d in drugs if d[2] == v} for v in ["GDSC1", "GDSC2"]}
 
         # Build drug association beta matrix
         betas = pd.pivot_table(
@@ -207,24 +207,24 @@ class SingleLMMTSNE:
         elif hueby == "replicates":
             rep_names = set(self.tsnes["rep"])
 
-            pal_v17 = [n for n in rep_names if n.endswith(";v17")]
-            pal_v17 = dict(
+            pal_GDSC1 = [n for n in rep_names if n.endswith(";GDSC1")]
+            pal_GDSC1 = dict(
                 zip(
                     *(
-                        pal_v17,
-                        sns.color_palette("tab20", n_colors=len(pal_v17)).as_hex(),
+                        pal_GDSC1,
+                        sns.color_palette("tab20", n_colors=len(pal_GDSC1)).as_hex(),
                     )
                 )
             )
 
-            pal_rs = [n for n in rep_names if n.endswith(";RS")]
-            pal_rs = dict(
+            pal_GDSC2 = [n for n in rep_names if n.endswith(";GDSC2")]
+            pal_GDSC2 = dict(
                 zip(
-                    *(pal_rs, sns.color_palette("tab20", n_colors=len(pal_rs)).as_hex())
+                    *(pal_GDSC2, sns.color_palette("tab20", n_colors=len(pal_GDSC2)).as_hex())
                 )
             )
 
-            pal = {**pal_v17, **pal_rs}
+            pal = {**pal_GDSC1, **pal_GDSC2}
             pal["NA"] = DTracePlot.PAL_DTRACE[1]
 
             g = sns.FacetGrid(
@@ -293,7 +293,7 @@ class SingleLMMTSNE:
                 aspect=1,
             )
 
-            for i, s in enumerate(["v17", "RS"]):
+            for i, s in enumerate(["GDSC1", "GDSC2"]):
                 ax = g.axes.ravel()[i]
                 df_plot = df.query("(target == 'No') & (VERSION == '{}')".format(s))
                 ax.scatter(
@@ -336,10 +336,10 @@ class SingleLMMTSNE:
 
         g.set_titles("Screen = {col_name}")
 
-    def drug_v17_id_batch(self):
+    def drug_GDSC1_id_batch(self):
         hue_order = ["[0, 200[", "[200, 1000[", "[1000, inf.["]
 
-        plot_df = self.tsnes[self.tsnes["VERSION"] == "v17"]
+        plot_df = self.tsnes[self.tsnes["VERSION"] == "GDSC1"]
 
         plot_df = plot_df.assign(
             id_discrete=pd.cut(

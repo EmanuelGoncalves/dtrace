@@ -240,8 +240,7 @@ plt.savefig(
 plt.show()
 
 
-# Number of significant associations found with drugs from the two different types of screening proceedures, i.e. RS
-# and V17.
+# Number of significant associations found with drugs from the two different types of screening proceedures
 
 plt.figure(figsize=(0.75, 1.5), dpi=300)
 target.signif_per_screen()
@@ -331,7 +330,7 @@ for drug in ["Olaparib", "Talazoparib"]:
 # Clustermap of drug association betas
 
 betas_crispr = pd.pivot_table(
-    assoc.lmm_drug_crispr.query("VERSION == 'RS'"),
+    assoc.lmm_drug_crispr.query("VERSION == 'GDSC2'"),
     index=["DRUG_ID", "DRUG_NAME"],
     columns="GeneSymbol",
     values="beta",

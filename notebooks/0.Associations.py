@@ -47,8 +47,8 @@ assoc.gexp_obj.perform_pca(subset=assoc.samples)
 # Linear mixed models trained with [LIMIX](https://limix.readthedocs.io/en/stable/), these models use a covariance
 # matrix (K) as random effects of the data-set used for the independent features (X). Additionally, covariates (M) are
 # considered: (i) growth rate represented by PC1 of drug-response; (ii) dummy variables of growth properties of the cell
-# lines, (adherent, suspension or semi-adherent); and (iii) dummy variables for the institute of origin of the
-# CRISPR-Cas9 data-sets, (Sanger or Broad);
+# lines (adherent, suspension or semi-adherent); and (iii) dummy variables for the institute of origin of the
+# CRISPR-Cas9 data-sets (Sanger or Broad);
 
 # ### Drug-response ~ CRISPR-Cas9
 

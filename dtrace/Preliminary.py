@@ -25,7 +25,7 @@ class Preliminary(DTracePlot):
     def pairplot_pca_by_rows(cls, pca, hue="VERSION"):
         df = pca["row"]["pcs"].reset_index()
 
-        pal = None if hue is None else dict(v17=cls.PAL_DTRACE[2], RS=cls.PAL_DTRACE[0])
+        pal = None if hue is None else dict(GDSC1=cls.PAL_DTRACE[2], GDSC2=cls.PAL_DTRACE[0])
         color = cls.PAL_DTRACE[2] if hue is None else None
 
         g = sns.PairGrid(
@@ -168,7 +168,7 @@ class Preliminary(DTracePlot):
 
 
 class DrugPreliminary(Preliminary):
-    DRUG_PAL = dict(v17=Preliminary.PAL_DTRACE[2], RS=Preliminary.PAL_DTRACE[0])
+    DRUG_PAL = dict(GDSC1=Preliminary.PAL_DTRACE[2], GDSC2=Preliminary.PAL_DTRACE[0])
 
     @classmethod
     def histogram_drug(cls, drug_count):
