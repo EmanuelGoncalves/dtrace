@@ -36,7 +36,7 @@ assoc = Association(load_associations=True, combine_lmm=True)
 # ## MCL1 inhibitors associations
 
 # Analysis of the significant associations between multiple MCL1 inhibitors (MCL1i) and MCL1 and MARCH5
-# gene-essentiality.
+# gene fitness.
 
 hit = TargetHit("MCL1", assoc=assoc)
 
@@ -70,8 +70,8 @@ for g in ["MCL1", "MARCH5"]:
 
 # ### BCL inhbitors association effects
 #
-# Associations effect sizes (betas) of inhibitors of BCL family members (MCL1, BCL2L1/BCL-XL and BCL2) drug-response
-# with gene-essentiality and gene-expression.
+# Associations effect sizes (betas) of inhibitors of BCL family members (MCL1, BCL2L1/BCL-XL and BCL2) drug response
+# with gene fitness and expression.
 
 plt.figure(figsize=(1.5, 1.5), dpi=300)
 hit.plot_drug_crispr_gexp(["MCL1", "BCL2", "BCL2L1"])
@@ -79,14 +79,14 @@ plt.savefig(f"{rpath}/hit_BCLi_crispr~gexp.pdf", bbox_inches="tight", transparen
 plt.show()
 
 
-# ### MCL1i drug-response predictive features
+# ### MCL1i drug response predictive features
 #
 # A l2-regularised linear regression model with internal cross-validation for parameter optimisation
 # [RidgeCV](https://scikit-learn.org/stable/modules/generated/sklearn.linear_model.RidgeCV.html#sklearn.linear_model.
 # RidgeCV) was used to estimate the predictive capacity [R-squared](https://scikit-learn.org/stable/modules/generated/
-# sklearn.metrics.r2_score.html) of MCL1i drug-response and the features contribution.
+# sklearn.metrics.r2_score.html) of MCL1i drug response and the features contribution.
 
-# Both gene-essentiality and gene-expression measurements of BCL family members and regulators, defined in features
+# Both gene essentiality and expression measurements of BCL family members and regulators, defined in features
 # variable, were considered.
 
 features = [
@@ -119,7 +119,7 @@ plt.savefig(
 plt.show()
 
 
-# ## Stratification of MCL1i drug-response
+# ## Stratification of MCL1i drug response
 
 # ### MCL1i inhibitors across all cell lines.
 
@@ -143,7 +143,7 @@ plt.savefig(
 plt.show()
 
 
-# ### Drug-response of highly selective MCL1i (MCL1_1284 and AZD5991) in breast and colorectal carcinomas.
+# ### Drug response of highly selective MCL1i (MCL1_1284 and AZD5991) in breast carcinomas.
 
 for drug in hit.drugs:
     # Build dataframe
@@ -176,23 +176,25 @@ for drug in hit.drugs:
             x, linewidth=0.3, color=DTracePlot.PAL_DTRACE[c], ls=":", zorder=2
         )
 
-    ax.set_xlabel(f"{drug[1]} (ln IC50, {drug[2]})")
+    ax.set_xlabel(f"{drug[1]} (ln IC50, {drug[0]})")
     ax.set_ylabel("")
 
     ax.set_title("Breast Carcinoma")
 
+    ax.set_xlim(-3)
+
     plt.gcf().set_size_inches(2, 0.75)
     plt.savefig(
-        f"{rpath}/hit_drugresponse_boxplot_tissue_{drug[1].split(' / ')[0]}.pdf",
+        f"{rpath}/hit_drugresponse_boxplot_tissue_{drug[1].split(' / ')[0]}_{drug[0]}.pdf",
         bbox_inches="tight",
         transparent=True,
     )
     plt.show()
 
 
-# ### MCL1 copy-number amplification
+# ### MCL1 copy number amplification
 
-# MCL1 copy-number amplification association with drug-response of MCL1 gene-essentiality and inhibitor.
+# MCL1 copy number amplification association with drug response of MCL1 gene fitness and inhibitor.
 
 d, c = ("MCL1_1284", "MCL1")
 drug = assoc.lmm_drug_crispr[

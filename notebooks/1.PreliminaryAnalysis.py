@@ -30,7 +30,7 @@ assoc = Association()
 
 # ## Principal Component Analysis (PCA)
 #
-# Import PCA results performed on the drug-response and CRISPR-Cas9 data-sets both per drug/gene and per samples. Note
+# Import PCA results performed on the drug response and CRISPR-Cas9 data-sets both per drug/gene and per samples. Note
 # PCA is performed after running the first notebook (0.Associations).
 
 pca_drug = assoc.drespo_obj.import_pca()
@@ -39,20 +39,20 @@ pca_crispr = assoc.crispr_obj.import_pca()
 
 # ## Growth-rate correlation analysis
 #
-# Correlation of cell lines growth rates (unperturbed) with drug-response (ln IC50).
+# Correlation of cell lines growth rates (unperturbed) with drug response (ln IC50).
 
 g_corr = assoc.drespo_obj.perform_growth_corr(subset=assoc.samples)
 
 
-# Correlation of cell lines growth rates (unperturbed) with CRISPR-Cas9 (scaled log2 fold-change; median essential = -1)
+# Correlation of cell lines growth rates (unperturbed) with CRISPR-Cas9 (scaled log2 fold change; median essential = -1)
 
 c_corr = assoc.crispr_obj.perform_growth_corr(subset=assoc.samples)
 
 
-# # Drug-response
+# # Drug response
 
 
-# Drug-response (IC50s) measurements across cell lines cumulative distribution
+# Drug response (IC50s) measurements across cell lines cumulative distribution
 
 plt.figure(figsize=(2.5, 1.5), dpi=300)
 DrugPreliminary.histogram_drug(assoc.drespo.count(1))
@@ -86,7 +86,7 @@ plt.savefig(
 plt.show()
 
 
-# Principal components of samples in the drug-response
+# Principal components of samples in the drug response
 
 DrugPreliminary.pairplot_pca_by_columns(pca_drug)
 plt.suptitle("PCA drug response (Cell lines)", y=1.05, fontsize=9)
@@ -98,7 +98,7 @@ plt.savefig(
 plt.show()
 
 
-# Principal components of samples in the drug-response coloured by cancer type
+# Principal components of samples in the drug response coloured by cancer type
 
 DrugPreliminary.pairplot_pca_samples_cancertype(
     pca_drug, assoc.samplesheet.samplesheet["cancer_type"]
@@ -112,7 +112,7 @@ plt.savefig(
 plt.show()
 
 
-# Drug-response PCs correlation with growth-rates
+# Drug response PCs correlation with growth rates
 
 plot_df = assoc.samplesheet.growth_corr(pca_drug["column"]["pcs"].T)
 
@@ -126,7 +126,7 @@ plt.savefig(
 plt.show()
 
 
-# Samples drug-response PC1 correlation with growth-rate
+# Samples drug response PC1 correlation with growth rate
 
 g = DrugPreliminary.corrplot_pcs_growth(
     pca_drug, assoc.samplesheet.samplesheet["growth"], "PC1"
@@ -140,7 +140,7 @@ plt.savefig(
 plt.show()
 
 
-# Histogram of samples drug-response PC1 correlation with growth-rate
+# Histogram of samples drug response PC1 correlation with growth-rate
 
 plt.figure(figsize=(2, 2), dpi=300)
 DrugPreliminary.growth_correlation_histogram(g_corr)
@@ -152,7 +152,7 @@ plt.savefig(
 plt.show()
 
 
-# Top correlated drugs with growth-rate
+# Top correlated drugs with growth rate
 
 plt.figure(figsize=(2.5, 1), dpi=300)
 DrugPreliminary.growth_correlation_top_drugs(g_corr)
@@ -211,7 +211,7 @@ plt.savefig(
 plt.show()
 
 
-# Drug-response PCs correlation with growth-rates
+# Drug response PCs correlation with growth rates
 
 plt.figure(figsize=(1.5, 1.5), dpi=300)
 plot_df = assoc.samplesheet.growth_corr(pca_crispr["column"]["pcs"].T)

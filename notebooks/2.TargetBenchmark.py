@@ -36,14 +36,14 @@ assoc = Association(load_associations=True, load_ppi=True)
 target = TargetBenchmark(assoc=assoc, fdr=0.1)
 
 
-# ## Drug-response and gene-essentiality associations
+# ## Drug response and gene fitness associations
 
-# Top associations between drug-response and gene-essentiality
+# Top associations between drug response and gene fitness
 
 assoc.lmm_drug_crispr.head(15)
 
 
-# Top associations between drug-response and gene-expression
+# Top associations between drug response and gene expression
 
 assoc.lmm_drug_gexp.head(15)
 
@@ -158,7 +158,7 @@ plt.show()
 
 
 # Distribution of the signifcant Drug-Gene associations across a protein-protein interaction network, with
-# gene-essentiality and gene-expression.
+# gene essentiality expression.
 
 for dtype in ["crispr", "gexp"]:
     fig, axs = plt.subplots(2, 1, figsize=(1.5, 3), dpi=300)

@@ -226,8 +226,8 @@ class TargetHit(DTracePlot):
 
             #
             axs[i].set_ylabel(f"{gene}\n(scaled log2 FC)" if i == 0 else "")
-            axs[i].set_xlabel(f"Drug-response\n(ln IC50)")
-            axs[i].set_title(d[1])
+            axs[i].set_xlabel(f"Drug response\n(ln IC50)")
+            axs[i].set_title(f"{d[1]} ({d[0]})")
 
         plt.subplots_adjust(bottom=0.15, wspace=0.05)
         plt.gcf().set_size_inches(1 * len(order), 1.0)
@@ -287,7 +287,7 @@ class TargetHit(DTracePlot):
         ax.set_xlabel("CRISPR beta")
         ax.set_ylabel("GExp beta")
 
-        ax.set_title("LMM Drug-response model")
+        ax.set_title("LMM Drug response model")
 
     def lm_drug_train(self, y, x, drug, n_splits=1000, test_size=0.3):
         y = y[x.index].dropna()
@@ -465,7 +465,7 @@ class TargetHit(DTracePlot):
             dmax = np.log(data.drespo_obj.maxconcentration[d])
             ax.axvline(dmax, linewidth=0.3, color=self.PAL_DTRACE[2], ls=":", zorder=0)
 
-            ax.set_xlabel(f"{d[1]} (ln IC50, {d[2]})")
+            ax.set_xlabel(f"{d[1]}, {d[0]}, {d[2]} (ln IC50)")
             ax.set_ylabel("")
 
             if int(np.floor(i / nrows)) != 0:

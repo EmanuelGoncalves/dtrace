@@ -266,7 +266,7 @@ class DrugPreliminary(Preliminary):
 
         plt.xlabel("Pearson correlation coefficient")
         plt.ylabel("")
-        plt.title("Drug-response PCA\ncorrelation with growth rate")
+        plt.title("Drug response PCA\ncorrelation with growth rate")
 
 
 class CrisprPreliminary(Preliminary):

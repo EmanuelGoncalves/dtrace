@@ -234,24 +234,26 @@ class RobustAssociations(DTracePlot):
         #
         order = ["T", "1", "2", "3", "4", "5+", "-"]
         hue_order = ["Both", "Drug", "CRISPR"]
+        col_order = ["Genomic", "Gene-expression"]
         pal = {"Both": "#fc8d62", "Drug": "#ababab", "CRISPR": "#656565"}
 
-        g = sns.catplot(
-            "count",
-            "ppi",
-            "ftype",
-            row="dtype",
-            data=self.assoc_count_ppi,
-            linewidth=0,
-            palette=pal,
-            kind="bar",
-            order=order,
-            hue_order=hue_order,
+        f, axs = plt.subplots(
+            2,
+            1,
+            sharex="none", sharey="none",
+            figsize=(2, 4),
         )
 
-        g.set_titles("{row_name}")
+        for i, dtype in enumerate(col_order):
+            ax = axs[i]
+            df = self.assoc_count_ppi.query(f"dtype == '{dtype}'")
 
-        for ax in g.axes[:, 0]:
+            sns.barplot("count", "ppi", "ftype", df, orient="h", linewidth=0, palette=pal, order=order, hue_order=hue_order, ax=ax)
+
+            ax.set_title(dtype)
+
             ax.set_xlabel("Drug-gene associations")
             ax.set_ylabel("PPI distance")
             ax.grid(True, ls="-", lw=0.1, alpha=1.0, zorder=0, axis="x")
+
+        plt.subplots_adjust(hspace=0.35, wspace=0.05)

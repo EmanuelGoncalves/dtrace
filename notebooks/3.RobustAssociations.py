@@ -36,8 +36,8 @@ robust = RobustAssociations(assoc)
 
 # ## Robust pharmacogenomic associations
 #
-# Robust pharmacogenomic associations represent pairs of Drug-Gene (drug-response and gene-essentiality) that are
-# significantly correlated with each other and with a genomic feature (copy-number/mutations) or a gene expression
+# Robust pharmacogenomic associations represent pairs of Drug-Gene (drug response and gene essentiality) that are
+# significantly correlated with each other and with a genomic feature (copy number/mutations) or a gene expression
 # profile.
 
 robust.assoc.lmm_robust_genomic.query("crispr_fdr < 0.1 & drug_fdr < 0.1").head(
@@ -90,12 +90,12 @@ plt.show()
 # Significant associations count distributed by distance in the protein-protein interaction network
 
 robust.robust_associations_barplot_ppi()
-plt.gcf().set_size_inches(2, 4)
 plt.savefig(
     f"{rpath}/robust_signif_association_barplot_ppi.pdf",
     bbox_inches="tight",
     transparent=True,
 )
+plt.close('all')
 plt.show()
 
 

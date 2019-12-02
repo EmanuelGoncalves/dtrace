@@ -29,7 +29,7 @@ from dtrace.Associations import Association
 assoc = Association()
 
 
-# Perform PCA analysis on drug-response and gene-essentiality data-sets. Principal component 1 for the drug-response
+# Perform PCA analysis on drug response and gene fitness data-sets. Principal component 1 for the drug response
 # correlates significantly with growth measurements and therefore is generated before the associations so that is
 # considered as a covariate in the linear regressions.
 
@@ -38,19 +38,19 @@ assoc.crispr_obj.perform_pca(subset=assoc.samples)
 assoc.gexp_obj.perform_pca(subset=assoc.samples)
 
 
-# ## Linear drug-response associations
+# ## Linear drug response associations
 
-# These are the core functions to generate the linear associations with drug-response using other types of omics
-# including CRISPR-Cas9 gene-essentiality, RNA-seq gene-expression, whole exome sequencing mutation status and DNA SNP6
+# These are the core functions to generate the linear associations with drug response using other types of omics
+# including CRISPR-Cas9 gene essentiality, RNA-seq gene expression, whole exome sequencing mutation status and DNA SNP6
 # arrays copy-number status.
 
 # Linear mixed models trained with [LIMIX](https://limix.readthedocs.io/en/stable/), these models use a covariance
 # matrix (K) as random effects of the data-set used for the independent features (X). Additionally, covariates (M) are
-# considered: (i) growth rate represented by PC1 of drug-response; (ii) dummy variables of growth properties of the cell
+# considered: (i) growth rate represented by PC1 of drug response; (ii) dummy variables of growth properties of the cell
 # lines (adherent, suspension or semi-adherent); and (iii) dummy variables for the institute of origin of the
 # CRISPR-Cas9 data-sets (Sanger or Broad);
 
-# ### Drug-response ~ CRISPR-Cas9
+# ### Drug response ~ CRISPR-Cas9
 
 lmm_dsingle = assoc.lmm_single_associations(verbose=1)
 lmm_dsingle.sort_values(["fdr", "pval"]).to_csv(
@@ -58,14 +58,14 @@ lmm_dsingle.sort_values(["fdr", "pval"]).to_csv(
 )
 
 
-# ### Drug-response ~ Gene-expression
+# ### Drug response ~ Gene expression
 
 lmm_dgexp = assoc.lmm_single_associations(x_dtype="gexp", verbose=1)
 lmm_dgexp.sort_values(["fdr", "pval"]).to_csv(
     assoc.lmm_drug_gexp_file, index=False, compression="gzip"
 )
 
-# ### Drug-response ~ Genomic (copy-number; mutations)
+# ### Drug response ~ Genomic (copy number; mutations)
 
 lmm_dgenomic = assoc.lmm_single_associations(x_dtype="genomic", verbose=1)
 lmm_dgenomic.sort_values(["fdr", "pval"]).to_csv(
@@ -75,22 +75,22 @@ lmm_dgenomic.sort_values(["fdr", "pval"]).to_csv(
 
 # ## Robust pharmacogenomic associations
 
-# These functions test associations between drug-response/gene-essentiality and genomic/gene-expression for those pairs
+# These functions test associations between drug response/gene fitness and genomic/gene expression for those pairs
 # of drugs and gene which are significantly correlated (log-ratio test BH-FDR < 10%).
 
-# (Drug,Gene) pairs that are both significantly correlated with a genomic feature (mutation, copy-number or gene-
+# (Drug,Gene) pairs that are both significantly correlated with a genomic feature (mutation, copy number or gene
 # expression) are termed as robust pharmacogenomic associations, since these recapitulate an genomic association with
 # two independent viability screens.
 
 
-# ### (Drug-response; CRISPR-Cas9) ~ Genomic
+# ### (Drug response; CRISPR-Cas9) ~ Genomic
 
 lmm_robust = assoc.lmm_robust_associations(lmm_dsingle)
 lmm_robust.sort_values(["drug_fdr", "drug_pval"]).to_csv(
     assoc.lmm_robust_genomic_file, index=False, compression="gzip"
 )
 
-# ### (Drug-response; CRISPR-Cas9) ~ Gene-expression
+# ### (Drug response; CRISPR-Cas9) ~ Gene expression
 
 lmm_robust_gexp = assoc.lmm_robust_associations(lmm_dsingle, x_dtype="gexp")
 lmm_robust_gexp.sort_values(["drug_fdr", "drug_pval"]).to_csv(
