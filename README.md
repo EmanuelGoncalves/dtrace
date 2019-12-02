@@ -1,6 +1,6 @@
 <img src="./dtrace/data/drug_crispr_icon.png" width="350" height="350">
 
-![License](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.2530755.svg)](https://10.6084/m9.figshare.10333286)
+![License](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)[![DOI](https://img.shields.io/badge/figshare-10.6084%2Fm9.figshare.10338413-lightgrey)](https://10.6084/m9.figshare.10333286)
 
 Integration of drug sensitivity and gene essentiality screens inform on drug mode-of-action
 
