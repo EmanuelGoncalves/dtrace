@@ -14,11 +14,7 @@ Clone code repository
 git clone https://github.com/EmanuelGoncalves/dtrace.git
 ```
 
-Get data from [figshare](https://10.6084/m9.figshare.10338413) and unzip into `dtrace/dtrace/data/` folder.
-
-```
-wget https://10.6084/m9.figshare.10338413
-```
+Get data from [figshare](https://doi.org/10.6084/m9.figshare.10338413.v1) and unzip into `dtrace/dtrace/data/` folder.
 
 Install module and initiate jupyter notebooks
 ```
