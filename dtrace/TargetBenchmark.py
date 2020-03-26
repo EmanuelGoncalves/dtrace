@@ -6,12 +6,14 @@ import textwrap
 import upsetplot
 import numpy as np
 import pandas as pd
+import pkg_resources
 import seaborn as sns
 import matplotlib.pyplot as plt
 from crispy.QCPlot import QCplot
 from matplotlib.lines import Line2D
 from scipy.stats import gaussian_kde
 from scipy.stats import mannwhitneyu
+from dtrace.DTraceUtils import rpath, dpath
 from dtrace.DTracePlot import DTracePlot
 from dtrace.DataImporter import KinobeadCATDS
 from sklearn.preprocessing import MinMaxScaler
@@ -83,6 +85,9 @@ class TargetBenchmark(DTracePlot):
 
         # Import kinobead measurements
         self.catds = KinobeadCATDS(assoc=self.assoc).get_data().dropna()
+
+        # ChEMBL number of targets
+        self.chembl_ntargets = pd.read_csv(f"{dpath}/drug_asso_chembl.txt", sep="\t")
 
         super().__init__()
 
@@ -545,6 +550,131 @@ class TargetBenchmark(DTracePlot):
             ax.grid(True, ls="-", lw=0.1, alpha=1.0, zorder=0, axis="y")
             ax.set_ylabel("Drug association\n(-log10 p-value)")
 
+    def top_associations_barplot_group_by_target(self, ntop=50):
+        dtargets_groups = {
+            "MDM2": {"MDM2"},
+            "IGF1R": {"IGF1R", "INSR"},
+            "FGFR1": {"FGFR1", "FGFR2", "FGFR3"},
+            "BRAF": {"BRAF"},
+            "ERBB2": {'ERBB1', 'ERBB2', 'ERBB3'},
+            "EGFR": {"EGFR", "BTK"},
+            "AKT": {"AKT1", "AKT2", "AKT3"},
+            "PIK3C": {"PIK3CA", "PIK3CB", "PIK3CD", "PIK3CG"},
+            "MCL1 and BCL2": {"MCL1", "BCL2"},
+            "cIAP": {'BIRC2', 'BIRC3', 'XIAP'},
+            "MET": {"MET"},
+            "JAK": {"JAK1", "JAK2"},
+            "NTRK": {'NTRK1', 'NTRK2', 'NTRK3'},
+            "SLC16A1": {"SLC16A1"},
+        }
+
+        # Filter for signif associations
+        df = self.assoc.by(self.assoc.lmm_drug_crispr, fdr=self.fdr).sort_values(["fdr", "pval"])
+        df = df.groupby(["DRUG_NAME", "GeneSymbol"]).first()
+        df = df.sort_values("pval").reset_index()
+        df = df.assign(logpval=-np.log10(df["pval"]).values)
+
+        # Drug order
+        order = list(df.groupby("DRUG_NAME")["fdr"].min().sort_values().index)[:ntop]
+        df = df[df["DRUG_NAME"].isin(order)]
+
+        # Group drugs by target
+        df["DRUG_GROUP"] = [";".join([k for k, v in dtargets_groups.items() if len(v.intersection(self.d_targets[d])) > 0]) for d in df["DRUG_NAME"]]
+
+        for dg, dg_df in df.groupby("DRUG_GROUP"):
+            # Build data-frame
+            dg_df_, xpos = [], 0
+
+            dg_order = list(dg_df.groupby("DRUG_NAME")["fdr"].min().sort_values().index)
+            for drug_name in dg_order:
+                df_drug = dg_df[dg_df["DRUG_NAME"] == drug_name].head(10)
+                df_drug = df_drug.assign(xpos=np.arange(xpos, xpos + df_drug.shape[0]))
+
+                xpos += df_drug.shape[0] + 2
+
+                dg_df_.append(df_drug)
+
+            dg_df_ = pd.concat(dg_df_).reset_index()
+
+            # Plot
+            fig, ax = plt.subplots(1, 1, dpi=600, figsize=(.2 * dg_df_.shape[0], 1.7))
+
+            for ci, plot_df in [(2, dg_df_.query("target != 'T'")), (0, dg_df_.query("target == 'T'"))]:
+                ax.bar(
+                    plot_df["xpos"].values,
+                    plot_df["logpval"].values,
+                    0.8,
+                    color=self.PAL_DTRACE[ci],
+                    align="center",
+                    zorder=5,
+                    linewidth=0,
+                )
+
+            for k, v in (
+                dg_df_.groupby("DRUG_NAME")["xpos"]
+                .min()
+                .sort_values()
+                .to_dict()
+                .items()
+            ):
+                ax.text(
+                    v - 1.2,
+                    0.1,
+                    textwrap.fill(k.split(" / ")[0].replace("_", " "), 15),
+                    va="bottom",
+                    fontsize=7,
+                    zorder=10,
+                    rotation="vertical",
+                    color=self.PAL_DTRACE[2],
+                )
+
+            for g, p in dg_df_[["GeneSymbol", "xpos"]].values:
+                ax.text(
+                    p,
+                    0.1,
+                    g,
+                    ha="center",
+                    va="bottom",
+                    fontsize=5,
+                    zorder=10,
+                    rotation="vertical",
+                    color="white",
+                )
+
+            for x, y, t, b in dg_df_[["xpos", "logpval", "target", "beta"]].values:
+                c = self.PAL_DTRACE[0] if t == "T" else self.PAL_DTRACE[2]
+
+                ax.text(
+                    x, y + 0.25, t, color=c, ha="center", fontsize=6, zorder=10
+                )
+                ax.text(
+                    x,
+                    -1,
+                    f"{b:.1f}",
+                    color=c,
+                    ha="center",
+                    va="top",
+                    fontsize=6,
+                    rotation="vertical",
+                    zorder=10,
+                )
+
+            ax.axes.get_xaxis().set_ticks([])
+            ax.grid(True, ls="-", lw=0.1, alpha=1.0, zorder=0, axis="y")
+            ax.set_ylabel("Association (-log10 p-value)")
+            ax.set_title(f"{dg} inhibitors")
+
+            ax.set_xlim([-1.5, xpos - 2])
+            ax_ylim_min, ax_ylim_max = ax.get_ylim()
+            ax.set_ylim([ax_ylim_min, ax_ylim_max + 0.5])
+
+            plt.savefig(
+                f"{rpath}/target_benchmark_associations_barplot_{dg}.pdf",
+                bbox_inches="tight",
+                transparent=True,
+            )
+            plt.close("all")
+
     def drug_notarget_barplot(self, drug, genes):
         df = self.assoc.by(self.assoc.lmm_drug_crispr, drug_name=drug)
         df = df[df["GeneSymbol"].isin(genes)]
@@ -766,7 +896,7 @@ class TargetBenchmark(DTracePlot):
         ax.set_xlabel("Drug significant asociations\nshortest distance to target")
         ax.set_ylabel("Number of drugs (with target in PPI)")
 
-    def signif_maxconcentration_scatter(self):
+    def signif_maxconcentration_scatter(self, x_axis="below_%"):
         # Build data-frame
         d_frist = self.assoc.lmm_drug_crispr.groupby(self.assoc.dcols).first()
 
@@ -777,6 +907,7 @@ class TargetBenchmark(DTracePlot):
                         self.assoc.drespo.loc[d].dropna()
                         < np.log(self.assoc.drespo_obj.maxconcentration[d])
                     ),
+                    "min_resp": (self.assoc.drespo.loc[d].min() - np.log(self.assoc.drespo_obj.maxconcentration[d])),
                     "total": self.assoc.drespo.loc[d].dropna().shape[0],
                 }
                 for d in self.assoc.drespo.index
@@ -793,13 +924,13 @@ class TargetBenchmark(DTracePlot):
         )
         plot_df["fdr_log"] = -np.log10(plot_df["fdr"])
 
-        #
-        grid = sns.JointGrid("below_%", "fdr_log", data=plot_df, space=0)
+        # Plot
+        grid = sns.JointGrid(x_axis, "fdr_log", data=plot_df, space=0)
 
         for ppid in reversed(self.PPI_ORDER + ["X"]):
             df = plot_df.query(f"(target == '{ppid}')")
             grid.ax_joint.scatter(
-                df["below_%"],
+                df[x_axis],
                 df["fdr_log"],
                 s=df["size"],
                 color=self.PPI_PAL[ppid],
@@ -810,7 +941,7 @@ class TargetBenchmark(DTracePlot):
             )
 
             grid.ax_marg_x.hist(
-                df["below_%"], linewidth=0, bins=15, color=self.PPI_PAL[ppid], alpha=0.5
+                df[x_axis], linewidth=0, bins=15, color=self.PPI_PAL[ppid], alpha=0.5
             )
             grid.ax_marg_y.hist(
                 df["fdr_log"],
@@ -828,11 +959,12 @@ class TargetBenchmark(DTracePlot):
         grid.ax_joint.grid(True, ls="-", lw=0.1, alpha=1.0, zorder=0, axis="both")
 
         grid.set_axis_labels(
-            "Measurements lower than max Concentration\n(%)",
+            "Drug Measurements < Max. Concentration (%)" if x_axis == "below_%" else "Drug Min. IC50 - Max. Concentration",
             "Drug lowest association FDR\n(min, -log10)",
         )
 
-        grid.ax_joint.set_xlim(0, 1)
+        if x_axis == "below_%":
+            grid.ax_joint.set_xlim(0, 1)
 
     def signif_fdr_scatter(self):
         plot_df = pd.concat(
@@ -938,7 +1070,7 @@ class TargetBenchmark(DTracePlot):
         ax.set_ylabel("Drug-gene association\n(-log10 p-value)")
         ax.set_title(f"{drug} associations")
 
-        return plot_df
+        return plot_df, ax
 
     def signif_volcano(self):
         plot_df = self.assoc.by(self.assoc.lmm_drug_crispr, fdr=self.fdr)

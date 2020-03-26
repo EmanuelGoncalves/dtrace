@@ -96,6 +96,7 @@ class Association:
         if load_robust:
             self.lmm_robust_gexp = pd.read_csv(self.lmm_robust_gexp_file)
             self.lmm_robust_genomic = pd.read_csv(self.lmm_robust_genomic_file)
+            self.lmm_robust_genomic = self.lmm_robust_genomic.rename(columns=dict(genomic="x_feature"))
 
         # Load PPI
         if load_ppi:
@@ -204,10 +205,11 @@ class Association:
         # Covariates + Intercept
         if m is not None:
             m = m.loc[Y.index]
-            m = m.assign(intercept=1)
 
             if filter_std:
                 m = m.loc[:, m.std() > 0]
+
+            m = m.assign(intercept=1)
 
         # Linear Mixed Model
         lmm = scan(X, Y, K=K, M=m, lik=lik, verbose=False)

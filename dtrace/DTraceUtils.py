@@ -6,4 +6,4 @@ import pkg_resources
 
 # - Paths
 dpath = pkg_resources.resource_filename("dtrace", "data/")
-rpath = pkg_resources.resource_filename("notebooks", "reports/")
+rpath = pkg_resources.resource_filename("notebooks", "reports/").replace("crispy", "dtrace")

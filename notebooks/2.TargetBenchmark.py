@@ -22,9 +22,11 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
+from natsort import natsorted
 from crispy.Utils import Utils
 from scipy.stats import ttest_ind
 from dtrace.DTraceUtils import rpath
+from dtrace.DataImporter import Sample
 from dtrace.Associations import Association
 from dtrace.TargetBenchmark import TargetBenchmark
 
@@ -71,6 +73,8 @@ plt.show()
 
 # Representative examples of the drug-gene associations.
 
+ss = Sample().samplesheet
+
 dgs = [
     ("Alpelisib", "PIK3CA"),
     ("Nutlin-3a (-)", "MDM2"),
@@ -83,6 +87,19 @@ dgs = [
     ("Cetuximab", "EGFR"),
     ("Olaparib", "PARP1"),
     ("Olaparib", "PARP2"),
+    ("Capmatinib", "MET"),
+    ("SGX-523", "MET"),
+    ("AZD6094", "MET"),
+    ("Savolitinib", "MET"),
+    ("ASLAN002", "MET"),
+    ("Tepotinib", "MET"),
+    ("Crizotinib", "MET"),
+    ("Foretinib", "MET"),
+    ("Merestinib", "MET"),
+    ("PD173074", "FGFR1"),
+    ("AZD4547", "FGFR1"),
+    ("AZD4547", "FGFR2"),
+    ("FGFR_3831", "FGFR2"),
 ]
 
 dg = ("Linsitinib", "IGF1R")
@@ -267,14 +284,15 @@ plt.show()
 # Significant associations p-value (y-axis) spread across the number of times a drug displayed an IC50 lower than the
 # maximum screened concentration.
 
-target.signif_maxconcentration_scatter()
-plt.gcf().set_size_inches(2.5, 2.5)
-plt.savefig(
-    f"{rpath}/target_benchmark_signif_scatter_maxconcentration.pdf",
-    bbox_inches="tight",
-    transparent=True,
-)
-plt.show()
+for x in ["below_%", "min_resp"]:
+    target.signif_maxconcentration_scatter(x_axis=x)
+    plt.gcf().set_size_inches(2.5, 2.5)
+    plt.savefig(
+        f"{rpath}/target_benchmark_signif_scatter_maxconcentration_{x}.pdf",
+        bbox_inches="tight",
+        transparent=True,
+    )
+    plt.show()
 
 
 # Drug-Gene CRISPR associations p-value (-log10) versus Drug-Genomic associations p-value (-log10).
@@ -291,18 +309,11 @@ plt.show()
 
 # Top associations
 
-drugs = [
-    "AZD5582",
-    "IAP_5620",
-    "VE821",
-    "AZD6738",
-    "VE-822",
-    "Cetuximab",
-]
+drugs = ["AZD5582", "IAP_5620", "VE821", "AZD6738", "VE-822", "Cetuximab", "Ibrutinib"]
 
-for d in drugs:
-    plot_df = target.drug_top_associations(d, fdr_thres=0.25)
-    plt.gcf().set_size_inches(.2 * plot_df.shape[0], 1.5)
+for d in ["Alpelisib", "AZD8186", "Buparlisib", "Omipalisib"]:
+    plot_df, ax = target.drug_top_associations(d, fdr_thres=0.1)
+    plt.gcf().set_size_inches(0.2 * plot_df.shape[0], 2)
     plt.savefig(
         f"{rpath}/target_benchmark_top_associations_barplot_{d}.pdf",
         bbox_inches="tight",
@@ -377,11 +388,7 @@ for dg in dgs:
     plot_df["Institute"] = "Sanger"
 
     g = target.plot_corrplot(
-        f"gexp_{dg[1]}",
-        "drug",
-        "Institute",
-        plot_df,
-        annot_text=annot_text,
+        f"gexp_{dg[1]}", "drug", "Institute", plot_df, annot_text=annot_text
     )
 
     g.ax_joint.axhline(
@@ -405,7 +412,7 @@ for gene_x, gene_y in [("MARCH5", "MCL1"), ("SHC1", "EGFR")]:
     plot_df = assoc.build_df(crispr=[gene_x, gene_y], sinfo=["institute"]).dropna()
 
     g = target.plot_corrplot(
-        f"crispr_{gene_x}", f"crispr_{gene_y}", "institute", plot_df, annot_text="",
+        f"crispr_{gene_x}", f"crispr_{gene_y}", "institute", plot_df, annot_text=""
     )
 
     g.set_axis_labels(f"{gene_x} (scaled log2 FC)", f"{gene_y} (scaled log2 FC)")
@@ -423,8 +430,8 @@ for gene_x, gene_y in [("MARCH5", "MCL1"), ("SHC1", "EGFR")]:
 
 ppi_examples = [
     ("Nutlin-3a (-)", 0.4, 1, ["RPL37", "UBE3B"]),
-    ("AZD3759", 0.3, 1, None),
-    ("Cetuximab", 0.3, 1, None),
+    ("AZD3759", 0.3, 2, None),
+    ("Cetuximab", 0.3, 2, None),
 ]
 for d, t, o, e in ppi_examples:
     graph = assoc.ppi.plot_ppi(
@@ -433,7 +440,7 @@ for d, t, o, e in ppi_examples:
         assoc.ppi_string_corr,
         corr_thres=t,
         norder=o,
-        fdr=0.05,
+        fdr=0.1,
         exclude_nodes=e,
     )
     graph.write_pdf(f"{rpath}/association_ppi_{d}.pdf")
@@ -501,5 +508,204 @@ for dtype in ["crispr_std", "drug_std"]:
         f"{rpath}/target_benchmark_drug_signif_{dtype}_boxplot.pdf", bbox_inches="tight"
     )
     plt.show()
+
+
+# Overview of drug taregt classes
+
+dgroups = pd.Series(
+    {
+        "#ebf3fa": {"FGFR1", "FGFR2", "FGFR3", "FGFR4"},
+        "#adcee5": {"RAF1", "BRAF"},
+        "#6fa8d1": {"MAPK1", "MAPK3"},
+        "#3182bd": {"MAP2K1", "MAP2K2"},
+
+        "#f2a17a": {"PIK3CA", "PIK3CB", "PIK3CD", "PIK3CG"},
+        "#ec7b43": {"AKT1", "AKT2", "AKT3"},
+        "#e6550d": {"MTOR"},
+
+        "#6fc088": {"EGFR"},
+        "#aedcbc": {"ERBB2"},
+        "#edf7f0": {"IGF1R"},
+
+        "#938bc2": {"ATR", "ATM"},
+        "#756bb1": {"WEE1", "TERT"},
+
+        "#eeaad3": {"BTK"},
+        "#e78ac3": {"SYK"},
+
+        "#cbeae0": {"TOP2A", "TOP1"},
+        "#a9ddcc": {"BRD2", "BRD3", "BRD4"},
+        "#87cfb9": {"HSP90AA1", "HSP90AB1"},
+        "#66c2a5": {"PARP1", "PARP2"},
+
+        "#fffee6": {"XIAP", "BIRC2", "BIRC3"},
+        "#fefd9e": {"BCL2", "BCL2L1"},
+        "#fefb57": {"MCL1"},
+
+        "#636363": {"KIT"},
+        "#aaaaaa": {"FLT1", "FLT3", "FLT4"},
+
+        "#fff7e5": {"PLK1"},
+        "#f6e0ac": {"ROCK1", "ROCK2"},
+        "#eec872": {"CDK2", "CDK4", "CDK6", "CDK8", "CDK7", "CDK9", "CDK12"},
+        "#e5b139": {"CHEK1", "CHEK2"},
+        "#dd9a00": {"AURKA", "AURKB", "AURKC"},
+
+        "#bc80bd": {"HDAC1", "HDAC2", "HDAC3", "HDAC6", "HDAC8"},
+        "#f8eced": {"ABL1"},
+        "#e0bec0": {"TNKS", "TNKS2"},
+        "#c89092": {"PAK1"},
+        "#b06265": {"MET"},
+        "#983539": {"JAK1", "JAK2", "JAK3"},
+
+        "#f2f2f2": {"No target"},
+        "#d7d7d7": {"Other target"},
+        "#bbbbbb": {"Multiple targets"},
+    }
+)
+
+
+def get_drug_target_color(dname):
+    if dname not in target.d_targets:
+        return "#f2f2f2"
+
+    dname_targets = [
+        c
+        for c in dgroups.index
+        if len(target.d_targets[dname].intersection(dgroups[c])) > 0
+    ]
+
+    if len(dname_targets) == 0:
+        return "#d7d7d7"
+
+    elif len(dname_targets) == 1:
+        return dname_targets[0]
+
+    else:
+        return "#bbbbbb"
+
+
+plot_df = pd.DataFrame(
+    [
+        dict(
+            drug_name=d,
+            target=target.d_targets[d] if d in target.d_targets else np.nan,
+            color=get_drug_target_color(d),
+            group=";".join(dgroups[get_drug_target_color(d)]),
+        )
+        for d in target.d_sets_name["all"]
+    ]
+)
+plot_df = plot_df.groupby(["group", "color"]).count()["drug_name"].reset_index()
+
+plt.figure(figsize=(2.5, 5), dpi=600)
+sns.barplot(
+    "drug_name",
+    "group",
+    data=plot_df,
+    order=[";".join(c) for c in dgroups if "Other target" not in c],
+    linewidth=0,
+    palette=plot_df.set_index("group")["color"].to_dict(),
+    orient="h",
+    saturation=1,
+)
+plt.grid(True, ls="-", lw=0.1, alpha=1.0, zorder=0, axis="x")
+plt.xlabel("Number of drugs")
+plt.ylabel("")
+plt.title("Most represented drug target classes")
+plt.savefig(f"{rpath}/target_benchmark_drugs_group_barplot.pdf", bbox_inches="tight")
+plt.close("all")
+
+
+# Representation of drug target classes on significant associations
+
+plot_df = assoc.lmm_drug_crispr.query("target == 'T'")
+
+plot_df = pd.concat([
+    plot_df.groupby("DRUG_NAME")["DRUG_TARGETS"].first().value_counts().rename("total"),
+    plot_df.query("fdr < .1").groupby("DRUG_NAME")["DRUG_TARGETS"].first().value_counts().rename("signif"),
+], axis=1, sort=False).fillna(0).query("total >= 3")
+plot_df = plot_df.assign(perc=plot_df.eval("signif / total"))
+plot_df = plot_df.sort_values("perc", ascending=False).reset_index()
+
+
+plt.figure(figsize=(2.5, 4.5), dpi=600)
+
+plt.scatter(
+    plot_df["perc"],
+    plot_df.index,
+    c=plot_df["signif"],
+    s=plot_df["signif"] + 2,
+    marker="o",
+    edgecolor="",
+    cmap="viridis_r",
+)
+
+for i, (p, s, tt, t) in plot_df[["perc", "signif", "total", "index"]].iterrows():
+    plt.text(
+        (p - .015) if p == 1 else (p + 0.015),
+        i,
+        f"{t.replace(';', ', ')} (n={s:.0f}/{tt})",
+        color=target.PAL_DTRACE[2],
+        va="center",
+        ha="right" if p == 1 else "left",
+        fontsize=4,
+        zorder=10
+    )
+
+plt.grid(True, ls="-", lw=0.1, alpha=1.0, zorder=0, axis="x")
+
+plt.xlabel("Percentage of drugs in target class\nwith significant association with nominal target(s)")
+plt.title("Representation of drug target classes")
+
+plt.savefig(f"{rpath}/target_benchmark_drug_signif_enrichment_barplot.pdf", bbox_inches="tight")
+plt.close("all")
+
+
+# Drugs number of targets in ChEMBL
+
+plot_df = pd.concat([
+    target.chembl_ntargets.groupby(target.dinfo)["target_count"].min(),
+    assoc.lmm_drug_crispr.query("target == 'T'").groupby(target.dinfo)["pval"].min(),
+], axis=1).dropna().reset_index()
+plot_df["signif"] = plot_df["DRUG_NAME"].isin(target.d_sets_name["significant"]).apply(lambda v: "Yes" if v else "No")
+plot_df["target_count_bin"] = plot_df["target_count"].apply(lambda v: Utils.bin_cnv(v, thresold=10))
+
+order = ["Yes", "No"]
+
+_, ax = plt.subplots(1, 1, figsize=(3, .75), dpi=600)
+
+sns.boxplot(
+    np.log(plot_df["target_count"]),
+    plot_df["signif"],
+    order=order,
+    palette=target.PAL_YES_NO,
+    notch=True,
+    linewidth=0.3,
+    fliersize=1.5,
+    flierprops=target.FLIERPROPS,
+    showcaps=False,
+    orient="h",
+    saturation=1,
+    ax=ax,
+)
+
+groupn = plot_df.groupby("signif")["DRUG_NAME"].count()
+ax.set_yticklabels([f"{i} (n={groupn[i]})" for i in order])
+
+t, pval = ttest_ind(
+    np.log(plot_df.query("signif == 'Yes'")["target_count"]),
+    np.log(plot_df.query("signif == 'No'")["target_count"]),
+    equal_var=False,
+)
+ax.set_title(f"Welch's t-test p-value={pval:.1g}")
+
+ax.grid(True, ls="-", lw=0.1, alpha=1.0, zorder=0, axis="x")
+ax.set_xlabel("Number of drug targets in ChEMBL (log)")
+ax.set_ylabel("Drug-Target\nsignificant association")
+
+plt.savefig(f"{rpath}/target_benchmark_chembl_boxplot.pdf", bbox_inches="tight")
+plt.close("all")
+
 
 # Copyright (C) 2019 Emanuel Goncalves

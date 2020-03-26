@@ -101,15 +101,21 @@ plt.show()
 
 # Representative examples of robust pharmacogenomic associations with copy-number and mutations
 
+dn_resp = pd.Series({d: np.sum(assoc.drespo.loc[d] < np.log(m)) for d, m in assoc.drespo_obj.maxconcentration.items()}).sort_values()
+
+dn_resp_genomic = assoc.lmm_robust_genomic.query(f"(drug_fdr < .1) & (crispr_fdr < .1) & (target == 'T')")
+dn_resp_gexp = assoc.lmm_robust_gexp.query(f"(drug_fdr < .1) & (crispr_fdr < .1) & (target == 'T')")
+
+[(d, dn_resp_gexp.query(f"DRUG_NAME == '{d[1]}'")) for d in dn_resp.head(100).index if dn_resp_gexp.query(f"DRUG_NAME == '{d[1]}'").shape[0] != 0]
+
 rassocs = [
     ("Olaparib", "FLI1", "EWSR1.FLI1_mut"),
     ("Dabrafenib", "BRAF", "BRAF_mut"),
     ("Nutlin-3a (-)", "MDM2", "TP53_mut"),
     ("Taselisib", "PIK3CA", "PIK3CA_mut"),
-    ("MCL1_1284", "MCL1", "EZH2_mut"),
 ]
 
-# d, c, g = ('Linifanib', 'STAT5B', 'XRN1_mut')
+# d, c, g = ('CP-724714', 'ERBB2', 'gain.cnaPANCAN301..CDK12.ERBB2.MED24.')
 for d, c, g in rassocs:
     pair = robust.assoc.by(
         robust.assoc.lmm_robust_genomic, drug_name=d, gene_name=c, x_feature=g
@@ -152,6 +158,7 @@ rassocs = [
     ("IAP_5620", "MAP3K7", "TNF"),
 ]
 
+# d, c, g = "Venetoclax", "BCL2", "BCL2"
 for d, c, g in rassocs:
     pair = robust.assoc.by(
         robust.assoc.lmm_robust_gexp, drug_name=d, gene_name=c, x_feature=g
@@ -229,6 +236,91 @@ for d, c, g in rassocs:
         transparent=True,
     )
     plt.show()
+
+
+# (Alternative visualisation) Representative examples of robust pharmacogenomic associations with gene-expression
+
+rassocs = [
+    ([(1428, 'IAP_5620', 'GDSC2')], ["MAP3K7"], "TNF"),
+]
+
+# drugs, crisprs, gexp = ([(1428, 'IAP_5620', 'GDSC2')], ["MAP3K7"], "TNF")
+for drugs, crisprs, gexp in rassocs:
+    plot_df = robust.assoc.build_df(
+        drug=drugs, crispr=crisprs, gexp=[gexp], sinfo=["institute", "cancer_type"]
+    ).dropna().assign(institute_drug="Sanger")
+
+    #
+    n_cols = len(drugs) + len(crisprs)
+    fig, axs = plt.subplots(1, n_cols, sharey="row", sharex="none", dpi=600)
+
+    i = 0
+    for dtype, features in [("crispr", crisprs), ("drug", drugs)]:
+        for f in features:
+            # Scatter
+            for t, df in plot_df.groupby("institute" if dtype == "crispr" else "institute_drug"):
+                axs[i].scatter(
+                    x=df[f"{dtype}_{f}" if dtype == "crispr" else f],
+                    y=df[f"gexp_{gexp}"],
+                    edgecolor="w",
+                    lw=0.05,
+                    s=10,
+                    color=robust.PAL_DTRACE[2],
+                    marker=robust.MARKERS[t],
+                    label=t,
+                    alpha=0.8,
+                )
+
+            # Legend
+            axs[i].legend(prop=dict(size=4), frameon=False, loc=2)
+
+            # Reg
+            sns.regplot(
+                x=plot_df[f"{dtype}_{f}" if dtype == "crispr" else f],
+                y=plot_df[f"gexp_{gexp}"],
+                data=plot_df,
+                color=robust.PAL_DTRACE[1],
+                truncate=True,
+                fit_reg=True,
+                scatter=False,
+                line_kws=dict(lw=1.0, color=robust.PAL_DTRACE[0]),
+                ax=axs[i],
+            )
+
+            if dtype == "drug":
+                dmax = np.log(robust.assoc.drespo_obj.maxconcentration[f])
+                axs[i].axvline(
+                    x=dmax, linewidth=0.3, color=robust.PAL_DTRACE[2], ls=":", zorder=0
+                )
+
+            # Annotation
+            cor, pval = pearsonr(
+                plot_df[f"{dtype}_{f}" if dtype == "crispr" else f],
+                plot_df[f"gexp_{gexp}"],
+            )
+            annot_text = f"R={cor:.2g}, p={pval:.1e}"
+
+            axs[i].text(
+                0.05, 0.05, annot_text, fontsize=4, transform=axs[i].transAxes, ha="left"
+            )
+
+            # Misc
+            axs[i].set_ylabel(f"{gexp}\n(RNA-seq voom)" if i == 0 else "")
+            axs[i].set_xlabel(f"{f}\n(scaled log2 FC)" if dtype == "crispr" else f"{f[1]}\n(ln IC50)")
+            # axs[i].set_title(c if dtype == "crispr" else g)
+
+            axs[i].grid(True, ls="-", lw=0.1, alpha=1.0, zorder=0, axis="both")
+
+            i += 1
+
+    plt.subplots_adjust(wspace=0.05)
+    plt.gcf().set_size_inches(1.5 * n_cols, 1.5)
+    plt.savefig(
+        f"{rpath}/robust_scatter_gexp_alternative_{gexp}.pdf",
+        bbox_inches="tight",
+        transparent=True,
+    )
+    plt.close("all")
 
 
 # Synthetic lethal interaction between STAG1/2. STAG2 mutations lead to dependency in STAG1.
