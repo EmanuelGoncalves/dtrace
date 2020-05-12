@@ -9,8 +9,14 @@ Description
 This module contains all the Python scripts and results of the [analysis](). ipython notebooks are provided in the 
 notebooks directory along with all the generated plots from the analysis. 
 
-Clone code repository
+Install dependencies and clone code repository
 ```
+pip install cy
+
+pip install xlrd
+
+pip install jupyter
+
 git clone https://github.com/EmanuelGoncalves/dtrace.git
 ```
 
