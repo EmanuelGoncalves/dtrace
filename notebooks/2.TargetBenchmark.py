@@ -666,9 +666,9 @@ plt.close("all")
 
 plot_df = pd.concat([
     target.chembl_ntargets.groupby(target.dinfo)["target_count"].min(),
-    assoc.lmm_drug_crispr.query("target == 'T'").groupby(target.dinfo)["pval"].min(),
+    assoc.lmm_drug_crispr.groupby(target.dinfo)["pval"].min(),
 ], axis=1).dropna().reset_index()
-plot_df["signif"] = plot_df["DRUG_NAME"].isin(target.d_sets_name["significant"]).apply(lambda v: "Yes" if v else "No")
+plot_df["signif"] = plot_df["DRUG_NAME"].isin(target.d_sets_name["tested_corrected"]).apply(lambda v: "Yes" if v else "No")
 plot_df["target_count_bin"] = plot_df["target_count"].apply(lambda v: Utils.bin_cnv(v, thresold=10))
 
 order = ["Yes", "No"]
