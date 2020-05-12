@@ -30,7 +30,7 @@ from dtrace.Associations import Association
 
 # ### Import data-sets and associations
 
-assoc = Association(load_associations=True, combine_lmm=True)
+assoc = Association(load_associations=True, combine_lmm=False)
 
 
 # ## MCL1 inhibitors associations
@@ -45,9 +45,10 @@ hit = TargetHit("MCL1", assoc=assoc)
 
 hit.top_associations_barplot()
 plt.ylabel("Association p-value (-log10)")
-plt.title("CRISPR associations with multiple MCL1 inhibitors")
-plt.gcf().set_size_inches(5, 1.5)
+plt.title("Top 3 CRISPR associations with multiple MCL1 inhibitors")
+plt.gcf().set_size_inches(7, 2)
 plt.savefig(f"{rpath}/hit_topbarplot.pdf", bbox_inches="tight", transparent=True)
+plt.close("all")
 plt.show()
 
 

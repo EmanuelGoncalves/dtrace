@@ -54,25 +54,20 @@ class TargetHit(DTracePlot):
 
     def top_associations_barplot(self):
         # Filter for signif associations
-        df = (
-            self.assoc.lmm_drug_crispr.query(
-                f"(fdr < {self.fdr}) & (DRUG_TARGETS == '{self.target}')"
-            )
-            .sort_values("fdr")
-            .groupby(["DRUG_NAME", "GeneSymbol"])
-            .first()
-            .sort_values("fdr")
-            .reset_index()
-        )
+        df = self.assoc.lmm_drug_crispr.query(
+            f"(DRUG_TARGETS == '{self.target}')"
+        ).sort_values("pval")
+        df = df.groupby(["DRUG_NAME", "DRUG_ID"]).head(3)
         df = df.assign(logpval=-np.log10(df["pval"]).values)
+        df = df.assign(label=[f"{n.split(' / ')[0]} (id={i})" for n, i in df[["DRUG_NAME", "DRUG_ID"]].values])
 
         # Drug order
-        order = list(df.groupby("DRUG_NAME")["fdr"].min().sort_values().index)
+        order = list(df.groupby("label")["pval"].min().sort_values().index)
 
         # Build plot dataframe
         df_, xpos = [], 0
         for i, drug_name in enumerate(order):
-            df_drug = df[df["DRUG_NAME"] == drug_name]
+            df_drug = df[df["label"] == drug_name]
             df_drug = df_drug.assign(xpos=np.arange(xpos, xpos + df_drug.shape[0]))
 
             xpos = xpos + df_drug.shape[0] + 1
@@ -107,12 +102,12 @@ class TargetHit(DTracePlot):
         )
 
         for k, v in (
-            df.groupby("DRUG_NAME")["xpos"].min().sort_values().to_dict().items()
+            df.groupby("label")["xpos"].min().sort_values().to_dict().items()
         ):
             ax.text(
                 v - 1.2,
                 0.1,
-                textwrap.fill(k.split(" / ")[0], 15),
+                k,
                 va="bottom",
                 fontsize=8,
                 zorder=10,
