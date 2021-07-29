@@ -29,6 +29,8 @@ class Association:
         load_ppi=False,
         ppi_thres=900,
         combine_lmm=False,
+        crispr_obj=None,
+        drespo_obj=None,
     ):
         """
         :param pval_method: Multiple hypothesis adjustment method. Any option available in multipletests
@@ -44,8 +46,8 @@ class Association:
         self.ppi_order = ["T", "1", "2", "3", "4", "5+", "-"]
 
         # Import data-sets
-        self.crispr_obj = DataImporter.CRISPR()
-        self.drespo_obj = DataImporter.DrugResponse()
+        self.crispr_obj = DataImporter.CRISPR() if crispr_obj is None else crispr_obj
+        self.drespo_obj = DataImporter.DrugResponse() if drespo_obj is None else drespo_obj
         self.genomic_obj = DataImporter.Genomic()
         self.gexp_obj = DataImporter.GeneExpression()
         self.cn_obj = DataImporter.CopyNumber()

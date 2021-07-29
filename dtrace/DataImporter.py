@@ -1052,6 +1052,174 @@ class KinobeadCATDS:
         return df
 
 
+class Probes:
+    SAMPLE_COLUMNS = ["model_id"]
+    DRUG_COLUMNS = ["DRUG_ID", "DRUG_NAME", "VERSION"]
+
+    dpath = pkg_resources.resource_filename("notebooks", "probes/reports/")
+    drugsheet_file = "probes_targets.csv"
+    drugresponse_file = "probes_data.csv"
+    drugmaxconcentration_file = "probes_maxc.csv"
+
+    def __init__(self):
+        self.drugsheet = self.get_drugsheet()
+
+        # Import and Merge drug response matrix (IC50)
+        self.drugresponse = pd.read_csv(f"{self.dpath}/{self.drugresponse_file}")
+
+        # Drug max concentration
+        self.maxconcentration = pd.read_csv(f"{self.dpath}/{self.drugmaxconcentration_file}", index_col=[0, 1, 2]).iloc[:, 0]
+
+    def perform_pca(self, n_components=10, subset=None):
+        df = DataPCA.perform_pca(
+            self.filter(subset=subset), n_components=n_components
+        )
+
+        for by in df:
+            df[by]["pcs"].round(5).to_csv(f"{self.dpath}/PCA_drug_{by}_pcs.csv")
+            df[by]["vex"].round(5).to_csv(f"{self.dpath}/PCA_drug_{by}_vex.csv")
+
+    @classmethod
+    def import_pca(cls):
+        pca = {}
+
+        for by in ["row", "column"]:
+            pca[by] = {}
+
+            pca[by]["pcs"] = pd.read_csv(
+                f"{cls.dpath}/PCA_drug_{by}_pcs.csv",
+                index_col=[0, 1, 2] if by == "row" else 0,
+            )
+            pca[by]["vex"] = pd.read_csv(
+                f"{cls.dpath}/PCA_drug_{by}_vex.csv", index_col=0, header=None
+            ).iloc[:, 0]
+
+        return pca
+
+    def perform_growth_corr(self, subset=None):
+        ss = Sample()
+
+        corr = ss.growth_corr(self.filter(subset=subset))
+        corr.round(5).to_csv(
+            f"{self.dpath}/growth_drug_correlation.csv", index=False
+        )
+
+        return corr
+
+    def perform_number_responses(self, resp_thres=0.5, subset=None):
+        df = self.filter(subset=subset)
+
+        num_resp = {
+            d: np.sum(
+                df.loc[d].dropna() < np.log(self.maxconcentration[d] * resp_thres)
+            )
+            for d in df.index
+        }
+        num_resp = pd.Series(num_resp).reset_index()
+        num_resp.columns = ["DRUG_ID", "DRUG_NAME", "VERSION", "n_resp"]
+
+        num_resp.to_csv(f"{self.dpath}/number_responses_drug.csv", index=False)
+
+        return num_resp
+
+    @classmethod
+    def get_drugsheet(cls):
+        return pd.read_csv(f"{cls.dpath}/{cls.drugsheet_file}", index_col=0)
+
+    @classmethod
+    def get_drugtargets(cls, by="id"):
+        if by == "id":
+            d_targets = cls.get_drugsheet()["Gene.Target"].dropna().to_dict()
+
+        else:
+            d_targets = (
+                cls.get_drugsheet().groupby("Probe.Name")["Gene.Target"].first().dropna().to_dict()
+            )
+
+        d_targets = {k: {t.strip() for t in d_targets[k].split(";")} for k in d_targets}
+
+        return d_targets
+
+    def get_data(self):
+        return pd.pivot_table(self.drugresponse, index=self.DRUG_COLUMNS, columns=self.SAMPLE_COLUMNS, values="ln_IC50")
+
+    def filter(
+        self,
+        subset=None,
+        min_events=3,
+        min_meas=0.2,
+        max_c=0.5,
+        filter_max_concentration=True,
+        filter_combinations=True,
+    ):
+        # Drug max screened concentration
+        df = self.get_data()
+        d_maxc = np.log(self.maxconcentration * max_c)
+
+        # - Filters
+        # Subset samples
+        if subset is not None:
+            df = df.loc[:, df.columns.isin(subset)]
+
+        # Filter by mininum number of observations
+        df = df[df.count(1) > (df.shape[1] * min_meas)]
+
+        # Filter by max screened concentration
+        if filter_max_concentration:
+            df = df[[sum(df.loc[i] < d_maxc.loc[i]) >= min_events for i in df.index]]
+
+        # Filter combinations
+        if filter_combinations:
+            df = df[[" + " not in i[1] for i in df.index]]
+
+        return self.get_data().loc[df.index, df.columns]
+
+    def is_in_druglist(self, drug_ids):
+        return np.all([d in self.drugsheet.index for d in drug_ids])
+
+    def is_same_drug(self, drug_id_1, drug_id_2):
+        """
+        Check if 2 Drug IDs are represent the same drug by checking if Name or Synonyms are the same.
+
+        :param drug_id_1:
+        :param drug_id_2:
+        :return: Bool
+        """
+
+        if drug_id_1 not in self.drugsheet:
+            warnings.warn("Drug ID {} not in drug list".format(drug_id_1))
+            return False
+
+        if drug_id_2 not in self.drugsheet:
+            warnings.warn("Drug ID {} not in drug list".format(drug_id_2))
+            return False
+
+        drug_names = {d: self.get_drug_names(d) for d in [drug_id_1, drug_id_2]}
+
+        return len(drug_names[drug_id_1].intersection(drug_names[drug_id_2])) > 0
+
+    def get_drug_names(self, drug_id):
+        """
+        From a Drug ID get drug Name and Synonyms.
+
+        :param drug_id:
+        :return:
+        """
+
+        if drug_id not in self.drugsheet.index:
+            logging.getLogger("DTrace").info(f"{drug_id} Drug ID not in drug list")
+            return None
+
+        drug_name = [self.drugsheet.loc[drug_id, "Name"]]
+
+        drug_synonyms = self.drugsheet.loc[drug_id, "Synonyms"]
+        drug_synonyms = (
+            [] if str(drug_synonyms).lower() == "nan" else drug_synonyms.split(", ")
+        )
+
+        return set(drug_name + drug_synonyms)
+
+
 if __name__ == "__main__":
     crispr = CRISPR()
     drug_response = DrugResponse()
